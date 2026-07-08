@@ -1,0 +1,500 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserAccount {
+  id                  String        @id @default(uuid())
+  email               String        @unique
+  passwordHash        String
+  role                Role
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  companyAdminProfile CompanyAdmin?
+  doctorProfile       Doctor?
+  operatorProfile     Operator?
+  patientProfile      Patient?
+  clinicProfile       Clinic?
+  supportTickets      SupportTicket[]
+}
+
+model Clinic {
+  id                    String                 @id @default(uuid())
+  name                  String
+  cnpj                  String                 @unique
+  address               String?
+  city                  String?
+  state                 String?
+  phone                 String?
+  contactEmail          String?
+  lat                   Float?
+  lng                   Float?
+  isActive              Boolean                @default(true)
+  isFranchise           Boolean                @default(false)
+  credentialSource      String?
+  userId                String?                @unique
+  user                  UserAccount?           @relation(fields: [userId], references: [id])
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  calendarEvents        CalendarEvent[]
+  companies             Company[]
+  examRequests          ExamRequest[]
+  financialTransactions FinancialTransaction[]
+  operators             Operator[]
+}
+
+model Operator {
+  id          String       @id @default(uuid())
+  userId      String       @unique
+  clinicId    String
+  examResults ExamResult[]
+  clinic      Clinic       @relation(fields: [clinicId], references: [id])
+  user        UserAccount  @relation(fields: [userId], references: [id])
+}
+
+model Doctor {
+  id                    String                 @id @default(uuid())
+  userId                String                 @unique
+  name                  String
+  crmNumber             String                 @unique
+  crmState              String
+  signaturePin          String?
+  city                  String?
+  state                 String?
+  rqeNumber             String?
+  specialties           String?
+  status                String                 @default("offline")
+  verifiedAt            DateTime?
+  credentialSource      String?
+  asoDocuments          AsoDocument[]
+  calendarEvents        CalendarEvent[]
+  user                  UserAccount            @relation(fields: [userId], references: [id])
+  financialTransactions FinancialTransaction[]
+  teleconsultations     Teleconsultation[]
+}
+
+/// Empresa contratante — cliente comercial da plataforma
+model Company {
+  id                    String                   @id @default(uuid())
+  cnpj                  String                   @unique
+  razaoSocial           String                   @default("")
+  nomeFantasia          String?
+  /// Campos legados mantidos para compatibilidade com seed existente
+  name                  String?
+  planType              String?
+  /// Endereço e Geolocalização (para cálculo de clínica mais próxima)
+  address               String?
+  cep                   String?
+  city                  String?
+  state                 String?
+  phone                 String?
+  contactEmail          String?
+  lat                   Float?
+  lng                   Float?
+  /// Status de operação da empresa na plataforma
+  status                CompanyStatus            @default(CADASTRO_INCOMPLETO)
+  /// Clínica atribuída automaticamente por proximidade geográfica
+  clinicId              String?
+  /// Documentação obrigatória vigente e datas de validade
+  pcmsoDocumentUrl      String?
+  ppraDocumentUrl       String?
+  pcmsoValidUntil       DateTime?
+  ppraValidUntil        DateTime?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  calendarEvents        CalendarEvent[]
+  clinic                Clinic?                  @relation(fields: [clinicId], references: [id])
+  admins                CompanyAdmin[]
+  documents             CompanyDocument[]
+  patients              CompanyPatientRelation[]
+  examInvites           ExamInvite[]
+  financialTransactions FinancialTransaction[]
+}
+
+/// Papel "Cadastrador" — único papel por empresa nesta fase
+model CompanyAdmin {
+  id        String      @id @default(uuid())
+  userId    String      @unique
+  companyId String
+  createdAt DateTime    @default(now())
+  company   Company     @relation(fields: [companyId], references: [id])
+  user      UserAccount @relation(fields: [userId], references: [id])
+}
+
+/// Token de convite gerado pela Empresa para um colaborador específico
+model ExamInvite {
+  id                String              @id @default(uuid())
+  /// Token UUID não-sequencial, transmitido no link enviado ao colaborador
+  token             String              @unique @default(uuid())
+  companyId         String
+  /// Vínculo de identidade esperado — reduz risco de uso indevido do link
+  expectedCpf       String?
+  expectedEmail     String?
+  /// Função CBO e tipo de exame pré-definidos — não digitados livremente
+  roleFunction      String
+  /// Código CBO numérico (ex: "7232-10") — preenchido via autocomplete
+  roleFunctionCboCode String?
+  examType          String
+  status            InviteStatus        @default(ENVIADO)
+  expiresAt         DateTime
+  sentAt            DateTime            @default(now())
+  openedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  collaboratorName  String?
+  expectedBirthDate DateTime?
+  company           Company             @relation(fields: [companyId], references: [id])
+  examRequest       ExamRequest?
+  timelineEvents    ExamTimelineEvent[]
+}
+
+/// Eventos append-only — apenas progresso operacional, nunca dado clínico
+model ExamTimelineEvent {
+  id            String            @id @default(uuid())
+  inviteId      String?
+  examRequestId String?
+  eventType     TimelineEventType
+  occurredAt    DateTime          @default(now())
+  metadata      String?
+  examRequest   ExamRequest?      @relation(fields: [examRequestId], references: [id])
+  invite        ExamInvite?       @relation(fields: [inviteId], references: [id])
+}
+
+model Patient {
+  id              String                   @id @default(uuid())
+  userId          String                   @unique
+  cpf             String                   @unique
+  name            String
+  birthDate       DateTime?
+  phone           String?
+  functionCboCode String?
+  status          String                   @default("ACTIVE")
+  createdAt       DateTime                 @default(now())
+  anamneses       Anamnese[]
+  companies       CompanyPatientRelation[]
+  examRequests    ExamRequest[]
+  user            UserAccount              @relation(fields: [userId], references: [id])
+  documents       PatientDocument[]
+}
+
+/// Vínculo entre Empresa e Paciente/Colaborador (suporta múltiplos vínculos)
+model CompanyPatientRelation {
+  id        String    @id @default(uuid())
+  companyId String
+  patientId String
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  company   Company   @relation(fields: [companyId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [id])
+}
+
+model OccupationalRisk {
+  id                      String   @id @default(uuid())
+  cboCode                 String   @unique
+  functionName            String
+  riskGrade               String
+  requiresInPerson        Boolean  @default(false)
+  requiredExams           String[]
+  periodicFrequencyMonths Int      @default(12)
+}
+
+model ExamType {
+  id                String       @id @default(uuid())
+  name              String
+  category          String
+  requiresEquipment Boolean      @default(false)
+  canBeRemoteReview Boolean      @default(true)
+  validityDays      Int          @default(365)
+  examResults       ExamResult[]
+}
+
+model ExamRequest {
+  id                    String                 @id @default(uuid())
+  patientId             String
+  clinicId              String?
+  /// Convite de origem (preenchido quando o paciente chegou via link da empresa)
+  inviteId              String?                @unique
+  /// Origem do cadastro: 'direto' | 'convite_empresa'
+  source                String                 @default("direto")
+  examPurpose           String
+  status                String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  asoDocuments          AsoDocument[]
+  clinic                Clinic?                @relation(fields: [clinicId], references: [id])
+  invite                ExamInvite?            @relation(fields: [inviteId], references: [id])
+  patient               Patient                @relation(fields: [patientId], references: [id])
+  results               ExamResult[]
+  timelineEvents        ExamTimelineEvent[]
+  financialTransactions FinancialTransaction[]
+  documents             PatientDocument[]
+  queueEntry            QueueEntry?
+  teleconsultations     Teleconsultation[]
+}
+
+model ExamResult {
+  id            String      @id @default(uuid())
+  requestId     String
+  typeId        String
+  valueJson     String
+  attachmentUrl String?
+  collectedById String
+  collectedAt   DateTime    @default(now())
+  source        String      @default("manual")
+  collectedBy   Operator    @relation(fields: [collectedById], references: [id])
+  request       ExamRequest @relation(fields: [requestId], references: [id])
+  type          ExamType    @relation(fields: [typeId], references: [id])
+}
+
+model QueueEntry {
+  id               String      @id @default(uuid())
+  requestId        String      @unique
+  enteredQueueAt   DateTime    @default(now())
+  priorityScore    Int         @default(0)
+  city             String?
+  state            String?
+  region           String?
+  assignedDoctorId String?
+  assignedAt       DateTime?
+  status           String      @default("WAITING")
+  request          ExamRequest @relation(fields: [requestId], references: [id])
+}
+
+model Teleconsultation {
+  id             String      @id @default(uuid())
+  requestId      String
+  doctorId       String
+  startedAt      DateTime    @default(now())
+  endedAt        DateTime?
+  videoSessionId String?
+  recordingUrl   String?
+  clinicalNotes  String?
+  hostRoomUrl    String?
+  doctor         Doctor      @relation(fields: [doctorId], references: [id])
+  request        ExamRequest @relation(fields: [requestId], references: [id])
+}
+
+model Anamnese {
+  id                   String   @id @default(uuid())
+  patientId            String
+  queixas              String?
+  historicoOcupacional String?
+  historicoMedico      String?
+  medicamentos         String?
+  habitos              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  patient              Patient  @relation(fields: [patientId], references: [id])
+}
+
+model CompanyDocument {
+  id           String    @id @default(uuid())
+  companyId    String
+  type         String
+  fileUrl      String
+  originalName String
+  uploadedAt   DateTime  @default(now())
+  validUntil   DateTime?
+  company      Company   @relation(fields: [companyId], references: [id])
+}
+
+model PatientDocument {
+  id           String      @id @default(uuid())
+  patientId    String
+  requestId    String
+  tipo         String
+  fileUrl      String
+  originalName String
+  uploadedAt   DateTime    @default(now())
+  patient      Patient     @relation(fields: [patientId], references: [id])
+  request      ExamRequest @relation(fields: [requestId], references: [id])
+}
+
+model AsoDocument {
+  id                  String      @id @default(uuid())
+  requestId           String
+  doctorId            String
+  decision            String
+  restrictionNotes    String?
+  pdfUrl              String?
+  signatureProviderId String?
+  signedAt            DateTime?
+  validUntil          DateTime?
+  doctor              Doctor      @relation(fields: [doctorId], references: [id])
+  request             ExamRequest @relation(fields: [requestId], references: [id])
+}
+
+model CalendarEvent {
+  id        String   @id @default(uuid())
+  title     String
+  type      String   @default("geral")
+  date      DateTime
+  doctorId  String?
+  companyId String?
+  clinicId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id])
+  company   Company? @relation(fields: [companyId], references: [id])
+  doctor    Doctor?  @relation(fields: [doctorId], references: [id])
+}
+
+/// Tabela de preços configurável por tipo de exame
+model ServicePrice {
+  id                 String                 @id @default(uuid())
+  /// Ex: "Exame Admissional", "Exame Periódico"
+  name               String
+  description        String?
+  /// Preço cobrado da empresa
+  basePrice          Float                  @default(250.0)
+  /// % de repasse para a clínica
+  clinicFeePercent   Float                  @default(30.0)
+  /// % de honorário para o médico
+  doctorFeePercent   Float                  @default(40.0)
+  /// % de margem para a plataforma
+  platformFeePercent Float                  @default(30.0)
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  transactions       FinancialTransaction[]
+}
+
+/// Configuração global de repasse — valores padrão da plataforma
+model FinancialConfig {
+  id                        String   @id @default(uuid())
+  defaultClinicFeePercent   Float    @default(30.0)
+  defaultDoctorFeePercent   Float    @default(40.0)
+  defaultPlatformFeePercent Float    @default(30.0)
+  updatedAt                 DateTime @updatedAt
+}
+
+/// Transação financeira — gerada automaticamente ao emitir ASO ou lançada manualmente
+model FinancialTransaction {
+  id              String            @id @default(uuid())
+  type            FinancialType
+  category        FinancialCategory
+  description     String
+  amount          Float
+  status          PaymentStatus     @default(PENDENTE)
+  /// PIX | BOLETO | TRANSFERENCIA | DINHEIRO
+  method          String?
+  notes           String?
+  examRequestId   String?
+  clinicId        String?
+  doctorId        String?
+  companyId       String?
+  servicePriceId  String?
+  transactionDate DateTime          @default(now())
+  paidAt          DateTime?
+  createdAt       DateTime          @default(now())
+  clinic          Clinic?           @relation(fields: [clinicId], references: [id])
+  company         Company?          @relation(fields: [companyId], references: [id])
+  doctor          Doctor?           @relation(fields: [doctorId], references: [id])
+  examRequest     ExamRequest?      @relation(fields: [examRequestId], references: [id])
+  servicePrice    ServicePrice?     @relation(fields: [servicePriceId], references: [id])
+}
+
+/// Chamado de suporte aberto por Empresa/Clínica/Médico
+model SupportTicket {
+  id          String                @id @default(uuid())
+  userId      String
+  userProfile String                /// "EMPRESA" | "CLINICA" | "MEDICO"
+  companyId   String?
+  clinicId    String?
+  doctorId    String?
+  subject     String
+  status      SupportTicketStatus   @default(ABERTO)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  user        UserAccount           @relation(fields: [userId], references: [id])
+  messages    SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Mensagem dentro de um chamado de suporte
+model SupportMessage {
+  id         String        @id @default(uuid())
+  ticketId   String
+  content    String
+  authorId   String
+  authorRole String        /// "USER" | "ADMIN"
+  createdAt  DateTime      @default(now())
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  DOCTOR
+  PATIENT
+  COMPANY_ADMIN
+  CLINIC
+}
+
+enum CompanyStatus {
+  CADASTRO_INCOMPLETO
+  EM_ANALISE
+  LIBERADA
+  DOCUMENTACAO_VENCIDA
+}
+
+enum InviteStatus {
+  ENVIADO
+  ABERTO
+  EXPIRADO
+  CONCLUIDO
+}
+
+enum TimelineEventType {
+  LINK_ENVIADO
+  LINK_ABERTO
+  CADASTRO_CONCLUIDO
+  COLABORADOR_CADASTRADO
+  EXAME_INICIADO
+  EM_ATENDIMENTO_MEDICO
+  CONCLUIDO
+  DADOS_CONFIRMADOS
+  DOCUMENTOS_ENVIADOS
+  QUESTIONARIO_RESPONDIDO
+  TELECONSULTA_INICIADA
+}
+
+enum FinancialType {
+  /// Empresa pagou pelo exame → entra na plataforma
+  RECEITA
+  /// Custo operacional da plataforma
+  DESPESA
+  /// Saída para clínica ou médico
+  REPASSE
+}
+
+enum FinancialCategory {
+  EXAME_ASO
+  HONORARIO_MEDICO
+  TAXA_CLINICA
+  CUSTO_OPERACIONAL
+  OUTROS
+}
+
+enum PaymentStatus {
+  PENDENTE
+  PAGO
+  CANCELADO
+  ESTORNADO
+}
+
+enum SupportTicketStatus {
+  ABERTO
+  EM_ATENDIMENTO
+  RESOLVIDO
+}

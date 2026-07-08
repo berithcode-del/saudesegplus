@@ -1,0 +1,31 @@
+{
+  "name": "saudeseg-plus",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.1",
+    "caniuse-lite": "^1.0.30001799",
+    "prettier": "^3.8.5",
+    "turbo": "^2.10.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@11.12.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@babel/generator": "^7.29.7",
+    "glob": "^11.0.1"
+  }
+}

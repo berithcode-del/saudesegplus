@@ -1,0 +1,379 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
+import { CreateCompanyDto } from './dto/create-company.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto';
+import { CreateInviteDto } from './dto/create-invite.dto';
+import { CompanyGateway } from './company.gateway';
+import { MailService } from '../mail/mail.service';
+import * as bcrypt from 'bcrypt';
+
+@Injectable()
+export class CompanyService {
+  constructor(
+    private prisma: PrismaService,
+    private companyGateway: CompanyGateway,
+    private mailService: MailService,
+  ) {}
+
+  async createCompany(dto: CreateCompanyDto) {
+    const company = await this.prisma.company.create({
+      data: {
+        cnpj: dto.cnpj,
+        razaoSocial: dto.razaoSocial,
+        nomeFantasia: dto.nomeFantasia,
+        address: dto.address,
+        cep: dto.cep,
+        city: dto.city,
+        state: dto.state,
+        lat: dto.lat,
+        lng: dto.lng,
+        status: 'CADASTRO_INCOMPLETO',
+      },
+    });
+
+    let passwordHash = 'pending_setup';
+    if (dto.password) {
+      passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+
+    const user = await this.prisma.userAccount.create({
+      data: {
+        email: dto.contactEmail,
+        passwordHash,
+        role: 'COMPANY_ADMIN',
+      },
+    });
+
+    await this.prisma.companyAdmin.create({
+      data: {
+        userId: user.id,
+        companyId: company.id,
+      },
+    });
+
+    return { company, user };
+  }
+
+  async getCompany(companyId: string) {
+    return this.prisma.company.findUnique({
+      where: { id: companyId },
+      include: { admins: true, clinic: true },
+    });
+  }
+
+  async listCompanies() {
+    return this.prisma.company.findMany({
+      include: { clinic: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateCompany(companyId: string, dto: UpdateCompanyDto) {
+    const data: Record<string, string> = {};
+    if (dto.razaoSocial !== undefined) data.razaoSocial = dto.razaoSocial;
+    if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.cep !== undefined) data.cep = dto.cep;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.state !== undefined) data.state = dto.state;
+    if (dto.cnpj !== undefined) data.cnpj = dto.cnpj;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data,
+    });
+  }
+
+  async updateCompanyStatus(companyId: string, status: string) {
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { status: status as any },
+    });
+  }
+
+  async createInvite(companyId: string, dto: CreateInviteDto) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        status: true,
+        pcmsoValidUntil: true,
+        ppraValidUntil: true,
+        razaoSocial: true,
+      },
+    });
+
+    if (!company) {
+      throw new Error('Empresa não encontrada');
+    }
+
+    const now = new Date();
+    const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
+    const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
+
+    if (company.status !== 'LIBERADA') {
+      throw new Error(`Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`);
+    }
+
+    if (!pcmsoValid || !ppraValid) {
+      throw new Error('Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.');
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+
+    const invite = await this.prisma.examInvite.create({
+      data: {
+        companyId,
+        collaboratorName: dto.collaboratorName,
+        expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
+        expectedEmail: dto.expectedEmail,
+        expectedBirthDate: dto.expectedBirthDate ? new Date(dto.expectedBirthDate) : null,
+        roleFunction: dto.roleFunction,
+        roleFunctionCboCode: dto.roleFunctionCboCode,
+        examType: dto.examType,
+        expiresAt,
+        status: 'ENVIADO',
+      },
+      include: { company: true },
+    });
+
+    await this.prisma.examTimelineEvent.create({
+      data: {
+        inviteId: invite.id,
+        eventType: 'LINK_ENVIADO',
+      },
+    });
+
+    // Antes este evento era apenas persistido — nada era emitido pelo
+    // CompanyGateway, então o painel da empresa só via o convite após
+    // um refresh manual da página.
+    this.companyGateway.emitTimelineUpdate(companyId, {
+      inviteId: invite.id,
+      eventType: 'LINK_ENVIADO',
+      occurredAt: invite.sentAt.toISOString(),
+    });
+
+    if (dto.expectedEmail) {
+      const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
+      try {
+        await this.mailService.sendInviteLink(dto.expectedEmail, invite.company.razaoSocial ?? '', link, invite.expiresAt);
+      } catch (err) {
+        console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err);
+      }
+    }
+
+    return invite;
+  }
+
+  async listInvites(companyId: string) {
+    return this.prisma.examInvite.findMany({
+      where: { companyId },
+      include: {
+        timelineEvents: { orderBy: { occurredAt: 'asc' } },
+        examRequest: { include: { results: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async listActiveAsos(companyId: string) {
+    const now = new Date();
+    const asos = await this.prisma.asoDocument.findMany({
+      where: {
+        decision: { equals: 'APTO', mode: 'insensitive' },
+        validUntil: { gte: now },
+        request: {
+          patient: {
+            companies: {
+              some: {
+                companyId,
+                OR: [{ endDate: null }, { endDate: { gte: now } }],
+              },
+            },
+          },
+        },
+      },
+      include: {
+        request: {
+          include: {
+            patient: true,
+            invite: true,
+          },
+        },
+        doctor: true,
+      },
+      orderBy: { validUntil: 'asc' },
+    });
+
+    return asos.map((aso) => {
+      const validUntil = aso.validUntil as Date;
+      const signedAt = aso.signedAt ?? aso.request.createdAt;
+      const daysUntilExpiration = Math.ceil(
+        (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
+
+      return {
+        id: aso.id,
+        requestId: aso.requestId,
+        collaborator: {
+          id: aso.request.patient.id,
+          name: aso.request.patient.name,
+          cpf: aso.request.patient.cpf,
+          functionCboCode: aso.request.patient.functionCboCode,
+        },
+        examType: aso.request.invite?.examType ?? aso.request.examPurpose,
+        examPurpose: aso.request.examPurpose,
+        issuedAt: signedAt.toISOString(),
+        validUntil: validUntil.toISOString(),
+        daysUntilExpiration,
+        decision: aso.decision,
+        restrictionNotes: aso.restrictionNotes,
+        pdfUrl: aso.pdfUrl,
+        doctor: {
+          id: aso.doctor.id,
+          name: aso.doctor.name,
+          crm: `${aso.doctor.crmNumber}/${aso.doctor.crmState}`,
+        },
+      };
+    });
+  }
+
+  async cancelInvite(inviteId: string) {
+    return this.prisma.examInvite.delete({
+      where: { id: inviteId },
+    });
+  }
+
+  async findInviteByCpf(cpf: string) {
+    return this.prisma.examInvite.findFirst({
+      where: { 
+        expectedCpf: cpf,
+        status: { in: ['ENVIADO', 'ABERTO'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { company: true },
+    });
+  }
+
+  async getInviteTimeline(inviteId: string) {
+    const invite = await this.prisma.examInvite.findUnique({
+      where: { id: inviteId },
+      include: {
+        timelineEvents: { orderBy: { occurredAt: 'asc' } },
+        examRequest: {
+          include: { asoDocuments: true },
+        },
+      },
+    });
+
+    if (!invite) throw new Error('Invite not found');
+
+    return {
+      invite,
+      timeline: invite.timelineEvents,
+      finalResult: invite.examRequest?.asoDocuments?.[0]?.decision ?? null,
+    };
+  }
+
+  async recordTimelineEvent(data: {
+    inviteId?: string;
+    examRequestId?: string;
+    eventType: string;
+  }) {
+    return this.prisma.examTimelineEvent.create({
+      data: {
+        inviteId: data.inviteId,
+        examRequestId: data.examRequestId,
+        eventType: data.eventType as any,
+      },
+    });
+  }
+
+  async getDashboardStats(companyId: string) {
+    const invites = await this.prisma.examInvite.findMany({
+      where: { companyId },
+      include: { examRequest: true },
+    });
+
+    const total = invites.length;
+    const sent = invites.filter((i) => i.status === 'ENVIADO').length;
+    const opened = invites.filter((i) => i.status === 'ABERTO').length;
+    const inProgress = invites.filter(
+      (i) => i.examRequest && i.examRequest.status !== 'CONCLUIDO',
+    ).length;
+    const completed = invites.filter(
+      (i) => i.examRequest?.status === 'CONCLUIDO',
+    ).length;
+    const expired = invites.filter(
+      (i) => i.status === 'EXPIRADO' || new Date() > i.expiresAt,
+    ).length;
+
+    return { total, sent, opened, inProgress, completed, expired };
+  }
+
+  async getStatusCheck(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        razaoSocial: true,
+        status: true,
+        pcmsoDocumentUrl: true,
+        ppraDocumentUrl: true,
+        pcmsoValidUntil: true,
+        ppraValidUntil: true,
+        clinicId: true,
+      },
+    });
+    if (!company) throw new Error('Empresa não encontrada');
+
+    const now = new Date();
+
+    return {
+      hasRazaoSocial: !!company.razaoSocial,
+      hasPcmso: !!company.pcmsoDocumentUrl,
+      hasPpra: !!company.ppraDocumentUrl,
+      pcmsoValid: !!company.pcmsoValidUntil && company.pcmsoValidUntil > now,
+      ppraValid: !!company.ppraValidUntil && company.ppraValidUntil > now,
+      hasClinicAssigned: !!company.clinicId,
+      status: company.status,
+      isComplete: !!company.pcmsoValidUntil && company.pcmsoValidUntil > now && !!company.ppraValidUntil && company.ppraValidUntil > now,
+    };
+  }
+
+  async listInvitesForAllCompanies() {
+    return this.prisma.examInvite.findMany({
+      include: {
+        timelineEvents: { orderBy: { occurredAt: 'asc' } },
+        examRequest: { include: { results: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async gerarRelatorio(companyId: string, de?: string, ate?: string) {
+    const where: any = {
+      patient: { companies: { some: { companyId } } },
+    };
+    if (de) where.createdAt = { ...where.createdAt, gte: new Date(de) };
+    if (ate) where.createdAt = { ...where.createdAt, lte: new Date(ate) };
+
+    const requests = await this.prisma.examRequest.findMany({
+      where,
+      include: { patient: true, asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests.map(r => [
+      r.patient.name,
+      r.patient.cpf,
+      r.patient.functionCboCode ?? '',
+      r.examPurpose,
+      r.createdAt.toISOString().split('T')[0],
+      r.asoDocuments[0]?.decision ?? '',
+      r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
+    ]);
+  }
+}

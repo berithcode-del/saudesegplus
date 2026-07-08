@@ -1,0 +1,1 @@
+SELECT id, "expectedCpf", "expectedEmail", status FROM "ExamInvite" WHERE status = 'ENVIADO' LIMIT 1;

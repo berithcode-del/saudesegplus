@@ -1,0 +1,23 @@
+# Implementação do Painel da Empresa e Arquitetura
+
+- `[x]` Atualizar documentações e especificações
+  - `[x]` Atualizar `status_specs.md` com a nova Tela 4
+  - `[x]` Criar a nova spec em `.specs/tela4-empresa/spec.md`
+  - `[x]` Modificar `SaudeSeg+_Especificacao_UI_Fase1_MVP.md` para suportar novos fluxos de convite
+- `[x]` Atualizar Banco de Dados (Prisma)
+  - `[x]` Modificar modelo `Company` e roles, adicionar `ExamInvite` e `ExamTimelineEvent`
+  - `[x]` Validar schema com `npx prisma generate`
+- `[x]` Criar módulo de Empresa no Backend (NestJS)
+  - `[x]` `company.module.ts`, `company.controller.ts`, `company.service.ts`
+  - `[x]` DTOs: `create-company.dto.ts`, `create-invite.dto.ts`
+- `[x]` Criar gateway WebSocket `company.gateway.ts`
+- `[x]` Instrumentar `ExamTimelineEvent` nas transições existentes (queue.service)
+- `[x]` Atualizar `seed.ts` com dados de empresa e convite de teste
+- `[x]` Criar Frontend do Painel da Empresa
+  - `[x]` Tela de Login: Adicionar perfil COMPANY_ADMIN
+  - `[x]` Layout da empresa (`/empresa/layout.tsx`) com sidebar
+  - `[x]` Dashboard (`/empresa/page.tsx`) com estatísticas
+  - `[x]` Solicitações (`/empresa/solicitacoes/page.tsx`) com CRUD e timeline
+  - `[x]` Documentos (`/empresa/documentos/page.tsx`) para PCMSO/PPRA
+  - `[x]` Configurações (`/empresa/configuracoes/page.tsx`) dados da empresa
+  - `[x]` Estilos CSS para modais, timeline e badges

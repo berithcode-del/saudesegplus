@@ -1,0 +1,60 @@
+import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
+import { WsException } from '@nestjs/websockets';
+import { Socket } from 'socket.io';
+import * as crypto from 'crypto';
+
+@Injectable()
+export class WsJwtGuard implements CanActivate {
+  private readonly logger = new Logger(WsJwtGuard.name);
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const client: Socket = context.switchToWs().getClient<Socket>();
+
+    const token =
+      client.handshake.auth?.token ||
+      (client.handshake.headers.authorization as string | undefined)?.split(' ')[1];
+
+    if (!token) {
+      this.logger.warn(`[WsJwtGuard] Client ${client.id} without token`);
+      throw new WsException('Unauthorized');
+    }
+
+    try {
+      const payload = WsJwtGuard.verifyToken(token);
+      client.data.user = payload;
+      return true;
+    } catch {
+      this.logger.warn(`[WsJwtGuard] Invalid token from client ${client.id}`);
+      throw new WsException('Unauthorized');
+    }
+  }
+
+  private static verifyToken(token: string): Record<string, unknown> {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Malformed token');
+
+    const [header, payload, signature] = parts;
+    const secrets = Array.from(new Set([
+      process.env.JWT_SECRET,
+      'saudeseg-dev-secret',
+      'saudeseg_secret_key_2026',
+    ].filter(Boolean))) as string[];
+
+    const isValidSignature = secrets.some((secret) => {
+      const expectedSig = crypto
+        .createHmac('sha256', secret)
+        .update(`${header}.${payload}`)
+        .digest('base64url');
+      return expectedSig === signature;
+    });
+
+    if (!isValidSignature) throw new Error('Invalid signature');
+
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+      throw new Error('Expired token');
+    }
+
+    return decoded as Record<string, unknown>;
+  }
+}

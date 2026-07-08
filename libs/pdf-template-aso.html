@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  SAÚDESEG+  —  Template de ASO (Atestado de Saúde Ocupacional)
+  ============================================================================
+  Este arquivo substitui: backend/libs/pdf-template-aso.html
+  Motor de renderização: o mesmo já usado em aso.service.ts (puppeteer-core),
+  com substituição de variáveis via regex simples (chave-chave-nomeDaVariavel-
+  chave-chave) e blocos condicionais no formato "#if nomeDaVariavel" / "/if"
+  (sem loops — ver nota sobre tabelas). ATENÇÃO: o motor não suporta blocos
+  #if aninhados (um dentro do outro) — todos os condicionais deste arquivo
+  são sequenciais, nunca aninhados.
+
+  GUIA DE VARIÁVEIS — o que o aso.service.ts precisa enviar em `data`
+  ----------------------------------------------------------------------------
+  Já existentes hoje no service (mantidos):
+    patientName, patientCpf, companyName, examPurpose, examDate,
+    decision, restrictionNotes, doctorCrm, signatureDate
+
+  Novas variáveis que este template espera (precisam ser adicionadas ao
+  objeto `data` em aso.service.ts — a maioria já está disponível via
+  request.patient / request.invite.company / doctor, só falta mapear):
+
+    asoNumero          -> ex: asoDoc.id.slice(0,8).toUpperCase()
+    tipoExame          -> "Admissional" | "Periódico" | "Demissional" |
+                           "Mudança de Função" | "Retorno ao Trabalho"
+                           (hoje só existe `examPurpose` em texto livre —
+                           ideal normalizar para um destes rótulos)
+    patientSexo         -> "M" | "F" (opcional — usar {{#if}} se ausente)
+    patientNascimento   -> já formatado e combinado pelo backend, ex:
+                           "24/02/1997 (28 anos)". IMPORTANTE: o motor de
+                           template atual (regex simples em aso.service.ts)
+                           NÃO suporta {{#if}} aninhado — por isso nascimento
+                           e idade vêm como uma única string pronta, e não
+                           como dois {{#if}} um dentro do outro.
+    cargoFuncao         -> nome da função/cargo do colaborador
+    cboCode             -> código CBO (ligado a OccupationalRisk)
+    setorCargo          -> setor do cargo (opcional)
+    companyCnpj         -> CNPJ da empresa empregadora
+    companyEndereco     -> endereço da empresa (opcional)
+    clinicName, clinicAddress, clinicCnpj, clinicPhone
+                         -> dados da clínica que coletou o exame (fluxo
+                            híbrido). O bloco inteiro da seção "Clínica
+                            Responsável pela Coleta", mais abaixo neste
+                            arquivo, já está condicionado a clinicName —
+                            deixe clinicName vazio/nulo quando o exame foi
+                            100% remoto e não houve clínica física.
+    riskFactorsHtml     -> string HTML já pronta, ex:
+                            "<li>Ergonômicos</li><li>Ruído</li>"
+                            (gerar no backend a partir da lista de riscos)
+    proceduresRowsHtml  -> string HTML já pronta com as linhas da tabela de
+                            procedimentos (o motor atual não suporta loop,
+                            então o backend deve montar o HTML das linhas).
+                            Formato esperado de cada linha, ver exemplo
+                            comentado logo antes da <table> de procedimentos
+                            mais abaixo neste arquivo.
+    requiresAltura, requiresConfinado
+                         -> "true"/"" — controla exibição das linhas de
+                            aptidão específica (usar com {{#if}})
+    alturaMark, confinadoMark, geralAptoMark, geralInaptoMark
+                         -> cada uma vale "check" (renderiza ✕ no quadrado)
+                            ou "" (quadrado vazio). O backend decide qual
+                            marcar de acordo com `decision`.
+    doctorName           -> nome completo do médico (Doctor.name)
+    verificationCode     -> código curto de verificação (ex: hash truncado)
+    verificationUrl      -> URL completa para validação pública do ASO
+                             (ex: https://app.saudeseg.com.br/verificar/{id})
+
+  Todas as variáveis são texto simples via {{var}}. Os campos HTML
+  pré-montados (riskFactorsHtml, proceduresRowsHtml) são a forma mais
+  simples de simular "listas" com o motor de replace atual — se no futuro
+  o motor evoluir para suportar {{#each}}, dá para simplificar isso.
+  ============================================================================
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>ASO — {{patientName}}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  :root {
+    /* Paleta extraída do produto real (screenshot do dashboard) */
+    --sg-primary: #4F46E5;       /* indigo-600 — sidebar/marca */
+    --sg-primary-dark: #1E1B4B;  /* indigo-950 — títulos, "Boa noite" */
+    --sg-accent: #3B82F6;        /* blue-500 — links, destaques */
+    --sg-accent-soft: #E7F0FE;   /* tint pálido azul — mesmo tom dos cards do dashboard */
+    --sg-ink: #1F2430;
+    --sg-muted: #64748B;
+    --sg-line: #E2E8F0;
+    --sg-bg-soft: #F8FAFC;
+    --sg-danger: #DC2626;
+    --sg-white: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: var(--sg-ink);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+  .page {
+    position: relative;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 0 14mm 5mm 14mm;
+  }
+
+  /* ---------- SPINE (elemento de assinatura visual) ---------- */
+  .spine {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6mm;
+    height: 297mm;
+    background: var(--sg-primary);
+  }
+
+  /* ---------- HEADER ---------- */
+  .header {
+    padding: 4mm 0 2mm 5mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid var(--sg-primary);
+  }
+
+  .brand { display: flex; align-items: center; gap: 8px; }
+
+  .brand-mark {
+    width: 30px; height: 30px;
+    flex-shrink: 0;
+  }
+
+  .brand-word {
+    font-size: 19px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: var(--sg-primary-dark);
+  }
+  .brand-word span { color: var(--sg-accent); }
+
+  .brand-sub {
+    font-size: 8.8px;
+    color: var(--sg-muted);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  .doc-meta {
+    text-align: right;
+  }
+  .doc-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sg-primary-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .doc-id {
+    font-size: 9.2px;
+    color: var(--sg-muted);
+    margin-top: 2px;
+  }
+  .doc-id b { color: var(--sg-ink); font-weight: 700; }
+
+  /* ---------- TIPO DE EXAME BADGE ---------- */
+  .type-bar {
+    margin: 2.4mm 0 2.4mm 5mm;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .badge {
+    display: inline-block;
+    background: var(--sg-accent-soft);
+    color: var(--sg-primary-dark);
+    border: 1px solid var(--sg-accent);
+    border-radius: 3px;
+    padding: 4px 12px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .type-bar .date-label {
+    font-size: 9.6px;
+    color: var(--sg-muted);
+  }
+  .type-bar .date-label b { color: var(--sg-ink); }
+
+  /* ---------- SECTION ---------- */
+  .section {
+    margin: 0 0 2.2mm 5mm;
+  }
+  .section-title {
+    font-size: 9.2px;
+    font-weight: 700;
+    color: var(--sg-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 1.4mm;
+    padding-bottom: 1mm;
+    border-bottom: 1px solid var(--sg-line);
+  }
+
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 6mm;
+    row-gap: 1.8mm;
+  }
+
+  .field-label {
+    font-size: 8.4px;
+    color: var(--sg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 0.7mm;
+  }
+  .field-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sg-ink);
+  }
+
+  /* ---------- MACRO GRID 2x2 (Trabalhador / Empregador / Clínica / Fatores de Risco) ---------- */
+  .macro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 6mm;
+    row-gap: 2.2mm;
+    margin: 0 0 2.2mm 5mm;
+  }
+  .macro-grid .section {
+    margin: 0;
+  }
+  .card {
+    background: var(--sg-bg-soft);
+    border: 1px solid var(--sg-line);
+    border-radius: 4px;
+    padding: 2.2mm 4mm;
+  }
+  .card .section-title {
+    border-bottom-color: #D6DEEA;
+  }
+  /* Nome completo e endereços ocupam a linha inteira dentro do card */
+  .field-full {
+    grid-column: 1 / -1;
+  }
+
+  .risk-box {
+    background: var(--sg-bg-soft);
+    border: 1px solid var(--sg-line);
+    border-radius: 3px;
+    padding: 2.2mm 4mm;
+  }
+  .risk-box ul {
+    margin: 0;
+    padding-left: 4mm;
+  }
+  .risk-box li {
+    font-size: 10.6px;
+    margin-bottom: 1mm;
+  }
+  .risk-empty {
+    font-size: 10.6px;
+    color: var(--sg-muted);
+    font-style: italic;
+  }
+  /* dentro do card do macro-grid o box fica sem moldura duplicada */
+  .card .risk-box {
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+
+  /* ---------- TABELA DE PROCEDIMENTOS ---------- */
+  table.procedures {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  table.procedures th {
+    text-align: left;
+    font-size: 8.6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--sg-muted);
+    border-bottom: 1px solid var(--sg-line);
+    padding: 0 0 1.8mm 0;
+  }
+  table.procedures td {
+    font-size: 10.4px;
+    padding: 0.9mm 0;
+    border-bottom: 1px dotted var(--sg-line);
+    vertical-align: top;
+  }
+  table.procedures td.proc-date {
+    text-align: right;
+    color: var(--sg-muted);
+    white-space: nowrap;
+    width: 22mm;
+  }
+  table.procedures td.proc-code {
+    color: var(--sg-accent);
+    font-weight: 700;
+    width: 12mm;
+  }
+
+  /* ---------- APTIDÃO ---------- */
+  .apt-box {
+    background: var(--sg-bg-soft);
+    border: 1px solid var(--sg-line);
+    border-radius: 3px;
+    padding: 2mm 5mm;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3mm 10mm;
+    break-inside: avoid;
+  }
+  .apt-row {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+  }
+  .apt-row .apt-label {
+    font-size: 10.6px;
+    font-weight: 600;
+    color: var(--sg-ink);
+    min-width: 32mm;
+  }
+  .checkbox-group { display: flex; gap: 4mm; }
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 1.6mm;
+  }
+  .checkbox .box {
+    width: 4.2mm;
+    height: 4.2mm;
+    border: 1.3px solid var(--sg-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8.5px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .checkbox.is-danger .box.checked { color: var(--sg-danger); border-color: var(--sg-danger); }
+  .checkbox .label { font-size: 10px; }
+
+  .apt-general {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1.4mm;
+    margin-top: 0.3mm;
+    border-top: 1px solid var(--sg-line);
+  }
+  .apt-general .apt-label { font-size: 12.4px; font-weight: 800; }
+
+  .restriction-note {
+    margin-top: 3mm;
+    padding: 2.5mm 3.5mm;
+    background: #FFF7F0;
+    border-left: 3px solid #C97A2B;
+    font-size: 10px;
+  }
+  .restriction-note b { display: block; font-size: 8.6px; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 1mm; color: #8A4F17; }
+
+  /* ---------- ASSINATURAS ---------- */
+  .signatures {
+    margin: 2.6mm 5mm 0 5mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6mm;
+    break-inside: avoid;
+  }
+  .sig-block {
+    border: 1px solid var(--sg-line);
+    border-radius: 3px;
+    padding: 2mm 4mm 2.2mm 4mm;
+  }
+  .sig-block-label {
+    font-size: 8.2px;
+    font-weight: 700;
+    color: var(--sg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .sig-space {
+    height: 7.5mm;
+  }
+  .sig-info {
+    border-top: 1px solid var(--sg-ink);
+    padding-top: 1.8mm;
+  }
+  .sig-name { font-size: 10.6px; font-weight: 700; }
+  .sig-role { font-size: 8.8px; color: var(--sg-muted); }
+
+  /* ---------- SELO DE VALIDAÇÃO DIGITAL ---------- */
+  .digital-seal {
+    margin: 2.6mm 5mm 0 5mm;
+    display: flex;
+    align-items: center;
+    gap: 5mm;
+    background: var(--sg-primary-dark);
+    color: var(--sg-white);
+    border-radius: 4px;
+    padding: 2mm 5mm;
+    break-inside: avoid;
+  }
+  .digital-seal .qr-slot {
+    width: 12mm;
+    height: 12mm;
+    background: var(--sg-white);
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 6px;
+    color: var(--sg-muted);
+    text-align: center;
+  }
+  .digital-seal .seal-text { font-size: 9px; line-height: 1.55; }
+  .digital-seal .seal-text b { display: block; font-size: 10.2px; margin-bottom: 1mm; }
+  .digital-seal .seal-text .mono { font-family: 'Courier New', monospace; letter-spacing: 0.3px; opacity: 0.9; }
+
+  /* ---------- FOOTER ---------- */
+  .footer {
+    margin: 2mm 5mm 0 5mm;
+    padding-top: 1.4mm;
+    border-top: 1px solid var(--sg-line);
+    font-size: 8px;
+    color: var(--sg-muted);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="spine"></div>
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 105.23 102.14" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#4961a3" d="m73.4,3.64v23.83c0,24.17-19.6,43.77-43.77,43.77H3.92c-2.16,0-3.92-1.75-3.92-3.92v-23.66c0-7.05,5.72-12.77,12.77-12.77h10.55c4.7,0,8.51-3.81,8.51-8.51v-9.62c0-7.05,5.72-12.77,12.77-12.77h25.17c2.01,0,3.64,1.63,3.64,3.64Z"/>
+          <path fill="#76aadb" opacity=".55" d="m31.83,98.5v-23.83c0-24.17,19.6-43.77,43.77-43.77h25.72c2.16,0,3.92,1.75,3.92,3.92v23.66c0,7.05-5.72,12.77-12.77,12.77h-10.55c-4.7,0-8.51,3.81-8.51,8.51v9.62c0,7.05-5.72,12.77-12.77,12.77h-25.17c-2.01,0-3.64-1.63-3.64-3.64Z"/>
+        </svg>
+        <div>
+          <div class="brand-word">SAÚDESEG<span>+</span></div>
+          <div class="brand-sub">Saúde e Segurança do Trabalho</div>
+        </div>
+      </div>
+      <div class="doc-meta">
+        <div class="doc-title">Atestado de Saúde Ocupacional</div>
+        <div class="doc-id">Nº <b>{{asoNumero}}</b> &nbsp;·&nbsp; Emitido em <b>{{signatureDate}}</b></div>
+      </div>
+    </div>
+
+    <!-- TIPO DE EXAME -->
+    <div class="type-bar">
+      <span class="badge">Exame {{tipoExame}}</span>
+      <span class="date-label">Data do exame: <b>{{examDate}}</b></span>
+    </div>
+
+    <!-- GRID 2x2: Trabalhador / Empregador / Clínica / Fatores de Risco -->
+    <div class="macro-grid">
+
+      <!-- DADOS DO TRABALHADOR -->
+      <div class="section card">
+        <div class="section-title">Dados do Trabalhador</div>
+        <div class="grid2">
+          <div class="field-full">
+            <div class="field-label">Nome completo</div>
+            <div class="field-value">{{patientName}}</div>
+          </div>
+          <div>
+            <div class="field-label">CPF</div>
+            <div class="field-value">{{patientCpf}}</div>
+          </div>
+          {{#if patientNascimento}}
+          <div>
+            <div class="field-label">Nascimento</div>
+            <div class="field-value">{{patientNascimento}}</div>
+          </div>
+          {{/if}}
+          <div>
+            <div class="field-label">Cargo / Função</div>
+            <div class="field-value">{{cargoFuncao}}</div>
+          </div>
+          <div>
+            <div class="field-label">CBO</div>
+            <div class="field-value">{{cboCode}}</div>
+          </div>
+          {{#if setorCargo}}
+          <div class="field-full">
+            <div class="field-label">Setor</div>
+            <div class="field-value">{{setorCargo}}</div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- DADOS DO EMPREGADOR -->
+      <div class="section card">
+        <div class="section-title">Dados do Empregador</div>
+        <div class="grid2">
+          <div class="field-full">
+            <div class="field-label">Razão social</div>
+            <div class="field-value">{{companyName}}</div>
+          </div>
+          <div>
+            <div class="field-label">CNPJ</div>
+            <div class="field-value">{{companyCnpj}}</div>
+          </div>
+          {{#if companyEndereco}}
+          <div>
+            <div class="field-label">Endereço</div>
+            <div class="field-value">{{companyEndereco}}</div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- CLÍNICA COLETORA (fluxo híbrido — omitido se 100% remoto) -->
+      {{#if clinicName}}
+      <div class="section card">
+        <div class="section-title">Clínica Responsável pela Coleta</div>
+        <div class="grid2">
+          <div class="field-full">
+            <div class="field-label">Clínica</div>
+            <div class="field-value">{{clinicName}}</div>
+          </div>
+          <div>
+            <div class="field-label">CNPJ</div>
+            <div class="field-value">{{clinicCnpj}}</div>
+          </div>
+          <div>
+            <div class="field-label">Telefone</div>
+            <div class="field-value">{{clinicPhone}}</div>
+          </div>
+          <div class="field-full">
+            <div class="field-label">Endereço</div>
+            <div class="field-value">{{clinicAddress}}</div>
+          </div>
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- FATORES DE RISCO -->
+      <div class="section card">
+        <div class="section-title">Fatores de Risco Avaliados</div>
+        <div class="risk-box">
+          {{#if riskFactorsHtml}}
+          <ul>{{riskFactorsHtml}}</ul>
+          {{/if}}
+        </div>
+      </div>
+
+    </div>
+    <!-- /GRID 2x2 -->
+
+    <!--
+      PROCEDIMENTOS — o backend deve montar `proceduresRowsHtml` concatenando
+      uma <tr> por procedimento, exatamente neste formato:
+
+        <tr>
+          <td class="proc-code">(0296)</td>
+          <td>Acuidade Visual</td>
+          <td class="proc-date">27/10/2025</td>
+        </tr>
+    -->
+    <div class="section">
+      <div class="section-title">Procedimentos Realizados</div>
+      <table class="procedures">
+        <thead>
+          <tr><th style="width:12mm;">Código</th><th>Procedimento</th><th style="text-align:right;">Data</th></tr>
+        </thead>
+        <tbody>
+          {{proceduresRowsHtml}}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- APTIDÃO -->
+    <div class="section">
+      <div class="section-title">Aptidão</div>
+      <div class="apt-box">
+        {{#if requiresAltura}}
+        <div class="apt-row">
+          <span class="apt-label">Trabalho em Altura</span>
+          <div class="checkbox-group">
+            <div class="checkbox"><span class="box">{{alturaAptoMark}}</span><span class="label">Apto</span></div>
+            <div class="checkbox is-danger"><span class="box checked">{{alturaInaptoMark}}</span><span class="label">Inapto</span></div>
+          </div>
+        </div>
+        {{/if}}
+        {{#if requiresConfinado}}
+        <div class="apt-row">
+          <span class="apt-label">Espaço Confinado</span>
+          <div class="checkbox-group">
+            <div class="checkbox"><span class="box">{{confinadoAptoMark}}</span><span class="label">Apto</span></div>
+            <div class="checkbox is-danger"><span class="box checked">{{confinadoInaptoMark}}</span><span class="label">Inapto</span></div>
+          </div>
+        </div>
+        {{/if}}
+
+        <div class="apt-general">
+          <span class="apt-label">Resultado Geral do Exame</span>
+          <div class="checkbox-group">
+            <div class="checkbox"><span class="box">{{geralAptoMark}}</span><span class="label">Apto</span></div>
+            <div class="checkbox is-danger"><span class="box checked">{{geralInaptoMark}}</span><span class="label">Inapto</span></div>
+          </div>
+        </div>
+      </div>
+
+      {{#if restrictionNotes}}
+      <div class="restriction-note">
+        <b>Observações / Restrições</b>
+        {{restrictionNotes}}
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- ASSINATURAS -->
+    <div class="signatures">
+      <div class="sig-block">
+        <div class="sig-block-label">Assinatura do Médico</div>
+        <div class="sig-space"></div>
+        <div class="sig-info">
+          <div class="sig-name">{{doctorName}}</div>
+          <div class="sig-role">Médico do Trabalho — CRM {{doctorCrm}}</div>
+        </div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-block-label">Assinatura do Trabalhador(a)</div>
+        <div class="sig-space"></div>
+        <div class="sig-info">
+          <div class="sig-name">{{patientName}}</div>
+          <div class="sig-role">Trabalhador(a) — CPF {{patientCpf}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SELO DE VALIDAÇÃO DIGITAL -->
+    <div class="digital-seal">
+      <div class="qr-slot">QR CODE</div>
+      <div class="seal-text">
+        <b>Documento assinado e validado digitalmente via telemedicina</b>
+        Verifique a autenticidade em {{verificationUrl}}<br/>
+        <span class="mono">Código de verificação: {{verificationCode}}</span>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <span>Emitido em conformidade com a NR-7 (PCMSO) e regulamentação CFM de telemedicina.</span>
+      <span>1ª via: empregador · 2ª via: trabalhador(a)</span>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,367 @@
+'use client';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { apiFetch } from '../../lib/api';
+import FaqHelp from '../../../components/FaqHelp';
+
+interface CompanyData {
+  razaoSocial: string;
+  nomeFantasia: string;
+  cnpj: string;
+  address: string;
+  cep: string;
+  city: string;
+  state: string;
+  status?: string;
+  phone?: string;
+  contactEmail?: string;
+}
+
+const formatCNPJ = (val: string) => {
+  const clean = val.replace(/\D/g, '');
+  return clean
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+    .substring(0, 18);
+};
+
+const formatCEP = (val: string) => {
+  const clean = val.replace(/\D/g, '');
+  return clean
+    .replace(/^(\d{5})(\d)/, '$1-$2')
+    .substring(0, 9);
+};
+
+export default function ConfiguracoesPage() {
+  const [companyId, setCompanyId] = useState('');
+  const [companyData, setCompanyData] = useState<CompanyData>({
+    razaoSocial: '',
+    nomeFantasia: '',
+    cnpj: '',
+    address: '',
+    cep: '',
+    city: '',
+    state: '',
+    status: '',
+    phone: '',
+    contactEmail: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [statusCheck, setStatusCheck] = useState<{ pcmso: boolean; ppra: boolean; clinicAssigned: boolean; pcmsoValid?: boolean; ppraValid?: boolean } | null>(null);
+  const [statusCheckLoading, setStatusCheckLoading] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    let id = typeof window !== 'undefined'
+      ? window.localStorage.getItem('companyId')
+      : null;
+    
+    if (!id && token) {
+      try {
+        const parts = token.split('.');
+        const payload = JSON.parse(atob(parts[1] ?? ''));
+        id = payload?.profileId || payload?.companyId;
+      } catch (err) {
+        console.error('Erro ao decodificar token:', err);
+      }
+    }
+    
+    setCompanyId(id ?? 'empresa-1');
+  }, []);
+
+  useEffect(() => {
+    if (!companyId) return;
+    setLoading(true);
+    apiFetch(`/api/company/${companyId}`)
+      .then((result) => {
+        if (result.data) {
+          setCompanyData({
+            razaoSocial: result.data.razaoSocial ?? '',
+            nomeFantasia: result.data.nomeFantasia ?? '',
+            cnpj: formatCNPJ(result.data.cnpj ?? ''),
+            address: result.data.address ?? '',
+            cep: formatCEP(result.data.cep ?? ''),
+            city: result.data.city ?? '',
+            state: result.data.state ?? '',
+            status: result.data.status ?? '',
+            phone: result.data.phone ?? '',
+            contactEmail: result.data.contactEmail ?? '',
+          });
+        }
+      })
+      .catch(() => console.error('Falha ao carregar dados da empresa'))
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    setStatusCheckLoading(true);
+    apiFetch(`/api/company/${companyId}/status-check`)
+      .then(result => {
+        if (result.data) {
+          setStatusCheck({
+            pcmso: result.data.hasPcmso ?? false,
+            ppra: result.data.hasPpra ?? false,
+            clinicAssigned: result.data.hasClinicAssigned ?? false,
+            pcmsoValid: result.data.pcmsoValid,
+            ppraValid: result.data.ppraValid,
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setStatusCheckLoading(false));
+  }, [companyId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const result = await apiFetch(`/api/company/${companyId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          razaoSocial: companyData.razaoSocial,
+          nomeFantasia: companyData.nomeFantasia,
+          address: companyData.address,
+          cep: companyData.cep.replace(/\D/g, ''),
+          cnpj: companyData.cnpj.replace(/\D/g, ''),
+          city: companyData.city,
+          state: companyData.state,
+          phone: companyData.phone,
+          contactEmail: companyData.contactEmail,
+        }),
+      });
+      if (result.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        alert(result.message ?? 'Erro ao salvar');
+      }
+    } catch {
+      alert('Erro de conexão com o servidor');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="page-center">
+        <p style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-header">
+        <h2>Configurações da Empresa</h2>
+        <p>Dados cadastrais da empresa</p>
+      </div>
+
+      <div className="card">
+        {companyData.status && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+            background: companyData.status === 'LIBERADA' ? 'rgba(34,197,94,0.12)' :
+                        companyData.status === 'PENDENTE' ? 'rgba(245,158,11,0.12)' :
+                        'rgba(107,114,128,0.12)',
+            color: companyData.status === 'LIBERADA' ? '#16a34a' :
+                   companyData.status === 'PENDENTE' ? '#d97706' :
+                   '#6b7280',
+            marginBottom: '16px',
+          }}>
+            <CheckCircleIcon style={{ width: '14px', height: '14px' }} />
+            {companyData.status === 'LIBERADA' ? 'Empresa Liberada' :
+             companyData.status === 'PENDENTE' ? 'Documentação Pendente' :
+             companyData.status}
+          </div>
+        )}
+        <div className="form-grid">
+          <div className="form-group">
+            <label className="form-label">Nome Fantasia</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.nomeFantasia}
+              onChange={(e) => setCompanyData({ ...companyData, nomeFantasia: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Razão Social</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.razaoSocial}
+              onChange={(e) => setCompanyData({ ...companyData, razaoSocial: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">CNPJ</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.cnpj}
+              onChange={(e) => setCompanyData({ ...companyData, cnpj: formatCNPJ(e.target.value) })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">CEP</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.cep}
+              onChange={(e) => setCompanyData({ ...companyData, cep: formatCEP(e.target.value) })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Endereço</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.address}
+              onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Telefone de Contato</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.phone ?? ''}
+              onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
+              placeholder="(00) 0000-0000"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">E-mail de Contato</label>
+            <input
+              type="email"
+              className="form-input"
+              value={companyData.contactEmail ?? ''}
+                onChange={(e) => setCompanyData({ ...companyData, contactEmail: e.target.value })}
+                placeholder="contato@empresa.com.br"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Cidade</label>
+            <input
+              type="text"
+              className="form-input"
+              value={companyData.city}
+              onChange={(e) => setCompanyData({ ...companyData, city: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Estado</label>
+            <select
+              className="form-select"
+              value={companyData.state}
+              onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })}
+            >
+              <option value="">Selecione</option>
+              <option value="AC">AC</option>
+              <option value="AL">AL</option>
+              <option value="AP">AP</option>
+              <option value="AM">AM</option>
+              <option value="BA">BA</option>
+              <option value="CE">CE</option>
+              <option value="DF">DF</option>
+              <option value="ES">ES</option>
+              <option value="GO">GO</option>
+              <option value="MA">MA</option>
+              <option value="MT">MT</option>
+              <option value="MS">MS</option>
+              <option value="MG">MG</option>
+              <option value="PA">PA</option>
+              <option value="PB">PB</option>
+              <option value="PR">PR</option>
+              <option value="PE">PE</option>
+              <option value="PI">PI</option>
+              <option value="RJ">RJ</option>
+              <option value="RN">RN</option>
+              <option value="RS">RS</option>
+              <option value="RO">RO</option>
+              <option value="RR">RR</option>
+              <option value="SC">SC</option>
+              <option value="SP">SP</option>
+              <option value="SE">SE</option>
+              <option value="TO">TO</option>
+            </select>
+          </div>
+        </div>
+
+        {statusCheck && (
+          <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(79,70,229,0.04)', borderRadius: '12px', border: '1px solid rgba(79,70,229,0.1)' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 600, color: '#1e1b4b', marginBottom: '12px' }}>Checklist de Requisitos</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { 
+                  ok: statusCheck.pcmso, 
+                  valid: statusCheck.pcmsoValid,
+                  label: 'PCMSO', 
+                  link: '/empresa/documentos' 
+                },
+                { 
+                  ok: statusCheck.ppra, 
+                  valid: statusCheck.ppraValid,
+                  label: 'PPRA/PGR', 
+                  link: '/empresa/documentos' 
+                },
+                { 
+                  ok: statusCheck.clinicAssigned, 
+                  valid: true,
+                  label: 'Clínica atribuída' 
+                },
+              ].map(item => {
+                const isExpired = item.ok && !item.valid;
+                return (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                    <span style={{ color: isExpired ? '#d97706' : item.ok ? '#16a34a' : '#dc2626' }}>
+                      {isExpired ? '⚠️' : item.ok ? '✅' : '❌'}
+                    </span>
+                    <span style={{ color: isExpired ? '#d97706' : item.ok ? '#16a34a' : '#6b7280', fontWeight: item.ok ? 600 : 400, flex: 1 }}>
+                      {item.label} {isExpired && '(vencido)'}
+                    </span>
+                    {!item.ok && item.link && (
+                      <Link href={item.link} style={{ fontSize: '12px', color: '#3b6ff5', textDecoration: 'none' }}>
+                        Resolver →
+                      </Link>
+                    )}
+                    {isExpired && item.link && (
+                      <Link href={item.link} style={{ fontSize: '12px', color: '#d97706', textDecoration: 'none' }}>
+                        Renovar →
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+          {saved && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#22c55e', fontSize: '13px', alignSelf: 'center' }}>
+              <CheckCircleIcon className="icon icon-sm" />
+              Salvo com sucesso!
+            </span>
+          )}
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? <><ClockIcon className="icon" /> Salvando...</> : 'Salvar Alterações'}
+          </button>
+        </div>
+      </div>
+
+      <FaqHelp perfil="EMPRESA" />
+    </>
+  );
+}

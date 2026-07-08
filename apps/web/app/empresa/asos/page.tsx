@@ -1,0 +1,187 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowPathIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import { apiListCompanyAsos } from '../../lib/api';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+
+interface CompanyAso {
+  id: string;
+  requestId: string;
+  collaborator: { id: string; name: string; cpf: string; functionCboCode?: string | null };
+  examType: string;
+  examPurpose: string;
+  issuedAt: string;
+  validUntil: string;
+  daysUntilExpiration: number;
+  decision: string;
+  restrictionNotes?: string | null;
+  pdfUrl?: string | null;
+  doctor: { id: string; name: string; crm: string };
+}
+
+function getStoredCompanyId() {
+  const token = localStorage.getItem('token');
+  let companyId = localStorage.getItem('companyId');
+
+  if (!companyId && token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1] ?? ''));
+      companyId = payload?.profileId || payload?.companyId || '';
+    } catch {
+      companyId = '';
+    }
+  }
+
+  return companyId || '';
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('pt-BR');
+}
+
+function expirationTone(days: number) {
+  if (days <= 7) {
+    return { background: 'rgba(239, 68, 68, 0.12)', color: '#dc2626', text: `vence em ${days} dias` };
+  }
+
+  if (days <= 15) {
+    return { background: 'rgba(245, 158, 11, 0.14)', color: '#b45309', text: `vence em ${days} dias` };
+  }
+
+  return { background: 'rgba(14, 165, 233, 0.12)', color: '#0369a1', text: `vence em ${days} dias` };
+}
+
+export default function EmpresaAsosPage() {
+  const [companyId, setCompanyId] = useState('');
+  const [asos, setAsos] = useState<CompanyAso[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setCompanyId(getStoredCompanyId());
+  }, []);
+
+  useEffect(() => {
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    apiListCompanyAsos(companyId)
+      .then((result) => {
+        if (active) setAsos(Array.isArray(result.data) ? result.data : []);
+      })
+      .catch(() => {
+        if (active) setAsos([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [companyId]);
+
+  const summary = useMemo(() => ({
+    total: asos.length,
+    critical: asos.filter((aso) => aso.daysUntilExpiration <= 7).length,
+    warning: asos.filter((aso) => aso.daysUntilExpiration > 7 && aso.daysUntilExpiration <= 30).length,
+  }), [asos]);
+
+  const refresh = () => {
+    if (!companyId) return;
+    setLoading(true);
+    apiListCompanyAsos(companyId)
+      .then((result) => setAsos(Array.isArray(result.data) ? result.data : []))
+      .catch(() => setAsos([]))
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+          <div>
+            <h2>ASOs vigentes</h2>
+            <p>Historico de colaboradores com ASO ativo, ordenado por vencimento</p>
+          </div>
+          <button className="btn btn-secondary" onClick={refresh}>
+            <ArrowPathIcon className="icon" /> Atualizar
+          </button>
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))' }}>
+        <div className="stat-card">
+          <div className="stat-label">ASOs ativos</div>
+          <div className="stat-value">{summary.total}</div>
+          <div className="stat-sub">aptos e dentro da validade</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Ate 7 dias</div>
+          <div className="stat-value" style={{ color: '#dc2626' }}>{summary.critical}</div>
+          <div className="stat-sub">renovacao prioritaria</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Ate 30 dias</div>
+          <div className="stat-value" style={{ color: '#b45309' }}>{summary.warning}</div>
+          <div className="stat-sub">monitorar agenda</div>
+        </div>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando ASOs...</p>
+        ) : asos.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhum ASO vigente encontrado.</p>
+        ) : (
+          <table className="queue-table">
+            <thead>
+              <tr>
+                <th>Colaborador</th>
+                <th>CPF</th>
+                <th>Tipo</th>
+                <th>Emissao</th>
+                <th>Validade</th>
+                <th>Vencimento</th>
+                <th>Medico</th>
+                <th>ASO</th>
+              </tr>
+            </thead>
+            <tbody>
+              {asos.map((aso) => {
+                const tone = expirationTone(aso.daysUntilExpiration);
+                return (
+                  <tr key={aso.id}>
+                    <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{aso.collaborator.name}</td>
+                    <td>{aso.collaborator.cpf}</td>
+                    <td className="capitalize">{aso.examType}</td>
+                    <td>{formatDate(aso.issuedAt)}</td>
+                    <td>{formatDate(aso.validUntil)}</td>
+                    <td>
+                      <span className="badge" style={{ background: tone.background, color: tone.color }}>{tone.text}</span>
+                    </td>
+                    <td>{aso.doctor.name}</td>
+                    <td>
+                      {aso.pdfUrl ? (
+                        <a className="btn btn-secondary" href={`${BACKEND_URL}${aso.pdfUrl}`} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', minHeight: 'unset' }}>
+                          <DocumentArrowDownIcon className="icon-sm" /> Abrir
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Sem PDF</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
