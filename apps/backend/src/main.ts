@@ -53,6 +53,8 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.enableShutdownHooks();
+
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port, '0.0.0.0');
   console.log(`SaudeSeg+ Backend running on port ${port}`);
