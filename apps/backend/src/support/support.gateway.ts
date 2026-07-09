@@ -10,9 +10,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import { getAllowedOrigins } from '../security/allowed-origins';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: { origin: getAllowedOrigins() },
   namespace: '/support',
 })
 @UseGuards(WsJwtGuard)
@@ -47,6 +48,10 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   @SubscribeMessage('join_admin')
   handleJoinAdmin(@ConnectedSocket() client: Socket) {
+    const user = client.data.user as { role?: string } | undefined;
+    if (user?.role !== 'ADMIN') {
+      return { event: 'error', data: { message: 'Forbidden' } };
+    }
     client.join('support:admin');
     return { event: 'joined_admin' };
   }

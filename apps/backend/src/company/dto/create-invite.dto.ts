@@ -1,47 +1,55 @@
-import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsDateString,
+  IsEmail,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateInviteDto {
-  /**
-   * CPF do colaborador esperado (vincula o token a uma identidade).
-   * Obrigatório: sem ele, o cadastro do colaborador falha mais tarde
-   * (ColaboradorService exige CPF e e-mail do convite).
-   */
   @IsString()
-  @IsNotEmpty({ message: 'CPF do colaborador é obrigatório' })
+  @IsNotEmpty()
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '') : value)
+  @Matches(/^\d{11}$/, { message: 'CPF invalido' })
   expectedCpf: string;
 
-  /** E-mail do colaborador para envio do link — obrigatório (ver acima) */
-  @IsEmail({}, { message: 'E-mail do colaborador inválido' })
+  @IsEmail()
+  @MaxLength(254)
   expectedEmail: string;
 
-  /** Data de Nascimento do colaborador */
   @IsOptional()
-  @IsString()
+  @IsDateString()
   expectedBirthDate?: string;
 
-  /** Código CBO da função do colaborador (vindo da análise do PCMSO) */
   @IsString()
-  @IsNotEmpty({ message: 'Função (CBO) é obrigatória' })
+  @IsNotEmpty()
+  @MaxLength(120)
   roleFunction: string;
 
-  /** Código numérico CBO (ex: "7232-10"), extraído da tabela OccupationalRisk */
   @IsOptional()
   @IsString()
+  @Matches(/^\d{4}-?\d{2}$/)
   roleFunctionCboCode?: string;
 
-  /** Tipo de exame: admissional | periodico | demissional | mudanca_funcao | retorno */
   @IsString()
-  @IsNotEmpty({ message: 'Tipo de exame é obrigatório' })
+  @IsIn(['admissional', 'periodico', 'demissional', 'mudanca_funcao', 'retorno'])
   examType: string;
 
-  /** Nome do colaborador (opcional, para exibição no painel) */
   @IsOptional()
   @IsString()
+  @MaxLength(150)
   collaboratorName?: string;
 
-  /** Validade do convite em dias (padrão: 7) */
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(30)
   expiresInDays?: number;
 }

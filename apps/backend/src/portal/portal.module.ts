@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { getJwtSecret } from '../auth/jwt-secret';
 import { PortalController } from './portal.controller';
 import { PortalService } from './portal.service';
 import { PortalSessionGuard } from './portal-session.guard';
@@ -11,7 +12,7 @@ import { PresenceModule } from '../presence/presence.module';
 @Module({
   imports: [
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'saudeseg-dev-secret',
+      secret: getJwtSecret(),
       signOptions: { expiresIn: '4h' },
     }),
     QueueModule,
@@ -20,5 +21,6 @@ import { PresenceModule } from '../presence/presence.module';
   ],
   controllers: [PortalController],
   providers: [PortalService, PortalSessionGuard, PrismaService],
+  exports: [PortalSessionGuard, JwtModule],
 })
 export class PortalModule {}

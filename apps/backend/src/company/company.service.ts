@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -6,6 +6,7 @@ import { CreateInviteDto } from './dto/create-invite.dto';
 import { CompanyGateway } from './company.gateway';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CompanyService {
@@ -31,9 +32,9 @@ export class CompanyService {
       },
     });
 
-    let passwordHash = 'pending_setup';
+    let passwordHash = await bcrypt.hash(randomUUID(), 12);
     if (dto.password) {
-      passwordHash = await bcrypt.hash(dto.password, 10);
+      passwordHash = await bcrypt.hash(dto.password, 12);
     }
 
     const user = await this.prisma.userAccount.create({
@@ -70,13 +71,11 @@ export class CompanyService {
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
     const data: Record<string, string> = {};
-    if (dto.razaoSocial !== undefined) data.razaoSocial = dto.razaoSocial;
     if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
     if (dto.address !== undefined) data.address = dto.address;
     if (dto.cep !== undefined) data.cep = dto.cep;
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.state !== undefined) data.state = dto.state;
-    if (dto.cnpj !== undefined) data.cnpj = dto.cnpj;
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
     return this.prisma.company.update({
@@ -113,11 +112,15 @@ export class CompanyService {
     const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
 
     if (company.status !== 'LIBERADA') {
-      throw new Error(`Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`);
+      throw new Error(
+        `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
+      );
     }
 
     if (!pcmsoValid || !ppraValid) {
-      throw new Error('Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.');
+      throw new Error(
+        'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
+      );
     }
 
     const expiresAt = new Date();
@@ -129,7 +132,9 @@ export class CompanyService {
         collaboratorName: dto.collaboratorName,
         expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
         expectedEmail: dto.expectedEmail,
-        expectedBirthDate: dto.expectedBirthDate ? new Date(dto.expectedBirthDate) : null,
+        expectedBirthDate: dto.expectedBirthDate
+          ? new Date(dto.expectedBirthDate)
+          : null,
         roleFunction: dto.roleFunction,
         roleFunctionCboCode: dto.roleFunctionCboCode,
         examType: dto.examType,
@@ -158,9 +163,17 @@ export class CompanyService {
     if (dto.expectedEmail) {
       const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
       try {
-        await this.mailService.sendInviteLink(dto.expectedEmail, invite.company.razaoSocial ?? '', link, invite.expiresAt);
+        await this.mailService.sendInviteLink(
+          dto.expectedEmail,
+          invite.company.razaoSocial ?? '',
+          link,
+          invite.expiresAt,
+        );
       } catch (err) {
-        console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err);
+        console.error(
+          `[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`,
+          err,
+        );
       }
     }
 
@@ -246,11 +259,26 @@ export class CompanyService {
     });
   }
 
-  async findInviteByCpf(cpf: string) {
+  async findInviteByCpf(
+    cpf: string,
+    user: { role: string; profileId?: string | null },
+  ) {
+    let clinicId = user.role === 'CLINIC' ? user.profileId : undefined;
+    if (user.role === 'OPERATOR') {
+      const operator = await this.prisma.operator.findUnique({
+        where: { id: user.profileId ?? '' },
+        select: { clinicId: true },
+      });
+      clinicId = operator?.clinicId;
+    }
+    if (user.role !== 'ADMIN' && !clinicId) {
+      throw new ForbiddenException('Clinica nao identificada');
+    }
     return this.prisma.examInvite.findFirst({
-      where: { 
+      where: {
         expectedCpf: cpf,
         status: { in: ['ENVIADO', 'ABERTO'] },
+        ...(user.role === 'ADMIN' ? {} : { company: { clinicId } }),
       },
       orderBy: { createdAt: 'desc' },
       include: { company: true },
@@ -339,7 +367,11 @@ export class CompanyService {
       ppraValid: !!company.ppraValidUntil && company.ppraValidUntil > now,
       hasClinicAssigned: !!company.clinicId,
       status: company.status,
-      isComplete: !!company.pcmsoValidUntil && company.pcmsoValidUntil > now && !!company.ppraValidUntil && company.ppraValidUntil > now,
+      isComplete:
+        !!company.pcmsoValidUntil &&
+        company.pcmsoValidUntil > now &&
+        !!company.ppraValidUntil &&
+        company.ppraValidUntil > now,
     };
   }
 
@@ -362,11 +394,14 @@ export class CompanyService {
 
     const requests = await this.prisma.examRequest.findMany({
       where,
-      include: { patient: true, asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 } },
+      include: {
+        patient: true,
+        asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
-    return requests.map(r => [
+    return requests.map((r) => [
       r.patient.name,
       r.patient.cpf,
       r.patient.functionCboCode ?? '',

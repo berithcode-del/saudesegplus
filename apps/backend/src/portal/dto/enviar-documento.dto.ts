@@ -1,11 +1,12 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsIn, IsNotEmpty, Matches, MaxLength } from 'class-validator';
 
 export class EnviarDocumentoDto {
-  @IsString()
   @IsNotEmpty()
+  @IsIn(['rg', 'cnh', 'foto', 'outro'])
   tipo: string;
 
-  @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
+  @Matches(/^\/uploads\/files\/[0-9a-f-]{36}\.(pdf|jpg|png)$/i)
   fileUrl: string;
 }

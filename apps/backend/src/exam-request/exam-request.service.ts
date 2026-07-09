@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { paginate, PaginatedResult } from '../common/pagination';
@@ -22,14 +22,28 @@ export class ExamRequestService {
     filters: { status?: string; companyId?: string; patientId?: string },
     page: number = 1,
     limit: number = 20,
+    user?: { role: string; profileId?: string | null },
   ): Promise<PaginatedResult<any>> {
+    const scopedCompanyId = user?.role === 'COMPANY_ADMIN' ? user.profileId : filters.companyId;
     const where: any = {
       status: filters.status,
-      patient: filters.companyId
-        ? { companies: { some: { companyId: filters.companyId } } }
+      patient: scopedCompanyId
+        ? { companies: { some: { companyId: scopedCompanyId } } }
         : undefined,
       patientId: filters.patientId,
     };
+    if (user?.role === 'DOCTOR') {
+      where.queueEntry = { assignedDoctorId: user.profileId };
+    } else if (user?.role === 'CLINIC') {
+      where.clinicId = user.profileId;
+    } else if (user?.role === 'OPERATOR') {
+      const operator = await this.prisma.operator.findUnique({
+        where: { id: user.profileId ?? '' },
+        select: { clinicId: true },
+      });
+      if (!operator) throw new ForbiddenException('Acesso negado');
+      where.clinicId = operator.clinicId;
+    }
     return paginate(this.prisma.examRequest, page, limit, {
       where,
       include: {
@@ -43,7 +57,8 @@ export class ExamRequestService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { role: string; profileId?: string | null }) {
+    if (user) await this.assertAccess(id, user);
     const request = await this.prisma.examRequest.findUnique({
       where: { id },
       include: {
@@ -68,6 +83,42 @@ export class ExamRequestService {
         patientOnline: this.presenceService.isOnline(request.id),
       },
     };
+  }
+
+  async assertAccess(
+    id: string,
+    user: { role: string; profileId?: string | null },
+    write = false,
+  ) {
+    if (user.role === 'ADMIN') return;
+    const request = await this.prisma.examRequest.findUnique({
+      where: { id },
+      include: {
+        invite: true,
+        queueEntry: true,
+        patient: { include: { companies: true } },
+      },
+    });
+    if (!request) throw new NotFoundException('Solicitacao nao encontrada');
+
+    let allowed = false;
+    if (user.role === 'COMPANY_ADMIN') {
+      allowed = !write && request.patient.companies.some(
+        (relation) => relation.companyId === user.profileId && !relation.endDate,
+      );
+    } else if (user.role === 'DOCTOR') {
+      allowed = request.queueEntry?.assignedDoctorId === user.profileId;
+    } else if (user.role === 'CLINIC') {
+      allowed = request.clinicId === user.profileId;
+    } else if (user.role === 'OPERATOR') {
+      const operator = await this.prisma.operator.findUnique({
+        where: { id: user.profileId ?? '' },
+        select: { clinicId: true },
+      });
+      allowed = operator?.clinicId === request.clinicId;
+    }
+
+    if (!allowed) throw new ForbiddenException('Acesso negado a esta solicitacao');
   }
 
   /**

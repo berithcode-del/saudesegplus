@@ -6,6 +6,8 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "security:check": "npm test --workspace backend -- --runInBand security-guards.spec.ts exam-request.security.spec.ts queue.security.spec.ts && npm run check-types --workspace web",
+    "security:audit": "npm audit --omit=dev --audit-level=high",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
   },
@@ -17,7 +19,7 @@
     "typescript": "^5.9.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.9.0"
   },
   "packageManager": "npm@11.12.1",
   "workspaces": [

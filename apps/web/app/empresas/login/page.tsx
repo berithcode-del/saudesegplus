@@ -14,6 +14,11 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:300
 
 type Mode = 'empresa' | 'profissional';
 
+function rememberRole(role: string) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `app_role=${encodeURIComponent(role)}; Path=/; SameSite=Lax${secure}`;
+}
+
 export default function EmpresaLoginPage() {
   const router = useRouter();
 
@@ -65,6 +70,7 @@ export default function EmpresaLoginPage() {
       localStorage.setItem('token', data.token);
 
       const role = data.user?.role;
+      rememberRole(role);
       if (role === 'COMPANY_ADMIN') {
         const companyId = data.user?.companyAdminProfile?.companyId;
         if (companyId) {
@@ -124,6 +130,7 @@ export default function EmpresaLoginPage() {
       sessionStorage.setItem('token', data.token);
       localStorage.setItem('token', data.token);
       const role = data.user?.role;
+      rememberRole(role);
       if (role === 'COMPANY_ADMIN') {
         throw new Error('Empresas devem usar o formulário da Empresa (Volte e cadastre-se).');
       }
@@ -788,7 +795,9 @@ export default function EmpresaLoginPage() {
                             className="input-field"
                             placeholder="CNPJ"
                             value={cnpj}
-                            onChange={(e) => setCnpj(e.target.value)}
+                            onChange={(e) => setCnpj(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                            inputMode="numeric"
+                            maxLength={14}
                           />
                           <DocumentTextIcon className="input-icon" />
                         </div>
@@ -800,6 +809,7 @@ export default function EmpresaLoginPage() {
                             placeholder="Razão Social"
                             value={razaoSocial}
                             onChange={(e) => setRazaoSocial(e.target.value)}
+                            maxLength={150}
                           />
                           <BuildingOfficeIcon className="input-icon" />
                         </div>
@@ -815,6 +825,7 @@ export default function EmpresaLoginPage() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         autoComplete="email"
+                        maxLength={254}
                       />
                       <EnvelopeIcon className="input-icon" />
                     </div>
@@ -828,6 +839,8 @@ export default function EmpresaLoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                        minLength={isRegistering ? 12 : 8}
+                        maxLength={128}
                       />
                       <LockClosedIcon className="input-icon" />
                     </div>
@@ -929,7 +942,8 @@ export default function EmpresaLoginPage() {
                         placeholder="Seu e-mail"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        autoComplete="email"
+                      autoComplete="email"
+                      maxLength={254}
                       />
                       <EnvelopeIcon className="input-icon-pro" />
                     </div>
@@ -942,7 +956,9 @@ export default function EmpresaLoginPage() {
                         placeholder="Sua senha"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        autoComplete="current-password"
+                      autoComplete="current-password"
+                      minLength={8}
+                      maxLength={128}
                       />
                       <LockClosedIcon className="input-icon-pro" />
                     </div>

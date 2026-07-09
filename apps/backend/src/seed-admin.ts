@@ -4,8 +4,11 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = 'admin@saudeseg.com';
-  const password = 'admin'; // Senha super segura para ambiente de desenvolvimento
+  const email = process.env.ADMIN_SEED_EMAIL ?? 'admin@saudeseg.com';
+  const password = process.env.ADMIN_SEED_PASSWORD;
+  if (!password || password.length < 12) {
+    throw new Error('ADMIN_SEED_PASSWORD must be configured with at least 12 characters');
+  }
 
   const existingAdmin = await prisma.userAccount.findUnique({
     where: { email },
@@ -16,7 +19,7 @@ async function main() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.userAccount.create({
     data: {
@@ -26,7 +29,7 @@ async function main() {
     },
   });
 
-  console.log(`Successfully created ADMIN user: ${email} / password: ${password}`);
+  console.log(`Successfully created ADMIN user: ${email}`);
 }
 
 main()

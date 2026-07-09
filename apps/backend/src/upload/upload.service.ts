@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { writeFile, mkdir } from 'fs/promises';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { writeFile, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -13,15 +14,14 @@ export class UploadService {
       throw new NotFoundException('Empresa não encontrada');
     }
 
-    const uploadDir = join(process.cwd(), 'uploads', 'documents');
+    const uploadDir = join(process.cwd(), 'private-uploads', 'documents');
     await mkdir(uploadDir, { recursive: true });
 
-    const ext = file.originalname.split('.').pop();
-    const fileName = `${companyId}_${type}_${Date.now()}.${ext}`;
+    const fileName = `${randomUUID()}.pdf`;
     const filePath = join(uploadDir, fileName);
     await writeFile(filePath, file.buffer);
 
-    const fileUrl = `/uploads/documents/${fileName}`;
+    const fileUrl = `/api/upload/documents/${companyId}/file/${fileName}`;
 
     const doc = await this.prisma.companyDocument.create({
       data: {
@@ -62,8 +62,16 @@ export class UploadService {
     const uploadDir = join(process.cwd(), 'uploads', 'files');
     await mkdir(uploadDir, { recursive: true });
 
-    const ext = file.originalname.split('.').pop();
-    const fileName = `file_${Date.now()}.${ext}`;
+    const extensionByMime: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+    };
+    const extension = extensionByMime[file.mimetype];
+    if (!extension) {
+      throw new BadRequestException('Tipo de arquivo nao permitido');
+    }
+    const fileName = `${randomUUID()}.${extension}`;
     const filePath = join(uploadDir, fileName);
     await writeFile(filePath, file.buffer);
 
@@ -80,5 +88,28 @@ export class UploadService {
       where: { companyId },
       orderBy: { uploadedAt: 'desc' },
     });
+  }
+
+  async getDocumentFile(companyId: string, fileName: string) {
+    if (!/^[0-9a-f-]{36}\.pdf$/i.test(fileName)) {
+      throw new NotFoundException('Documento nao encontrado');
+    }
+
+    const document = await this.prisma.companyDocument.findFirst({
+      where: {
+        companyId,
+        fileUrl: `/api/upload/documents/${companyId}/file/${fileName}`,
+      },
+    });
+    if (!document) throw new NotFoundException('Documento nao encontrado');
+
+    try {
+      return {
+        buffer: await readFile(join(process.cwd(), 'private-uploads', 'documents', fileName)),
+        originalName: document.originalName,
+      };
+    } catch {
+      throw new NotFoundException('Documento nao encontrado');
+    }
   }
 }

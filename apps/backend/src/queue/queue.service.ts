@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { PresenceService } from '../presence/presence.service';
@@ -106,15 +106,21 @@ export class QueueService {
       include: { request: { include: { invite: true } } },
     });
 
-    if (!entry) throw new Error('QueueEntry not found');
+    if (!entry) throw new NotFoundException('Atendimento nao encontrado');
 
-    const updated = await this.prisma.queueEntry.update({
-      where: { id: queueEntryId },
+    const claimed = await this.prisma.queueEntry.updateMany({
+      where: { id: queueEntryId, status: 'WAITING', assignedDoctorId: null },
       data: {
         status: 'IN_PROGRESS',
         assignedDoctorId: doctorId,
         assignedAt: new Date(),
       },
+    });
+    if (claimed.count !== 1) {
+      throw new ConflictException('Atendimento ja foi assumido por outro medico');
+    }
+    const updated = await this.prisma.queueEntry.findUniqueOrThrow({
+      where: { id: queueEntryId },
     });
 
     // Bug corrigido: aceitar o paciente na fila atualizava apenas o

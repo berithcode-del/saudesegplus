@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { getJwtSecret } from '../auth/jwt-secret';
 import { Request } from 'express';
 
 export interface PortalUser {
@@ -19,7 +20,7 @@ export class PortalSessionGuard implements CanActivate {
 
     try {
       const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET ?? 'saudeseg_secret_key_2026',
+        secret: getJwtSecret(),
       });
 
       if (payload.role !== 'PORTAL') {

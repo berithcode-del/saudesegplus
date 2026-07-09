@@ -39,22 +39,25 @@ const occupationalRisks = [
 async function main() {
   console.log('Starting seed...');
 
-  const email = 'admin@saudeseg.com';
-  const password = '123456';
+  const email = process.env.ADMIN_SEED_EMAIL ?? 'admin@saudeseg.com';
+  const password = process.env.ADMIN_SEED_PASSWORD;
+  if (!password || password.length < 12) {
+    throw new Error('ADMIN_SEED_PASSWORD must be configured with at least 12 characters');
+  }
 
   await prisma.userAccount.upsert({
     where: { email },
     update: {
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await bcrypt.hash(password, 12),
     },
     create: {
       email,
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await bcrypt.hash(password, 12),
       role: Role.ADMIN,
     },
   });
 
-  console.log(`Admin user created: ${email} / ${password}`);
+  console.log(`Admin user created: ${email}`);
 
   console.log('Seeding OccupationalRisk (CBOs NR-7/NR-9)...');
   for (const risk of occupationalRisks) {

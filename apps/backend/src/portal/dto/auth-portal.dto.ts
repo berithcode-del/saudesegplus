@@ -1,15 +1,15 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsDateString, IsNotEmpty, IsUUID, Matches } from 'class-validator';
 
 export class AuthPortalDto {
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   token: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '') : value)
+  @Matches(/^\d{11}$/)
   cpf: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsDateString()
   birthDate: string;
 }

@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { AnamneseService } from './anamnese.service';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/anamnese')
+@Roles('ADMIN', 'DOCTOR')
 export class AnamneseController {
   constructor(private readonly anamneseService: AnamneseService) {}
 

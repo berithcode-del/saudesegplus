@@ -1,6 +1,17 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
+import { CompanyStatus, Prisma } from '@prisma/client';
+import {
+  UpdateAdminClinicDto,
+  UpdateAdminCompanyDto,
+  UpdateAdminDoctorDto,
+} from './dto/update-admin-profiles.dto';
 
 @Injectable()
 export class AdminService {
@@ -8,10 +19,15 @@ export class AdminService {
 
   // ─── Companies ──────────────────────────────────────────────────────────────
 
-  async getCompanies(status?: string) {
+  async getCompanies(status?: CompanyStatus) {
     return this.prisma.company.findMany({
-      where: status ? { status: status as any } : undefined,
-      include: { clinic: true, admins: { include: { user: { select: { id: true, email: true, role: true } } } } },
+      where: status ? { status } : undefined,
+      include: {
+        clinic: true,
+        admins: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -21,38 +37,84 @@ export class AdminService {
       where: { id },
       include: {
         clinic: true,
-        admins: { include: { user: { select: { id: true, email: true, role: true } } } },
+        admins: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
         patients: { include: { patient: true } },
         examInvites: { orderBy: { createdAt: 'desc' }, take: 20 },
         documents: true,
       },
     });
     if (!company) throw new NotFoundException('Empresa não encontrada');
-    return company;
+    return {
+      ...company,
+      accessEmail: company.admins[0]?.user.email ?? null,
+    };
   }
 
-  async updateCompany(id: string, data: any) {
-    return this.prisma.company.update({ where: { id }, data });
+  async updateCompany(id: string, data: UpdateAdminCompanyDto) {
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+      include: { admins: { orderBy: { createdAt: 'asc' }, take: 1 } },
+    });
+    if (!company) throw new NotFoundException('Empresa não encontrada');
+
+    const { accessEmail, ...profileData } = data;
+    const companyData: Prisma.CompanyUpdateInput = {
+      ...profileData,
+      ...(profileData.cnpj
+        ? { cnpj: profileData.cnpj.replace(/\D/g, '') }
+        : {}),
+      ...(profileData.contactEmail
+        ? { contactEmail: profileData.contactEmail.trim().toLowerCase() }
+        : {}),
+      status: profileData.status,
+    };
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (accessEmail && company.admins[0]) {
+          await tx.userAccount.update({
+            where: { id: company.admins[0].userId },
+            data: { email: accessEmail.trim().toLowerCase() },
+          });
+        }
+        return tx.company.update({ where: { id }, data: companyData });
+      });
+    } catch (error) {
+      this.rethrowUniqueConflict(error, 'CNPJ ou e-mail já cadastrado');
+    }
   }
 
   async deleteCompany(id: string) {
     // Cascade deletes in order of FK dependency
-    const company = await this.prisma.company.findUnique({ where: { id }, include: { admins: true } });
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+      include: { admins: true },
+    });
     if (!company) throw new NotFoundException('Empresa não encontrada');
 
-    await this.prisma.examTimelineEvent.deleteMany({ where: { invite: { companyId: id } } });
+    await this.prisma.examTimelineEvent.deleteMany({
+      where: { invite: { companyId: id } },
+    });
     await this.prisma.examInvite.deleteMany({ where: { companyId: id } });
     await this.prisma.companyDocument.deleteMany({ where: { companyId: id } });
-    await this.prisma.companyPatientRelation.deleteMany({ where: { companyId: id } });
+    await this.prisma.companyPatientRelation.deleteMany({
+      where: { companyId: id },
+    });
     await this.prisma.calendarEvent.deleteMany({ where: { companyId: id } });
-    await this.prisma.financialTransaction.deleteMany({ where: { companyId: id } });
+    await this.prisma.financialTransaction.deleteMany({
+      where: { companyId: id },
+    });
 
     const adminUserIds = company.admins.map((a) => a.userId);
     await this.prisma.companyAdmin.deleteMany({ where: { companyId: id } });
     await this.prisma.company.delete({ where: { id } });
 
     if (adminUserIds.length > 0) {
-      await this.prisma.userAccount.deleteMany({ where: { id: { in: adminUserIds } } });
+      await this.prisma.userAccount.deleteMany({
+        where: { id: { in: adminUserIds } },
+      });
     }
 
     return { success: true };
@@ -62,7 +124,12 @@ export class AdminService {
 
   async getClinics() {
     return this.prisma.clinic.findMany({
-      include: { companies: true, operators: { include: { user: { select: { id: true, email: true, role: true } } } } },
+      include: {
+        companies: true,
+        operators: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -72,22 +139,39 @@ export class AdminService {
       where: { id },
       include: {
         companies: true,
-        operators: { include: { user: { select: { id: true, email: true, role: true } } } },
+        user: { select: { id: true, email: true } },
+        operators: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
         examRequests: { orderBy: { createdAt: 'desc' }, take: 20 },
       },
     });
     if (!clinic) throw new NotFoundException('Clínica não encontrada');
-    return clinic;
+    return {
+      ...clinic,
+      accessEmail: clinic.user?.email ?? null,
+    };
   }
 
-  async createClinic(data: { name: string; cnpj: string; city?: string; state?: string; address?: string; email?: string }) {
+  async createClinic(data: {
+    name: string;
+    cnpj: string;
+    city?: string;
+    state?: string;
+    address?: string;
+    email?: string;
+  }) {
     const tempPassword = Math.random().toString(36).slice(-10);
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-    const email = data.email ?? `clinica.${data.cnpj.replace(/\D/g, '').slice(0, 8)}@saudeseg.com`;
-    
+    const email =
+      data.email ??
+      `clinica.${data.cnpj.replace(/\D/g, '').slice(0, 8)}@saudeseg.com`;
+
     // Check if the email already exists
-    const existingUser = await this.prisma.userAccount.findUnique({ where: { email } });
+    const existingUser = await this.prisma.userAccount.findUnique({
+      where: { email },
+    });
     if (existingUser) {
       throw new ConflictException('Email já cadastrado');
     }
@@ -113,23 +197,56 @@ export class AdminService {
     return { ...user.clinicProfile, email: user.email, tempPassword };
   }
 
-  async updateClinic(id: string, data: any) {
-    return this.prisma.clinic.update({ where: { id }, data });
+  async updateClinic(id: string, data: UpdateAdminClinicDto) {
+    const clinic = await this.prisma.clinic.findUnique({ where: { id } });
+    if (!clinic) throw new NotFoundException('Clínica não encontrada');
+
+    const { accessEmail, ...profileData } = data;
+    const clinicData: Prisma.ClinicUpdateInput = {
+      ...profileData,
+      ...(profileData.cnpj
+        ? { cnpj: profileData.cnpj.replace(/\D/g, '') }
+        : {}),
+      ...(profileData.contactEmail
+        ? { contactEmail: profileData.contactEmail.trim().toLowerCase() }
+        : {}),
+    };
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (accessEmail && clinic.userId) {
+          await tx.userAccount.update({
+            where: { id: clinic.userId },
+            data: { email: accessEmail.trim().toLowerCase() },
+          });
+        }
+        return tx.clinic.update({ where: { id }, data: clinicData });
+      });
+    } catch (error) {
+      this.rethrowUniqueConflict(error, 'CNPJ ou e-mail já cadastrado');
+    }
   }
 
   async deleteClinic(id: string) {
-    const clinic = await this.prisma.clinic.findUnique({ where: { id }, include: { operators: true } });
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id },
+      include: { operators: true },
+    });
     if (!clinic) throw new NotFoundException('Clínica não encontrada');
 
     await this.prisma.calendarEvent.deleteMany({ where: { clinicId: id } });
-    await this.prisma.financialTransaction.deleteMany({ where: { clinicId: id } });
+    await this.prisma.financialTransaction.deleteMany({
+      where: { clinicId: id },
+    });
     const operatorUserIds = clinic.operators.map((o) => o.userId);
     await this.prisma.operator.deleteMany({ where: { clinicId: id } });
     const clinicUserId = clinic.userId;
     await this.prisma.clinic.delete({ where: { id } });
 
     if (operatorUserIds.length > 0) {
-      await this.prisma.userAccount.deleteMany({ where: { id: { in: operatorUserIds } } });
+      await this.prisma.userAccount.deleteMany({
+        where: { id: { in: operatorUserIds } },
+      });
     }
     if (clinicUserId) {
       await this.prisma.userAccount.delete({ where: { id: clinicUserId } });
@@ -167,7 +284,10 @@ export class AdminService {
       },
     });
     if (!doctor) throw new NotFoundException('Médico não encontrado');
-    return doctor;
+    return {
+      ...doctor,
+      accessEmail: doctor.user.email,
+    };
   }
 
   async createDoctor(data: {
@@ -179,20 +299,24 @@ export class AdminService {
     specialties?: string;
     email?: string;
   }) {
-    const existing = await this.prisma.doctor.findUnique({ where: { crmNumber: data.crmNumber } });
+    const existing = await this.prisma.doctor.findUnique({
+      where: { crmNumber: data.crmNumber },
+    });
     if (existing) throw new ConflictException('CRM já cadastrado');
 
     const email = data.email ?? `${this.slugifyName(data.name)}@saudeseg.com`;
-    
+
     // Check if the email already exists
-    const existingUser = await this.prisma.userAccount.findUnique({ where: { email } });
+    const existingUser = await this.prisma.userAccount.findUnique({
+      where: { email },
+    });
     if (existingUser) {
       throw new ConflictException('Email já cadastrado');
     }
 
     // Use bcrypt for a random temporary password
     const tempPassword = Math.random().toString(36).slice(-10);
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
 
     const user = await this.prisma.userAccount.create({
       data: {
@@ -216,8 +340,44 @@ export class AdminService {
     return { ...user.doctorProfile, email, tempPassword };
   }
 
-  async updateDoctor(id: string, data: any) {
-    return this.prisma.doctor.update({ where: { id }, data });
+  async updateDoctor(id: string, data: UpdateAdminDoctorDto) {
+    const doctor = await this.prisma.doctor.findUnique({ where: { id } });
+    if (!doctor) throw new NotFoundException('Médico não encontrado');
+
+    const { accessEmail, ...profileData } = data;
+    const doctorData: Prisma.DoctorUpdateInput = {
+      ...profileData,
+      ...(profileData.crmNumber
+        ? { crmNumber: profileData.crmNumber.trim() }
+        : {}),
+      ...(profileData.contactEmail
+        ? { contactEmail: profileData.contactEmail.trim().toLowerCase() }
+        : {}),
+    };
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (accessEmail) {
+          await tx.userAccount.update({
+            where: { id: doctor.userId },
+            data: { email: accessEmail.trim().toLowerCase() },
+          });
+        }
+        return tx.doctor.update({ where: { id }, data: doctorData });
+      });
+    } catch (error) {
+      this.rethrowUniqueConflict(error, 'CRM ou e-mail já cadastrado');
+    }
+  }
+
+  private rethrowUniqueConflict(error: unknown, message: string): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(message);
+    }
+    throw error;
   }
 
   async verifyDoctor(doctorId: string) {
@@ -234,7 +394,9 @@ export class AdminService {
     await this.prisma.asoDocument.deleteMany({ where: { doctorId: id } });
     await this.prisma.teleconsultation.deleteMany({ where: { doctorId: id } });
     await this.prisma.calendarEvent.deleteMany({ where: { doctorId: id } });
-    await this.prisma.financialTransaction.deleteMany({ where: { doctorId: id } });
+    await this.prisma.financialTransaction.deleteMany({
+      where: { doctorId: id },
+    });
     await this.prisma.doctor.delete({ where: { id } });
     await this.prisma.userAccount.delete({ where: { id: doctor.userId } });
 
@@ -244,16 +406,17 @@ export class AdminService {
   // ─── Stats ───────────────────────────────────────────────────────────────
 
   async getStats() {
-    const [companies, patients, examRequests, asos, financial] = await Promise.all([
-      this.prisma.company.count(),
-      this.prisma.patient.count(),
-      this.prisma.examRequest.count(),
-      this.prisma.asoDocument.count(),
-      this.prisma.financialTransaction.groupBy({
-        by: ['type', 'status'],
-        _sum: { amount: true },
-      }),
-    ]);
+    const [companies, patients, examRequests, asos, financial] =
+      await Promise.all([
+        this.prisma.company.count(),
+        this.prisma.patient.count(),
+        this.prisma.examRequest.count(),
+        this.prisma.asoDocument.count(),
+        this.prisma.financialTransaction.groupBy({
+          by: ['type', 'status'],
+          _sum: { amount: true },
+        }),
+      ]);
 
     let receita = 0;
     let repasses = 0;
@@ -278,7 +441,7 @@ export class AdminService {
         repasses,
         pendente,
         lucro: receita - repasses - despesas,
-      }
+      },
     };
   }
 
@@ -306,7 +469,7 @@ export class AdminService {
 
     if (!pcmsoValid || !ppraValid) {
       throw new BadRequestException(
-        `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`
+        `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`,
       );
     }
 
@@ -339,7 +502,9 @@ export class AdminService {
           },
           orderBy: { uploadedAt: 'desc' },
         },
-        admins: { include: { user: { select: { id: true, email: true, role: true } } } },
+        admins: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
       },
       orderBy: { updatedAt: 'desc' },
     });

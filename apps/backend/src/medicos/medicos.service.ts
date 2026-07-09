@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma.service';
 import { paginate, PaginatedResult } from '../common/pagination';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
 
 @Injectable()
 export class MedicosService {
@@ -61,6 +62,8 @@ export class MedicosService {
         status: true,
         verifiedAt: true,
         rqeNumber: true,
+        phone: true,
+        contactEmail: true,
         user: { select: { email: true } },
       },
     });
@@ -78,7 +81,7 @@ export class MedicosService {
   async updateProfile(
     userId: string,
     doctorId: string,
-    body: { city?: string; state?: string },
+    body: UpdateDoctorProfileDto,
   ) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
@@ -90,6 +93,10 @@ export class MedicosService {
     const updateData: Prisma.DoctorUpdateInput = {};
     if (body.city !== undefined) updateData.city = body.city;
     if (body.state !== undefined) updateData.state = body.state;
+    if (body.phone !== undefined) updateData.phone = body.phone.trim();
+    if (body.contactEmail !== undefined) {
+      updateData.contactEmail = body.contactEmail.trim().toLowerCase();
+    }
 
     const updated = await this.prisma.doctor.update({
       where: { id: doctorId },

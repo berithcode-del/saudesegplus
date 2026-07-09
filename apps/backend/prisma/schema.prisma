@@ -62,6 +62,8 @@ model Doctor {
   name                  String
   crmNumber             String                 @unique
   crmState              String
+  phone                 String?
+  contactEmail          String?
   signaturePin          String?
   city                  String?
   state                 String?

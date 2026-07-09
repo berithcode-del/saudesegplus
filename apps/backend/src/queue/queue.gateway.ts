@@ -10,10 +10,11 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import { getAllowedOrigins } from '../security/allowed-origins';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: getAllowedOrigins(),
   },
 })
 @UseGuards(WsJwtGuard)
@@ -45,12 +46,19 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     if (!data?.processId) return;
+    const user = client.data.user as { role?: string; processId?: string } | undefined;
+    if (user?.role === 'PORTAL' && user.processId !== data.processId) return;
     client.join(`process:${data.processId}`);
   }
 
   @SubscribeMessage('doctor_viewing_patient')
-  handleDoctorViewingPatient(@MessageBody() data: { processId?: string; doctorId?: string }) {
+  handleDoctorViewingPatient(
+    @MessageBody() data: { processId?: string; doctorId?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
     if (!data?.processId) return;
+    const user = client.data.user as { role?: string; profileId?: string } | undefined;
+    if (user?.role !== 'DOCTOR' || user.profileId !== data.doctorId) return;
     this.emitProcessUpdate(data.processId, 'doctor_viewing_patient', {
       processId: data.processId,
       doctorId: data.doctorId ?? null,
@@ -59,7 +67,12 @@ export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('doctor_online')
-  handleDoctorOnline(@MessageBody() data: { doctorId: string }) {
+  handleDoctorOnline(
+    @MessageBody() data: { doctorId: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const user = client.data.user as { role?: string; profileId?: string } | undefined;
+    if (user?.role !== 'DOCTOR' || user.profileId !== data.doctorId) return;
     this.server.emit('doctor_status', { doctorId: data.doctorId, status: 'online' });
   }
 }

@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { QueueService } from '../queue/queue.service';
+import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ExamsService {
@@ -184,7 +186,7 @@ export class ExamsService {
     const user = await this.prisma.userAccount.create({
       data: {
         email: `${data.cpf}@walkin.temp`,
-        passwordHash: 'walkin_temp',
+        passwordHash: await bcrypt.hash(randomUUID(), 12),
         role: 'PATIENT',
       },
     });

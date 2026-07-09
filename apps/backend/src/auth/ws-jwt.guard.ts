@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/commo
 import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import * as crypto from 'crypto';
+import { getJwtSecret } from './jwt-secret';
 
 @Injectable()
 export class WsJwtGuard implements CanActivate {
@@ -34,25 +35,24 @@ export class WsJwtGuard implements CanActivate {
     if (parts.length !== 3) throw new Error('Malformed token');
 
     const [header, payload, signature] = parts;
-    const secrets = Array.from(new Set([
-      process.env.JWT_SECRET,
-      'saudeseg-dev-secret',
-      'saudeseg_secret_key_2026',
-    ].filter(Boolean))) as string[];
+    const expectedSig = crypto
+      .createHmac('sha256', getJwtSecret())
+      .update(`${header}.${payload}`)
+      .digest('base64url');
 
-    const isValidSignature = secrets.some((secret) => {
-      const expectedSig = crypto
-        .createHmac('sha256', secret)
-        .update(`${header}.${payload}`)
-        .digest('base64url');
-      return expectedSig === signature;
-    });
-
-    if (!isValidSignature) throw new Error('Invalid signature');
+    if (
+      signature.length !== expectedSig.length ||
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+    ) {
+      throw new Error('Invalid signature');
+    }
 
     const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
       throw new Error('Expired token');
+    }
+    if (typeof decoded.sub !== 'string' || typeof decoded.role !== 'string') {
+      throw new Error('Invalid token payload');
     }
 
     return decoded as Record<string, unknown>;

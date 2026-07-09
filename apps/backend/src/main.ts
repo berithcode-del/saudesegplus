@@ -4,6 +4,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
+import { getAllowedOrigins } from './security/allowed-origins';
+import { SafeExceptionFilter } from './security/safe-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,18 +20,32 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new SafeExceptionFilter());
 
   // Prevenção contra Massive Payloads
   app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
+  app.use((_request, response, next) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.setHeader(
+      'Content-Security-Policy',
+      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    );
+    if (process.env.NODE_ENV === 'production') {
+      response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
   // Servir uploads como arquivos estáticos — usa process.cwd() para garantir
   // que o caminho seja correto tanto em dev (ts-node) quanto em prod (dist/)
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
+  app.useStaticAssets(join(process.cwd(), 'uploads', 'files'), { prefix: '/uploads/files' });
 
-  const allowedOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:3000', 'http://localhost:8081', 'http://10.0.2.2:3000'];
+  const allowedOrigins = getAllowedOrigins();
 
   app.enableCors({
     origin: allowedOrigins,
@@ -37,8 +53,12 @@ async function bootstrap() {
     credentials: true,
   });
 
-  await app.listen(3001);
-  console.log('🚀 SaúdeSeg+ Backend running on http://localhost:3001');
+  const port = Number(process.env.PORT ?? 3001);
+  await app.listen(port, '0.0.0.0');
+  console.log(`SaudeSeg+ Backend running on port ${port}`);
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start SaudeSeg+ Backend', error);
+  process.exit(1);
+});

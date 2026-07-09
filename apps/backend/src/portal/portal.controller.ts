@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
+import type { Response } from 'express';
 import { PortalService } from './portal.service';
 import { PortalSessionGuard, PortalUser } from './portal-session.guard';
 import { AuthPortalDto } from './dto/auth-portal.dto';
@@ -8,6 +9,7 @@ import { QuestionarioDto } from './dto/questionario.dto';
 import { EnviarDocumentoDto } from './dto/enviar-documento.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { PresenceService } from '../presence/presence.service';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('api/portal')
 export class PortalController {
@@ -27,12 +29,14 @@ export class PortalController {
 
   @Public()
   @Get('preview/:token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async preview(@Param('token') token: string) {
     return this.portalService.preview(token);
   }
 
   @Public()
   @Post('auth')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async auth(@Body() dto: AuthPortalDto) {
     return this.portalService.auth(dto.token, dto.cpf, dto.birthDate);
   }
@@ -72,8 +76,11 @@ export class PortalController {
   @Public()
   @Get('aso')
   @UseGuards(PortalSessionGuard)
-  async getAso(@Req() req: Request) {
+  async getAso(@Req() req: Request, @Res() response: Response) {
     const user = (req as any).user as PortalUser;
-    return this.portalService.getAso(user.processId, user.patientId);
+    const file = await this.portalService.getAsoFile(user.processId, user.patientId);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    response.send(file.buffer);
   }
 }

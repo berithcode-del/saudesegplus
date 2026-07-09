@@ -1,32 +1,51 @@
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
-  @IsNotEmpty({ message: 'CNPJ é obrigatório' })
+  @IsNotEmpty()
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '') : value)
+  @Matches(/^\d{14}$/, { message: 'CNPJ invalido' })
   cnpj: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Razão social é obrigatória' })
+  @IsNotEmpty()
+  @MaxLength(150)
   razaoSocial: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(150)
   nomeFantasia?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(250)
   address?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '') : value)
+  @Matches(/^\d{8}$/)
   cep?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   city?: string;
 
   @IsOptional()
   @IsString()
+  @Matches(/^[A-Za-z]{2}$/)
   state?: string;
 
   @IsOptional()
@@ -37,11 +56,13 @@ export class CreateCompanyDto {
   @IsNumber()
   lng?: number;
 
-  /** E-mail do cadastrador (para criar o UserAccount) */
-  @IsEmail({}, { message: 'E-mail de contato inválido' })
+  @IsEmail()
+  @MaxLength(254)
   contactEmail: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(12)
+  @MaxLength(128)
   password?: string;
 }

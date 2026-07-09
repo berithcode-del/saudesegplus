@@ -224,7 +224,6 @@ export default function ConsultorioConfiguracoesPage() {
       const result = await apiFetch('/api/clinic/profile', {
         method: 'PATCH',
         body: JSON.stringify({
-          name: clinicData.name,
           address: clinicData.address,
           city: clinicData.city,
           state: clinicData.state,
@@ -304,7 +303,7 @@ export default function ConsultorioConfiguracoesPage() {
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label">Nome</label>
-              <input type="text" className="form-input" value={clinicData.name} onChange={(e) => setClinicData({ ...clinicData, name: e.target.value })} />
+              <input type="text" className="form-input" value={clinicData.name} disabled style={{ background: '#f9fafb', color: '#6b7280' }} />
             </div>
             <div className="form-group">
               <label className="form-label">CNPJ</label>
@@ -339,6 +338,9 @@ export default function ConsultorioConfiguracoesPage() {
                 ))}
               </select>
             </div>
+          </div>
+          <div style={{ marginTop: '20px', padding: '12px 14px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#3730a3', fontSize: '13px', lineHeight: 1.5 }}>
+            Para alterar nome cadastral, CNPJ ou e-mail de acesso, entre em contato com o administrador da plataforma.
           </div>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
             {saved && (

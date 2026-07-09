@@ -10,8 +10,8 @@ import {
   Post,
 } from '@nestjs/common';
 import { MedicosService } from './medicos.service';
-import { Public } from '../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
 
 interface AuthenticatedRequest {
   user: { sub: string };
@@ -21,7 +21,6 @@ interface AuthenticatedRequest {
 export class MedicosController {
   constructor(private readonly medicosService: MedicosService) {}
 
-  @Public()
   @Get()
   async list(
     @Query('search') search?: string,
@@ -38,14 +37,12 @@ export class MedicosController {
     return { success: true, data };
   }
 
-  @Public()
   @Get(':id/perfil')
   async getProfile(@Param('id') doctorId: string) {
     const data = await this.medicosService.getProfile(doctorId);
     return { success: true, data };
   }
 
-  @Public()
   @Get(':id/solicitacoes')
   async listSolicitacoes(
     @Param('id') doctorId: string,
@@ -65,7 +62,7 @@ export class MedicosController {
   async updateProfile(
     @Request() req: AuthenticatedRequest,
     @Param('id') doctorId: string,
-    @Body() body: { city?: string; state?: string },
+    @Body() body: UpdateDoctorProfileDto,
   ) {
     const data = await this.medicosService.updateProfile(
       req.user.sub,

@@ -1,26 +1,34 @@
-import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Request } from '@nestjs/common';
 import { QueueService } from './queue.service';
-import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/queue')
+@Roles('ADMIN', 'DOCTOR', 'CLINIC', 'OPERATOR')
 export class QueueController {
   constructor(private readonly queueService: QueueService) {}
 
-  @Public()
   @Get()
-  getQueue(@Query('doctorId') doctorId: string) {
-    return this.queueService.getQueueForDoctor(doctorId);
+  @Roles('ADMIN', 'DOCTOR')
+  getQueue(
+    @Query('doctorId') doctorId: string,
+    @Request() req: { user: { role: string; profileId?: string | null } },
+  ) {
+    const scopedDoctorId = req.user.role === 'DOCTOR' ? req.user.profileId : doctorId;
+    return this.queueService.getQueueForDoctor(scopedDoctorId ?? '');
   }
 
-  @Public()
   @Post('enqueue')
+  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
   enqueue(@Body() body: { examRequestId: string }) {
     return this.queueService.enqueue(body.examRequestId);
   }
 
-  @Public()
   @Post(':id/accept')
-  accept(@Param('id') id: string, @Body() body: { doctorId: string }) {
-    return this.queueService.acceptPatient(id, body.doctorId);
+  @Roles('DOCTOR')
+  accept(
+    @Param('id') id: string,
+    @Request() req: { user: { profileId?: string | null } },
+  ) {
+    return this.queueService.acceptPatient(id, req.user.profileId ?? '');
   }
 }

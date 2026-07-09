@@ -1,6 +1,10 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { getJwtSecret } from '../auth/jwt-secret';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
+import { readFile } from 'fs/promises';
+import { basename, join } from 'path';
 import { InviteStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { QuestionarioDto } from './dto/questionario.dto';
@@ -56,7 +60,7 @@ export class PortalService {
       const userAccount = await this.prisma.userAccount.create({
         data: {
           email: uniqueEmail,
-          passwordHash: await bcrypt.hash(cpf, 10),
+          passwordHash: await bcrypt.hash(randomUUID(), 12),
           role: Role.PATIENT,
         },
       });
@@ -135,7 +139,7 @@ export class PortalService {
 
     const sessionToken = this.jwtService.sign(
       { sub: patient.id, processId: examRequest.id, role: 'PORTAL' },
-      { secret: process.env.JWT_SECRET ?? 'saudeseg_secret_key_2026', expiresIn: '4h' },
+      { secret: getJwtSecret(), expiresIn: '4h' },
     );
 
     // Apenas garante que não foi expirado
@@ -535,6 +539,25 @@ export class PortalService {
       decision: aso?.decision ?? null,
       validUntil: aso?.validUntil ?? null,
     };
+  }
+
+  async getAsoFile(processId: string, patientId: string) {
+    const aso = await this.getAso(processId, patientId);
+    if (!aso.pdfUrl) throw new NotFoundException('ASO nao encontrado');
+
+    const fileName = basename(aso.pdfUrl);
+    if (!/^aso-[0-9a-f-]+\.pdf$/i.test(fileName)) {
+      throw new NotFoundException('ASO nao encontrado');
+    }
+
+    try {
+      return {
+        buffer: await readFile(join(process.cwd(), 'uploads', 'aso', fileName)),
+        fileName,
+      };
+    } catch {
+      throw new NotFoundException('ASO nao encontrado');
+    }
   }
 
   async preview(token: string) {

@@ -1,18 +1,17 @@
-import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class ValidateInviteDto {
-  /** Token do convite (campo `token` do ExamInvite, NÃO o id do registro) */
-  @IsString()
-  @IsNotEmpty({ message: 'Token é obrigatório' })
+  @IsUUID()
+  @IsNotEmpty()
   token: string;
 
-  /** Nome completo do colaborador */
   @IsString()
-  @IsNotEmpty({ message: 'Nome é obrigatório' })
+  @IsNotEmpty()
+  @MaxLength(150)
   name: string;
 
-  /** Senha para acesso futuro */
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter no mínimo 6 caracteres' })
+  @MinLength(12)
+  @MaxLength(128)
   password: string;
 }

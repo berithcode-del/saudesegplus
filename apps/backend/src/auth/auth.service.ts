@@ -41,6 +41,7 @@ export class AuthService {
     else if (user.role === 'COMPANY_ADMIN') profileId = user.companyAdminProfile?.companyId ?? null;
     else if (user.role === 'OPERATOR') profileId = user.operatorProfile?.id ?? null;
     else if (user.role === 'CLINIC') profileId = user.clinicProfile?.id ?? null;
+    else if (user.role === 'PATIENT') profileId = user.patientProfile?.id ?? null;
 
     const payload = { sub: user.id, email: user.email, role: user.role, profileId };
     const token = this.jwtService.sign(payload);
@@ -78,7 +79,7 @@ export class AuthService {
       throw new BadRequestException('Senha atual incorreta');
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
     await this.prisma.userAccount.update({
       where: { id: userId },
       data: { passwordHash },

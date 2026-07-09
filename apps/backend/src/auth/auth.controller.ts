@@ -2,6 +2,8 @@ import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common'
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { ChangePasswordDto, LoginDto } from './dto/login.dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -9,7 +11,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  async login(@Body() body: { email: string; password: string }) {
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async login(@Body() body: LoginDto) {
     return this.authService.login(body.email, body.password);
   }
 
@@ -21,7 +24,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
-  async changePassword(@Request() req: any, @Body() body: { currentPassword: string; newPassword: string }) {
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async changePassword(@Request() req: any, @Body() body: ChangePasswordDto) {
     return this.authService.changePassword(req.user.sub, body.currentPassword, body.newPassword);
   }
 }

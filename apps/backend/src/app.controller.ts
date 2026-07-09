@@ -7,6 +7,15 @@ export class AppController {
   constructor(private prisma: PrismaService) {}
 
   @Public()
+  @Get('health')
+  health() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Public()
   @Get('doctors')
   async getDoctors() {
     return this.prisma.doctor.findMany({ include: { user: { select: { id: true, email: true, role: true } } } });

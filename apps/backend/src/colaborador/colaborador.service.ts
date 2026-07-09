@@ -71,7 +71,7 @@ export class ColaboradorService {
     }
 
     // 2. Criar UserAccount para o colaborador
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const user = await this.prisma.userAccount.create({
       data: {
         email: invite.expectedEmail,

@@ -123,11 +123,9 @@ export default function ConfiguracoesPage() {
       const result = await apiFetch(`/api/company/${companyId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          razaoSocial: companyData.razaoSocial,
           nomeFantasia: companyData.nomeFantasia,
           address: companyData.address,
           cep: companyData.cep.replace(/\D/g, ''),
-          cnpj: companyData.cnpj.replace(/\D/g, ''),
           city: companyData.city,
           state: companyData.state,
           phone: companyData.phone,
@@ -197,7 +195,8 @@ export default function ConfiguracoesPage() {
               type="text"
               className="form-input"
               value={companyData.razaoSocial}
-              onChange={(e) => setCompanyData({ ...companyData, razaoSocial: e.target.value })}
+              disabled
+              style={{ background: '#f9fafb', color: '#6b7280' }}
             />
           </div>
           <div className="form-group">
@@ -206,7 +205,8 @@ export default function ConfiguracoesPage() {
               type="text"
               className="form-input"
               value={companyData.cnpj}
-              onChange={(e) => setCompanyData({ ...companyData, cnpj: formatCNPJ(e.target.value) })}
+              disabled
+              style={{ background: '#f9fafb', color: '#6b7280' }}
             />
           </div>
           <div className="form-group">
@@ -343,6 +343,10 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
         )}
+
+        <div style={{ marginTop: '20px', padding: '12px 14px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#3730a3', fontSize: '13px', lineHeight: 1.5 }}>
+          Para alterar CNPJ ou razão social, entre em contato com o administrador da plataforma.
+        </div>
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
           {saved && (

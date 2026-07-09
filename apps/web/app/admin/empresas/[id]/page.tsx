@@ -1,6 +1,7 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/app/lib/api';
 import {
   ArrowLeftIcon,
   BuildingOffice2Icon,
@@ -9,8 +10,6 @@ import {
   CheckIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
 const STATUS_CFG: Record<string, { label: string; color: string }> = {
   LIBERADA: { label: 'Liberada', color: '#16a34a' },
@@ -34,16 +33,19 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
     if (isNew) return;
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/api/admin/companies/${id}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/admin/companies/${id}`);
       setCompany(data);
       setForm({
         razaoSocial: data.razaoSocial ?? '',
         nomeFantasia: data.nomeFantasia ?? '',
         cnpj: data.cnpj ?? '',
         address: data.address ?? '',
+        cep: data.cep ?? '',
         city: data.city ?? '',
         state: data.state ?? '',
+        phone: data.phone ?? '',
+        contactEmail: data.contactEmail ?? '',
+        accessEmail: data.accessEmail ?? data.admins?.[0]?.user?.email ?? '',
         status: data.status ?? '',
       });
     } catch { setCompany(null); }
@@ -56,29 +58,27 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
     setSaving(true);
     try {
       if (isNew) {
-        await fetch(`${BACKEND}/api/admin/companies`, {
+        await apiFetch('/api/admin/companies', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         });
         router.push('/admin/empresas');
       } else {
-        await fetch(`${BACKEND}/api/admin/companies/${id}`, {
+        await apiFetch(`/api/admin/companies/${id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         });
         setEditing(false);
         fetchCompany();
       }
-    } catch { alert('Erro ao salvar.'); }
+    } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!window.confirm(`Excluir empresa "${company?.razaoSocial}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      await fetch(`${BACKEND}/api/admin/companies/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/companies/${id}`, { method: 'DELETE' });
       router.push('/admin/empresas');
     } catch { alert('Erro ao excluir.'); }
   };
@@ -145,8 +145,12 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
               { label: 'Nome Fantasia', key: 'nomeFantasia' },
               { label: 'CNPJ', key: 'cnpj' },
               { label: 'Endereço', key: 'address' },
+              { label: 'CEP', key: 'cep' },
               { label: 'Cidade', key: 'city' },
               { label: 'Estado', key: 'state' },
+              { label: 'Telefone', key: 'phone' },
+              { label: 'E-mail de Contato', key: 'contactEmail' },
+              { label: 'E-mail de Acesso', key: 'accessEmail' },
             ].map(({ label, key }) => (
               <div className="form-group" key={key}>
                 <label className="form-label">{label}</label>
@@ -169,6 +173,9 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Nome Fantasia</span><p style={{ margin: '4px 0 0' }}>{company.nomeFantasia ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>CNPJ</span><p style={{ margin: '4px 0 0' }}>{company.cnpj}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Endereço</span><p style={{ margin: '4px 0 0' }}>{[company.address, company.city, company.state].filter(Boolean).join(', ') || '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Telefone</span><p style={{ margin: '4px 0 0' }}>{company.phone ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Contato</span><p style={{ margin: '4px 0 0' }}>{company.contactEmail ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Acesso</span><p style={{ margin: '4px 0 0' }}>{company.accessEmail ?? company.admins?.[0]?.user?.email ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Cadastro</span><p style={{ margin: '4px 0 0' }}>{new Date(company.createdAt).toLocaleDateString('pt-BR')}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Funcionários</span><p style={{ margin: '4px 0 0' }}>{company.patients?.length ?? 0}</p></div>
           </div>

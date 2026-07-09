@@ -2,8 +2,10 @@ import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common
 import type { Request } from 'express';
 import { PrismaService } from '../prisma.service';
 import { QueueGateway } from '../queue/queue.gateway';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/teleconsultation')
+@Roles('DOCTOR')
 export class TeleconsultationController {
   constructor(
     private readonly prisma: PrismaService,

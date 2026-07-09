@@ -11,9 +11,10 @@ import {
 import { SupportService } from './support.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { SendMessageDto } from './dto/send-message.dto';
-import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('api/support')
+@Roles('ADMIN', 'COMPANY_ADMIN', 'CLINIC', 'DOCTOR')
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
@@ -23,7 +24,7 @@ export class SupportController {
       const result = await this.supportService.createTicket(dto, req.user);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
@@ -33,7 +34,7 @@ export class SupportController {
       const result = await this.supportService.listUserTickets(req.user.sub);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
@@ -43,7 +44,7 @@ export class SupportController {
       const result = await this.supportService.getTicket(id, req.user.sub);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
@@ -57,13 +58,14 @@ export class SupportController {
       const result = await this.supportService.sendMessage(id, dto, req.user, 'USER');
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
   // ─── Admin endpoints ───────────────────────────────────────────────────────
 
   @Get('admin/tickets')
+  @Roles('ADMIN')
   async listAllTickets(@Req() req: any, @Query('status') status?: string) {
     try {
       if (req.user.role !== 'ADMIN') {
@@ -72,11 +74,12 @@ export class SupportController {
       const result = await this.supportService.listAllTickets(status);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
   @Get('admin/tickets/:id')
+  @Roles('ADMIN')
   async getAdminTicket(@Param('id') id: string, @Req() req: any) {
     try {
       if (req.user.role !== 'ADMIN') {
@@ -85,11 +88,12 @@ export class SupportController {
       const result = await this.supportService.getAdminTicket(id);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
   @Post('admin/tickets/:id/messages')
+  @Roles('ADMIN')
   async sendAdminMessage(
     @Param('id') id: string,
     @Body() dto: SendMessageDto,
@@ -102,11 +106,12 @@ export class SupportController {
       const result = await this.supportService.sendAdminMessage(id, dto, req.user);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
   @Patch('admin/tickets/:id/status')
+  @Roles('ADMIN')
   async updateTicketStatus(
     @Param('id') id: string,
     @Body() body: { status: string },
@@ -119,7 +124,7 @@ export class SupportController {
       const result = await this.supportService.updateStatus(id, body.status);
       return { success: true, data: result };
     } catch (error) {
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 }

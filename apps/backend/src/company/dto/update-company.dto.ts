@@ -1,39 +1,32 @@
-import { IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateCompanyDto {
-  @IsOptional()
-  @IsString()
-  razaoSocial?: string;
+  @IsOptional() @IsString() @MaxLength(150) nomeFantasia?: string;
+  @IsOptional() @IsString() @MaxLength(250) address?: string;
 
   @IsOptional()
   @IsString()
-  nomeFantasia?: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
-
-  @IsOptional()
-  @IsString()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.replace(/\D/g, '') : value,
+  )
+  @Matches(/^\d{8}$/)
   cep?: string;
 
-  @IsOptional()
-  @IsString()
-  city?: string;
+  @IsOptional() @IsString() @MaxLength(100) city?: string;
+  @IsOptional() @IsString() @Matches(/^[A-Za-z]{2}$/) state?: string;
 
+  @IsOptional() @IsString() @MaxLength(20) phone?: string;
   @IsOptional()
-  @IsString()
-  state?: string;
-
-  @IsOptional()
-  @IsString()
-  cnpj?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsString()
+  @ValidateIf((_object, value) => value !== '')
+  @IsEmail()
+  @MaxLength(254)
   contactEmail?: string;
 }

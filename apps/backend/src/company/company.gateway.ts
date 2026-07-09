@@ -10,9 +10,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
+import { getAllowedOrigins } from '../security/allowed-origins';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: { origin: getAllowedOrigins() },
   namespace: '/company',
 })
 @UseGuards(WsJwtGuard)
@@ -41,6 +42,10 @@ export class CompanyGateway implements OnGatewayConnection, OnGatewayDisconnect 
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { companyId: string },
   ) {
+    const user = client.data.user as { role?: string; profileId?: string } | undefined;
+    if (user?.role !== 'ADMIN' && user?.profileId !== data.companyId) {
+      return { event: 'error', data: { message: 'Forbidden' } };
+    }
     const room = `company:${data.companyId}`;
     client.join(room);
 

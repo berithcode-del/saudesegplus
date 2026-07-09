@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CheckCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  ClockIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 import { apiFetch, getProfileIdFromToken } from "../../lib/api";
 import { apiGetMedicoProfile } from "@/lib/api";
 import FaqHelp from "../../../components/FaqHelp";
@@ -17,6 +21,8 @@ interface DoctorProfile {
   specialties: string | null;
   rqeNumber: string | null;
   email: string | null;
+  phone: string | null;
+  contactEmail: string | null;
   verifiedAt: string | null;
 }
 
@@ -35,6 +41,8 @@ export default function MedicoConfiguracaoPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [formCity, setFormCity] = useState("");
   const [formState, setFormState] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formContactEmail, setFormContactEmail] = useState("");
 
   const [pwForm, setPwForm] = useState({
     currentPassword: "",
@@ -71,6 +79,8 @@ export default function MedicoConfiguracaoPage() {
         setProfile(d);
         setFormCity(d?.city ?? "");
         setFormState(d?.state ?? "");
+        setFormPhone(d?.phone ?? "");
+        setFormContactEmail(d?.contactEmail ?? "");
       })
       .catch(() => setProfile(null))
       .finally(() => setProfileLoading(false));
@@ -85,6 +95,8 @@ export default function MedicoConfiguracaoPage() {
         body: JSON.stringify({
           city: formCity || null,
           state: formState || null,
+          phone: formPhone,
+          contactEmail: formContactEmail.trim() || undefined,
         }),
       });
       if (result.success) {
@@ -249,6 +261,26 @@ export default function MedicoConfiguracaoPage() {
               </h4>
               <div className="form-grid">
                 <div className="form-group">
+                  <label className="form-label">Telefone de contato</label>
+                  <input
+                    type="tel"
+                    className="form-input"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">E-mail de contato</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={formContactEmail}
+                    onChange={(e) => setFormContactEmail(e.target.value)}
+                    placeholder="contato@exemplo.com"
+                  />
+                </div>
+                <div className="form-group">
                   <label className="form-label">Cidade</label>
                   <input
                     type="text"
@@ -301,6 +333,22 @@ export default function MedicoConfiguracaoPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "flex-start",
+                marginTop: "20px",
+                padding: "12px 14px",
+                border: "1px solid #c7d2fe",
+                borderRadius: "8px",
+                background: "#eef2ff",
+                color: "#3730a3",
+                fontSize: "13px",
+                lineHeight: 1.5,
+              }}>
+                <InformationCircleIcon style={{ width: 19, height: 19, flexShrink: 0 }} />
+                <span>Para alterar nome, CRM, RQE ou e-mail de acesso, entre em contato com o administrador da plataforma.</span>
               </div>
               <div
                 style={{

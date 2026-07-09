@@ -1,9 +1,43 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class CalendarService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async assertOwnerAccess(
+    ownerType: string,
+    ownerId: string,
+    user: { role: string; profileId?: string | null },
+  ) {
+    if (user.role === 'ADMIN') return;
+    const expectedType: Record<string, string> = {
+      COMPANY_ADMIN: 'company',
+      DOCTOR: 'doctor',
+      CLINIC: 'clinic',
+    };
+    if (user.role === 'OPERATOR') {
+      const operator = await this.prisma.operator.findUnique({
+        where: { id: user.profileId ?? '' },
+        select: { clinicId: true },
+      });
+      if (ownerType === 'clinic' && operator?.clinicId === ownerId) return;
+    } else if (expectedType[user.role] === ownerType && user.profileId === ownerId) {
+      return;
+    }
+    throw new ForbiddenException('Acesso negado a este calendario');
+  }
+
+  async assertEventAccess(
+    id: string,
+    user: { role: string; profileId?: string | null },
+  ) {
+    const event = await this.prisma.calendarEvent.findUnique({ where: { id } });
+    if (!event) throw new NotFoundException('Evento nao encontrado');
+    const ownerType = event.companyId ? 'company' : event.doctorId ? 'doctor' : 'clinic';
+    const ownerId = event.companyId ?? event.doctorId ?? event.clinicId ?? '';
+    await this.assertOwnerAccess(ownerType, ownerId, user);
+  }
 
   async listEvents(ownerType: string, ownerId: string, startDate?: string, endDate?: string) {
     if (!ownerType || !ownerId) {

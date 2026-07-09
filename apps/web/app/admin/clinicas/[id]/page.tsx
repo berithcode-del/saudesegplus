@@ -1,6 +1,7 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/app/lib/api';
 import {
   ArrowLeftIcon,
   BuildingStorefrontIcon,
@@ -10,7 +11,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
 export default function AdminClinicaDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,8 +25,7 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
   const fetchClinic = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/api/admin/clinics/${id}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/admin/clinics/${id}`);
       setClinic(data);
       setForm({
         name: data.name ?? '',
@@ -34,6 +33,9 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
         address: data.address ?? '',
         city: data.city ?? '',
         state: data.state ?? '',
+        phone: data.phone ?? '',
+        contactEmail: data.contactEmail ?? '',
+        accessEmail: data.accessEmail ?? data.user?.email ?? '',
       });
     } catch { setClinic(null); }
     finally { setLoading(false); }
@@ -44,20 +46,19 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch(`${BACKEND}/api/admin/clinics/${id}`, {
+      await apiFetch(`/api/admin/clinics/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       setEditing(false);
       fetchClinic();
-    } catch { alert('Erro ao salvar.'); }
+    } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
     if (!window.confirm(`Excluir a clínica "${clinic?.name}"? Esta ação não pode ser desfeita.`)) return;
-    await fetch(`${BACKEND}/api/admin/clinics/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/admin/clinics/${id}`, { method: 'DELETE' });
     router.push('/admin/clinicas');
   };
 
@@ -133,11 +134,26 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
                 {STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+            <div className="form-group">
+              <label className="form-label">Telefone</label>
+              <input className="form-input" value={form.phone} onChange={e => setForm((p: any) => ({ ...p, phone: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">E-mail de Contato</label>
+              <input type="email" className="form-input" value={form.contactEmail} onChange={e => setForm((p: any) => ({ ...p, contactEmail: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">E-mail de Acesso</label>
+              <input type="email" className="form-input" value={form.accessEmail} onChange={e => setForm((p: any) => ({ ...p, accessEmail: e.target.value }))} />
+            </div>
           </div>
         ) : (
           <div className="form-grid">
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>CNPJ</span><p style={{ margin: '4px 0 0' }}>{clinic.cnpj}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Endereço</span><p style={{ margin: '4px 0 0' }}>{[clinic.address, clinic.city, clinic.state].filter(Boolean).join(', ') || '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Telefone</span><p style={{ margin: '4px 0 0' }}>{clinic.phone ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Contato</span><p style={{ margin: '4px 0 0' }}>{clinic.contactEmail ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Acesso</span><p style={{ margin: '4px 0 0' }}>{clinic.accessEmail ?? clinic.user?.email ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Empresas Vinculadas</span><p style={{ margin: '4px 0 0' }}>{clinic.companies?.length ?? 0}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Operadores</span><p style={{ margin: '4px 0 0' }}>{clinic.operators?.length ?? 0}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Exames Realizados</span><p style={{ margin: '4px 0 0' }}>{clinic.examRequests?.length ?? 0}</p></div>

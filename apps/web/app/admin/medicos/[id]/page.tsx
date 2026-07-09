@@ -1,17 +1,15 @@
 'use client';
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/app/lib/api';
 import {
   ArrowLeftIcon,
-  UserCircleIcon,
   TrashIcon,
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
   CheckBadgeIcon,
 } from '@heroicons/react/24/outline';
-
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
 export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -28,8 +26,7 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
     if (isNew) return;
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/api/admin/doctors/${id}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/admin/doctors/${id}`);
       setDoctor(data);
       setForm({
         name: data.name ?? '',
@@ -39,6 +36,9 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
         state: data.state ?? '',
         specialties: data.specialties ?? '',
         rqeNumber: data.rqeNumber ?? '',
+        phone: data.phone ?? '',
+        contactEmail: data.contactEmail ?? '',
+        accessEmail: data.accessEmail ?? data.user?.email ?? '',
       });
     } catch { setDoctor(null); }
     finally { setLoading(false); }
@@ -50,34 +50,32 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
     setSaving(true);
     try {
       if (isNew) {
-        await fetch(`${BACKEND}/api/admin/doctors`, {
+        await apiFetch('/api/admin/doctors', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify({ ...form, email: form.accessEmail }),
         });
         router.push('/admin/medicos');
       } else {
-        await fetch(`${BACKEND}/api/admin/doctors/${id}`, {
+        await apiFetch(`/api/admin/doctors/${id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         });
         setEditing(false);
         fetchDoctor();
       }
-    } catch { alert('Erro ao salvar.'); }
+    } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
     finally { setSaving(false); }
   };
 
   const handleVerify = async () => {
     if (!window.confirm('Aprovar este médico?')) return;
-    await fetch(`${BACKEND}/api/admin/doctors/${id}/verify`, { method: 'POST' });
+    await apiFetch(`/api/admin/doctors/${id}/verify`, { method: 'POST' });
     fetchDoctor();
   };
 
   const handleDelete = async () => {
     if (!window.confirm(`Excluir o Dr(a). "${doctor?.name}"? Esta ação não pode ser desfeita.`)) return;
-    await fetch(`${BACKEND}/api/admin/doctors/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/admin/doctors/${id}`, { method: 'DELETE' });
     router.push('/admin/medicos');
   };
 
@@ -160,6 +158,9 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
               { label: 'Estado', key: 'state' },
               { label: 'Especialidades', key: 'specialties' },
               { label: 'RQE', key: 'rqeNumber' },
+              { label: 'Telefone', key: 'phone' },
+              { label: 'E-mail de Contato', key: 'contactEmail' },
+              { label: 'E-mail de Acesso', key: 'accessEmail' },
             ].map(({ label, key }) => (
               <div className="form-group" key={key}>
                 <label className="form-label">{label}</label>
@@ -174,6 +175,8 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Cidade / Estado</span><p style={{ margin: '4px 0 0' }}>{[doctor.city, doctor.state].filter(Boolean).join(' / ') || '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>RQE</span><p style={{ margin: '4px 0 0' }}>{doctor.rqeNumber ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Acesso</span><p style={{ margin: '4px 0 0' }}>{doctor.user?.email ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Telefone</span><p style={{ margin: '4px 0 0' }}>{doctor.phone ?? '—'}</p></div>
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>E-mail de Contato</span><p style={{ margin: '4px 0 0' }}>{doctor.contactEmail ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Cadastrado em</span><p style={{ margin: '4px 0 0' }}>{doctor.user?.createdAt ? new Date(doctor.user.createdAt).toLocaleDateString('pt-BR') : '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Teleconsultas</span><p style={{ margin: '4px 0 0' }}>{doctor.teleconsultations?.length ?? 0} realizadas</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>ASOs Emitidos</span><p style={{ margin: '4px 0 0' }}>{doctor.asoDocuments?.length ?? 0}</p></div>
