@@ -10,9 +10,10 @@
   },
   "scripts": {
     "dev": "nest start --watch --config nest-cli.dev.json",
+    "prebuild": "npm run prisma:generate",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
+    "start": "node dist/main",
     "start:dev": "nest start --watch --config nest-cli.dev.json",
     "start:debug": "nest start --debug --watch --config nest-cli.dev.json",
     "start:prod": "node dist/main",
