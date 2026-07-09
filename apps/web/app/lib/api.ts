@@ -1,6 +1,10 @@
 ﻿'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://backend-production-fdc1.up.railway.app'
+    : 'http://localhost:3001');
 interface QueueEvent {
   type: 'ENQUEUED' | 'ACCEPTED' | 'COMPLETED' | 'DOCTOR_STATUS' | 'TELECONSULTA_INICIADA' | 'DOCTOR_VIEWING_PATIENT';
   payload: Record<string, unknown>;

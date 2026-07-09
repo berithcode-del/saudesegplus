@@ -10,7 +10,11 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') ||
+  (process.env.NODE_ENV === 'production'
+    ? 'https://backend-production-fdc1.up.railway.app'
+    : 'http://localhost:3001');
 
 type Mode = 'empresa' | 'profissional';
 
