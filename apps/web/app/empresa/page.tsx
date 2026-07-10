@@ -53,42 +53,20 @@ export default function EmpresaDashboard() {
       const payload = parts[1] ? JSON.parse(atob(parts[1])) : null;
       const profileId = payload?.profileId || payload?.companyId;
       
-      let currentCompanyId = localStorage.getItem('companyId') || profileId;
-      
-      if (!currentCompanyId) {
-        const companiesRes = await fetch(`${BACKEND_URL}/api/company`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const companiesResult = await companiesRes.json();
-        const companies = companiesResult.data ?? [];
-        currentCompanyId = companies.length > 0 ? companies[0].id : null;
-        
-        if (companies.length > 0) {
-          const c = companies.find((co: any) => co.id === profileId) || companies[0];
-          setCompanyName(c.nomeFantasia || c.razaoSocial || c.name || 'Empresa');
-          setCompanyId(c.id);
-          localStorage.setItem('companyId', c.id);
-        }
-      } else {
-        const companiesRes = await fetch(`${BACKEND_URL}/api/company`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const companiesResult = await companiesRes.json();
-        const companies = companiesResult.data ?? [];
-        const currentCompany = companies.find((c: any) => c.id === currentCompanyId);
-        
-        if (currentCompany) {
-          setCompanyName(currentCompany.nomeFantasia || currentCompany.razaoSocial || currentCompany.name || 'Empresa');
-          setCompanyId(currentCompany.id);
-        }
-      }
+      const currentCompanyId = localStorage.getItem('companyId') || profileId;
 
       if (!currentCompanyId) {
         setLoading(false);
         return;
       }
 
-      const [statsRes, invitesRes, eventsData] = await Promise.all([
+      localStorage.setItem('companyId', currentCompanyId);
+      setCompanyId(currentCompanyId);
+
+      const [companyRes, statsRes, invitesRes, eventsData] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/company/${currentCompanyId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
         fetch(`${BACKEND_URL}/api/company/${currentCompanyId}/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -98,9 +76,22 @@ export default function EmpresaDashboard() {
         apiGetEvents('company', currentCompanyId),
       ]);
 
-      const statsResult = await statsRes.json();
-      const invitesResult = await invitesRes.json();
+      const [companyResult, statsResult, invitesResult] = await Promise.all([
+        companyRes.json(),
+        statsRes.json(),
+        invitesRes.json(),
+      ]);
       if (eventsData) setEvents(eventsData);
+
+      const currentCompany = companyResult.data ?? companyResult;
+      if (currentCompany) {
+        setCompanyName(
+          currentCompany.nomeFantasia ||
+            currentCompany.razaoSocial ||
+            currentCompany.name ||
+            'Empresa',
+        );
+      }
 
       if (statsResult.data) {
         setStats(statsResult.data);

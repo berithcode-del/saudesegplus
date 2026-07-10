@@ -1,6 +1,7 @@
 import { CompanyStatus } from '@prisma/client';
 import {
   IsEmail,
+  IsIn,
   IsEnum,
   IsOptional,
   IsString,
@@ -9,6 +10,7 @@ import {
 
 export class UpdateAdminDoctorDto {
   @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsIn(['male', 'female']) gender?: string;
   @IsOptional() @IsString() crmNumber?: string;
   @IsOptional() @IsString() crmState?: string;
   @IsOptional() @IsString() city?: string;

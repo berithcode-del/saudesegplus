@@ -255,7 +255,7 @@ export async function apiAdminListDoctors() {
   const arr = Array.isArray(r) ? r : r?.data ?? [];
   return { data: Array.isArray(arr) ? arr : [] };
 }
-export async function apiAdminCreateDoctor(data: { name: string; crmNumber: string; crmState: string; city?: string; state?: string; specialties?: string }) {
+export async function apiAdminCreateDoctor(data: { name: string; gender?: string; crmNumber: string; crmState: string; city?: string; state?: string; specialties?: string }) {
   return apiFetch('/api/admin/doctors', {
     method: 'POST',
     body: JSON.stringify(data),

@@ -11,7 +11,7 @@ import { apiGetMedicoProfile, apiGetMedicoSolicitacoes, apiGetEvents, getProfile
 
 export default function MedicoDashboard() {
   const [doctorId, setDoctorId] = useState('');
-  const [doctorProfile, setDoctorProfile] = useState<{ name: string; specialties?: string } | null>(null);
+  const [doctorProfile, setDoctorProfile] = useState<{ name: string; gender?: string | null; specialties?: string } | null>(null);
   const [solicitacoes, setSolicitacoes] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,7 +129,7 @@ export default function MedicoDashboard() {
           }}
         >
           <div data-tour="fila">
-            <GreetingSection name={doctorProfile?.name} />
+            <GreetingSection name={doctorProfile?.name} gender={doctorProfile?.gender} />
           </div>
           <div data-tour="consulta">
             <WeeklyReports solicitacoes={solicitacoes} />

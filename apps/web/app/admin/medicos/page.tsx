@@ -7,6 +7,7 @@ import { apiAdminListDoctors, apiAdminCreateDoctor, apiAdminVerifyDoctor } from 
 interface Doctor {
   id: string;
   name: string;
+  gender?: string | null;
   crmNumber: string;
   crmState: string;
   city?: string;
@@ -21,7 +22,7 @@ export default function AdminMedicosPage() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', crmNumber: '', crmState: '', city: '', state: '', specialties: '', email: '' });
+  const [form, setForm] = useState({ name: '', gender: 'male', crmNumber: '', crmState: '', city: '', state: '', specialties: '', email: '' });
   const [createdCreds, setCreatedCreds] = useState<{ email: string; tempPassword: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,6 +75,7 @@ const handleCopyPassword = async () => {
     try {
       const payload = {
         name: form.name.trim(),
+        gender: form.gender,
         crmNumber: form.crmNumber.trim(),
         crmState: form.crmState.trim().toUpperCase(),
         city: form.city.trim() || undefined,
@@ -83,7 +85,7 @@ const handleCopyPassword = async () => {
       };
       const result = await apiAdminCreateDoctor(payload);
       setShowModal(false);
-      setForm({ name: '', crmNumber: '', crmState: '', city: '', state: '', specialties: '', email: '' });
+      setForm({ name: '', gender: 'male', crmNumber: '', crmState: '', city: '', state: '', specialties: '', email: '' });
       await fetchDoctors();
       if (result?.tempPassword) {
         setCreatedCreds({ email: result.email, tempPassword: result.tempPassword });
@@ -116,7 +118,7 @@ const handleCopyPassword = async () => {
         ) : (
           <table className="queue-table">
             <thead>
-              <tr><th>Nome</th><th>CRM</th><th>Estado</th><th>Cidade</th><th>Especialidades</th><th>Status</th><th>Ações</th></tr>
+              <tr><th>Nome</th><th>Sexo</th><th>CRM</th><th>Estado</th><th>Cidade</th><th>Especialidades</th><th>Status</th><th>Ações</th></tr>
             </thead>
             <tbody>
               {doctors.map(d => {
@@ -124,6 +126,7 @@ const handleCopyPassword = async () => {
                 return (
                   <tr key={d.id}>
                     <td style={{ fontWeight: 600 }}>{d.name}</td>
+                    <td>{d.gender === 'female' ? 'Feminino' : d.gender === 'male' ? 'Masculino' : '—'}</td>
                     <td>{d.crmNumber}/{d.crmState}</td>
                     <td>{d.state ?? '—'}</td>
                     <td>{d.city ?? '—'}</td>
@@ -209,6 +212,13 @@ const handleCopyPassword = async () => {
           <div className="form-group">
             <label className="form-label">Nome *</label>
             <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Sexo *</label>
+            <select className="form-input" value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))} required>
+              <option value="male">Masculino</option>
+              <option value="female">Feminino</option>
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">CRM *</label>

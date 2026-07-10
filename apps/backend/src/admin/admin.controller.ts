@@ -99,6 +99,7 @@ export class AdminController {
     @Body()
     body: {
       name: string;
+      gender?: string;
       crmNumber: string;
       crmState: string;
       city?: string;

@@ -19,7 +19,7 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
   const [doctor, setDoctor] = useState<any>(isNew ? {} : null);
   const [loading, setLoading] = useState(!isNew);
   const [editing, setEditing] = useState(isNew);
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<any>({ gender: 'male' });
   const [saving, setSaving] = useState(false);
 
   const fetchDoctor = async () => {
@@ -30,6 +30,7 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
       setDoctor(data);
       setForm({
         name: data.name ?? '',
+        gender: data.gender ?? 'male',
         crmNumber: data.crmNumber ?? '',
         crmState: data.crmState ?? '',
         city: data.city ?? '',
@@ -52,7 +53,7 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
       if (isNew) {
         await apiFetch('/api/admin/doctors', {
           method: 'POST',
-          body: JSON.stringify({ ...form, email: form.accessEmail }),
+          body: JSON.stringify({ ...form, gender: form.gender ?? 'male', email: form.accessEmail }),
         });
         router.push('/admin/medicos');
       } else {
@@ -152,6 +153,7 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
           <div className="form-grid">
             {[
               { label: 'Nome Completo', key: 'name' },
+              { label: 'Sexo', key: 'gender' },
               { label: 'CRM', key: 'crmNumber' },
               { label: 'Estado CRM', key: 'crmState' },
               { label: 'Cidade', key: 'city' },
@@ -164,12 +166,20 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
             ].map(({ label, key }) => (
               <div className="form-group" key={key}>
                 <label className="form-label">{label}</label>
-                <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
+                {key === 'gender' ? (
+                  <select className="form-input" value={form[key] ?? 'male'} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}>
+                    <option value="male">Masculino</option>
+                    <option value="female">Feminino</option>
+                  </select>
+                ) : (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
+                )}
               </div>
             ))}
           </div>
         ) : (
           <div className="form-grid">
+            <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Sexo</span><p style={{ margin: '4px 0 0' }}>{doctor.gender === 'female' ? 'Feminino' : doctor.gender === 'male' ? 'Masculino' : '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>CRM</span><p style={{ margin: '4px 0 0' }}>{doctor.crmNumber}/{doctor.crmState}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Especialidades</span><p style={{ margin: '4px 0 0' }}>{doctor.specialties ?? '—'}</p></div>
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Cidade / Estado</span><p style={{ margin: '4px 0 0' }}>{[doctor.city, doctor.state].filter(Boolean).join(' / ') || '—'}</p></div>

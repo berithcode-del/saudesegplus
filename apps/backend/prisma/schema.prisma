@@ -61,6 +61,7 @@ model Doctor {
   id                    String                 @id @default(uuid())
   userId                String                 @unique
   name                  String
+  gender                String?
   crmNumber             String                 @unique
   crmState              String
   phone                 String?

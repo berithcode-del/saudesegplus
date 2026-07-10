@@ -17,6 +17,11 @@ import {
 export class AdminService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeGender(gender?: string | null): 'male' | 'female' | null {
+    if (gender === 'male' || gender === 'female') return gender;
+    return null;
+  }
+
   // ─── Companies ──────────────────────────────────────────────────────────────
 
   async getCompanies(status?: CompanyStatus) {
@@ -292,6 +297,7 @@ export class AdminService {
 
   async createDoctor(data: {
     name: string;
+    gender?: string;
     crmNumber: string;
     crmState: string;
     city?: string;
@@ -305,6 +311,7 @@ export class AdminService {
     if (existing) throw new ConflictException('CRM já cadastrado');
 
     const email = data.email ?? `${this.slugifyName(data.name)}@saudeseg.com`;
+    const gender = this.normalizeGender(data.gender);
 
     // Check if the email already exists
     const existingUser = await this.prisma.userAccount.findUnique({
@@ -326,6 +333,7 @@ export class AdminService {
         doctorProfile: {
           create: {
             name: data.name,
+            gender,
             crmNumber: data.crmNumber,
             crmState: data.crmState,
             city: data.city ?? null,
@@ -347,6 +355,7 @@ export class AdminService {
     const { accessEmail, ...profileData } = data;
     const doctorData: Prisma.DoctorUpdateInput = {
       ...profileData,
+      ...(profileData.gender !== undefined ? { gender: this.normalizeGender(profileData.gender) } : {}),
       ...(profileData.crmNumber
         ? { crmNumber: profileData.crmNumber.trim() }
         : {}),

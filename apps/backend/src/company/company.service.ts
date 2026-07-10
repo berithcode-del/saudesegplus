@@ -22,6 +22,7 @@ export class CompanyService {
         cnpj: dto.cnpj,
         razaoSocial: dto.razaoSocial,
         nomeFantasia: dto.nomeFantasia,
+        contactEmail: dto.contactEmail.trim().toLowerCase(),
         address: dto.address,
         cep: dto.cep,
         city: dto.city,
@@ -39,7 +40,7 @@ export class CompanyService {
 
     const user = await this.prisma.userAccount.create({
       data: {
-        email: dto.contactEmail,
+        email: dto.contactEmail.trim().toLowerCase(),
         passwordHash,
         role: 'COMPANY_ADMIN',
       },

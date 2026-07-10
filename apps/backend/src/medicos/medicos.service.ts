@@ -37,6 +37,7 @@ export class MedicosService {
       select: {
         id: true,
         name: true,
+        gender: true,
         crmNumber: true,
         crmState: true,
         city: true,
@@ -54,6 +55,7 @@ export class MedicosService {
       select: {
         id: true,
         name: true,
+        gender: true,
         crmNumber: true,
         crmState: true,
         city: true,

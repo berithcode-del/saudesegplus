@@ -14,6 +14,7 @@ type TabType = "perfil" | "seguranca" | "assinatura";
 interface DoctorProfile {
   id: string;
   name: string;
+  gender: string | null;
   crmNumber: string;
   crmState: string;
   city: string | null;
@@ -241,6 +242,16 @@ export default function MedicoConfiguracaoPage() {
                 <InfoRow
                   label="Especialidades"
                   value={profile.specialties ?? "Não informado"}
+                />
+                <InfoRow
+                  label="Sexo"
+                  value={
+                    profile.gender === "female"
+                      ? "Feminino"
+                      : profile.gender === "male"
+                        ? "Masculino"
+                        : "NÃ£o informado"
+                  }
                 />
                 <InfoRow label="E-mail" value={profile.email ?? "-"} />
                 <InfoRow

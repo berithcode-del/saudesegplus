@@ -62,7 +62,7 @@ export class CreateCompanyDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(12)
+  @MinLength(6)
   @MaxLength(128)
   password?: string;
 }

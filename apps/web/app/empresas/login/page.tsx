@@ -843,7 +843,7 @@ export default function EmpresaLoginPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete={isRegistering ? 'new-password' : 'current-password'}
-                        minLength={isRegistering ? 12 : 8}
+                        minLength={isRegistering ? 6 : 6}
                         maxLength={128}
                       />
                       <LockClosedIcon className="input-icon" />

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   HeartIcon,
   ArrowRightOnRectangleIcon,
@@ -13,6 +13,7 @@ import {
   Cog8ToothIcon,
 } from '@heroicons/react/24/outline';
 import ChatWidget from '../../components/ChatWidget';
+import { apiGetMedicoProfile, getProfileIdFromToken } from '../../lib/api';
 
 const navItems = [
   { href: '/medico', icon: ChartBarSquareIcon, label: 'Dashboard' },
@@ -21,13 +22,41 @@ const navItems = [
   { href: '/medico/configuracao', icon: Cog6ToothIcon, label: 'Configuração' },
 ];
 
-export default function MedicoLayout({ children }: { children: React.ReactNode }) {
+export default function MedicoLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const [search, setSearch] = useState('');
+  const [doctorName, setDoctorName] = useState('Médico(a)');
+  const [doctorSpecialty, setDoctorSpecialty] = useState('Clínico Geral');
+  const [doctorGender, setDoctorGender] = useState<string | null>(null);
+
+  useEffect(() => {
+    const doctorId = getProfileIdFromToken();
+    if (!doctorId) return;
+
+    apiGetMedicoProfile(doctorId)
+      .then((result) => {
+        const profile = result?.data ?? result;
+        if (profile?.name) setDoctorName(profile.name);
+        if (profile?.specialties) setDoctorSpecialty(profile.specialties);
+        if (profile?.gender) setDoctorGender(profile.gender);
+      })
+      .catch(() => {});
+  }, []);
+
+  const doctorPrefix =
+    doctorGender === 'female'
+      ? 'Dra.'
+      : doctorGender === 'male'
+        ? 'Dr.'
+        : 'Dr(a).';
+  const doctorInitial = doctorName?.trim()?.[0]?.toUpperCase() || 'M';
 
   return (
-      <div className="app-shell">
-      {/* ── Sidebar ────────────────────────────── */}
+    <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="sidebar-logo-mark">
@@ -54,9 +83,7 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
         </div>
       </aside>
 
-      {/* ── Main Content ───────────────────────── */}
       <main className="main-content">
-        {/* Topbar com busca */}
         <div
           style={{
             display: 'flex',
@@ -65,7 +92,6 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
             marginBottom: '28px',
           }}
         >
-          {/* Barra de Pesquisa */}
           <div
             style={{
               display: 'flex',
@@ -99,9 +125,7 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
             />
           </div>
 
-          {/* Ações da direita */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* Sino de notificações */}
             <button
               style={{
                 width: 38,
@@ -117,7 +141,6 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
               }}
             >
               <BellIcon style={{ width: 18, height: 18, color: '#6b7280' }} />
-              {/* Bolinha indicadora */}
               <span
                 style={{
                   position: 'absolute',
@@ -132,7 +155,6 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
               />
             </button>
 
-            {/* Engrenagem de config */}
             <button
               style={{
                 width: 38,
@@ -149,10 +171,8 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
               <Cog8ToothIcon style={{ width: 18, height: 18, color: '#6b7280' }} />
             </button>
 
-            {/* Divisor */}
             <div style={{ width: 1, height: 28, background: '#e5e7eb' }} />
 
-            {/* Avatar + Nome */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div
                 style={{
@@ -160,9 +180,11 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
                 }}
               >
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e1b4b' }}>
-                  Dr(a). Médico(a)
+                  {doctorPrefix} {doctorName}
                 </div>
-                <div style={{ fontSize: '11px', color: '#9ca3af' }}>Clínico Geral</div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  {doctorSpecialty}
+                </div>
               </div>
               <div
                 style={{
@@ -180,16 +202,15 @@ export default function MedicoLayout({ children }: { children: React.ReactNode }
                   flexShrink: 0,
                 }}
               >
-                M
+                {doctorInitial}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Conteúdo da página */}
         {children}
         <ChatWidget perfil="MEDICO" />
       </main>
-      </div>
+    </div>
   );
 }
