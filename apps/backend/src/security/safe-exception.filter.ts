@@ -21,7 +21,11 @@ export class SafeExceptionFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     if (status >= 500) {
-      this.logger.error(`${request.method} ${request.path} failed`);
+      const error = exception instanceof Error ? exception : undefined;
+      this.logger.error(
+        `${request.method} ${request.path} failed: ${error?.message ?? String(exception)}`,
+        error?.stack,
+      );
     }
 
     const publicResponse = exception instanceof HttpException
