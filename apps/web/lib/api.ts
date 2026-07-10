@@ -4,107 +4,70 @@ const BACKEND_URL =
     ? 'https://backend-production-fdc1.up.railway.app'
     : 'http://localhost:3001');
 
-export function getProfileIdFromToken(): string | null {
-  try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) return null;
-    const parts = token.split('.');
-    if (parts.length < 2) return null;
-    const payload = JSON.parse(atob(parts[1] || ''));
-    return payload?.profileId ?? null;
-  } catch {
-    return null;
-  }
+export { getProfileIdFromToken } from '@repo/api-client';
+
+import { ApiClient, localStorageAdapter } from '@repo/api-client';
+
+const apiClient = new ApiClient({ storage: localStorageAdapter });
+
+export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+  return apiClient.fetch(endpoint, options);
 }
 
-export async function apiGetExamTypes(): Promise<{ data: any }> {
-  const res = await fetch(`${BACKEND_URL}/api/exams/types`);
-  return res.json();
+export async function apiGetExamTypes(): Promise<{ data: unknown }> {
+  return apiFetch('/api/exams/types') as Promise<{ data: unknown }>;
 }
 
-export async function apiGetRequiredExams(cboCode: string): Promise<{ data: any }> {
-  const res = await fetch(`${BACKEND_URL}/api/exams/required-by-cbo?cbo=${encodeURIComponent(cboCode)}`);
-  return res.json();
+export async function apiGetRequiredExams(cboCode: string): Promise<{ data: unknown }> {
+  return apiFetch(`/api/exams/required-by-cbo?cbo=${encodeURIComponent(cboCode)}`) as Promise<{ data: unknown }>;
 }
 
-export async function apiGetMedicoProfile(id: string): Promise<{ data: any }> {
-  const res = await fetch(`${BACKEND_URL}/api/medicos/${id}/perfil`);
-  return res.json();
+export async function apiGetMedicoProfile(id: string): Promise<{ data: unknown }> {
+  return apiFetch(`/api/medicos/${id}/perfil`) as Promise<{ data: unknown }>;
 }
 
-export async function apiGetMedicoSolicitacoes(id: string, startDate?: string, endDate?: string): Promise<{ data: any }> {
-  let url = `${BACKEND_URL}/api/medicos/${id}/solicitacoes`;
+export async function apiGetMedicoSolicitacoes(id: string, startDate?: string, endDate?: string): Promise<{ data: unknown }> {
+  let url = `/api/medicos/${id}/solicitacoes`;
   const params = new URLSearchParams();
   if (startDate) params.append('startDate', startDate);
   if (endDate) params.append('endDate', endDate);
-  
+
   if (params.toString()) {
     url += `?${params.toString()}`;
   }
-  
-  const res = await fetch(url);
-  return res.json();
+
+  return apiFetch(url) as Promise<{ data: unknown }>;
 }
 
 export async function apiGetEvents(ownerType: string, ownerId: string, startDate?: string, endDate?: string) {
   const params = new URLSearchParams({ ownerType, ownerId });
   if (startDate) params.append('startDate', startDate);
   if (endDate) params.append('endDate', endDate);
-  
-  const response = await fetch(`${BACKEND_URL}/api/calendar?${params.toString()}`);
-  if (!response.ok) throw new Error('Falha ao buscar eventos de calendário');
-  const data = await response.json();
-  return data.data || [];
+
+  const data = await apiFetch(`/api/calendar?${params.toString()}`);
+  return (data as { data?: unknown[] })?.data ?? [];
 }
 
 export async function apiCreateEvent(payload: { title: string; type: string; date: string; ownerType: string; ownerId: string }) {
-  const response = await fetch(`${BACKEND_URL}/api/calendar`, {
+  const data = await apiFetch('/api/calendar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Falha ao criar evento no calendário');
-  const data = await response.json();
-  return data.data;
+  return (data as { data?: unknown })?.data;
 }
 
 export async function apiUpdateEvent(id: string, payload: { title?: string; type?: string; date?: string }) {
-  const response = await fetch(`${BACKEND_URL}/api/calendar/${id}`, {
+  const data = await apiFetch(`/api/calendar/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error('Falha ao atualizar evento no calendário');
-  const data = await response.json();
-  return data.data;
+  return (data as { data?: unknown })?.data;
 }
 
 export async function apiDeleteEvent(id: string) {
-  const response = await fetch(`${BACKEND_URL}/api/calendar/${id}`, {
+  return apiFetch(`/api/calendar/${id}`, {
     method: 'DELETE',
   });
-  if (!response.ok) throw new Error('Falha ao excluir evento no calendário');
-  const data = await response.json();
-  return data;
-}
-
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const url = endpoint.startsWith('http') ? endpoint : `${BACKEND_URL}${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-  if (!res.ok) {
-    const error = new Error(`HTTP ${res.status}: ${res.statusText}`) as Error & { status?: number };
-    error.status = res.status;
-    throw error;
-  }
-  return res.json();
 }
 
 export async function apiGetQueue(doctorId: string) {
@@ -112,7 +75,7 @@ export async function apiGetQueue(doctorId: string) {
 }
 
 export async function apiAcceptPatient(examRequestId: string, doctorId: string) {
-  return apiFetch(`/api/queue/accept`, {
+  return apiFetch('/api/queue/accept', {
     method: 'POST',
     body: JSON.stringify({ examRequestId, doctorId }),
   });
@@ -122,7 +85,7 @@ export async function apiGetSolicitacao(id: string) {
   return apiFetch(`/api/solicitacoes/${id}`);
 }
 
-export async function apiUpdateSolicitacao(id: string, data: any) {
+export async function apiUpdateSolicitacao(id: string, data: unknown) {
   return apiFetch(`/api/solicitacoes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -130,7 +93,7 @@ export async function apiUpdateSolicitacao(id: string, data: any) {
 }
 
 export async function apiCreateVideoRoom(examRequestId: string, doctorId?: string) {
-  return apiFetch(`/api/teleconsultation/create-room`, {
+  return apiFetch('/api/teleconsultation/create-room', {
     method: 'POST',
     body: JSON.stringify({ examRequestId, ...(doctorId ? { doctorId } : {}) }),
   });
