@@ -1,0 +1,30 @@
+﻿{
+  "name": "@repo/api-types",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./enums": "./src/enums/index.ts",
+    "./auth": "./src/auth/index.ts",
+    "./colaborador": "./src/colaborador/index.ts",
+    "./portal": "./src/portal/index.ts",
+    "./medicos": "./src/medicos/index.ts",
+    "./company": "./src/company/index.ts",
+    "./queue": "./src/queue/index.ts",
+    "./teleconsultation": "./src/teleconsultation/index.ts",
+    "./aso": "./src/aso/index.ts",
+    "./anamnese": "./src/anamnese/index.ts",
+    "./models": "./src/models/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "typescript": "5.9.2"
+  }
+}
