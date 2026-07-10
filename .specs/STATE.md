@@ -1,17 +1,37 @@
-# Project Memory (STATE.md)
+# STATE.md — Plano App Mobile SaudeSegPlus
 
-## Decisions Log
-| ID | Decision | Rationale | Status |
-|---|---|---|---|
-| AD-001 | Stack Tecnológica MVP | React/TS para Web, React Native/Flutter para app, Node/Python backend, Postgres + Redis | Definido em `SaudeSeg+_Stack_Tecnologica_Validacoes_Infraestrutura_Fase1.md` |
-| AD-002 | UI Referência | Utilizar `Uireferencia/UiMed.jpg` como base visual para o MVP | Solicitado pelo usuário no briefing |
-| AD-003 | Fila Digital via WebSocket | Atualizações em tempo real com Redis e WebSockets | Evitar polling e melhorar a UX do médico e paciente |
-| AD-004 | Assinatura Eletrônica (Fase 1) | Provedor terceiro (Clicksign/D4Sign/Birdid), sem ICP-Brasil no momento | Simplifica o MVP e reduz atrito inicial |
-| AD-005 | Inserção de Exames | 100% manual com campos estruturados na Fase 1 | Postergar integrações complexas (IoT/APIs) para Fase 2+ |
-| AD-006 | Algoritmo de Fila (Proximidade) | A fila priorizará afinidade regional: mesma cidade > mesma região > mesmo estado > Brasil. | Melhora a segurança clínica, cria confiança e adequa-se à telemedicina |
-| AD-007 | Desacoplamento de Credenciamento | Cadastros de médicos e clínicas (MVP) serão geridos via painel admin básico/API (Mock/Seed) sem validação automática. O BD preverá flags de verificação (`verified_at`, `source`) para transição fluida pro futuro sistema de franquias/credenciamento. | Previne retrabalho na Fase 2 e permite testar o fluxo de atendimento agora |
+## Decisions
 
-## Handoff Snapshot
-- **Current Phase:** Specify (TLC-Spec-Driven)
-- **Active Work:** Geração das especificações (spec.md) para as 3 telas do MVP da Fase 1 (Consultório, Médico, Paciente).
-- **Next Step:** Validação do usuário (Closure Gate) sobre as especificações geradas, seguida por Design e Tasks.
+<!-- Format: AD-NNN: Descrição (Referência: arquivo/commit) -->
+
+- **AD-001**: Extração de `packages/api-types` (DTOs e enums) para reuso entre `web` e `mobile`. (Ref: PLANO Passo 1, `.specs/features/api-types/spec.md`)
+- **AD-002**: Extração de `packages/api-client` (HTTP + Socket.IO) com injeção de dependência de storage. (Ref: PLANO Passo 1, `.specs/features/api-client/spec.md`)
+- **AD-003**: Stack escolhida: **Vite + React SPA** (não Next.js `output: export`) — boot menor, fricção nativa menor com Capacitor. (Ref: PLANO Passo 0 decisão)
+- **AD-004**: Priorização de perfis mobile: **Colaborador (P1) → Médico (P2) → Consultório (P3)**. Admin/Operador/Empresa fora do escopo mobile. (Ref: PLANO Passo 2)
+- **AD-005**: UI construída do zero (não port do web), reusando apenas tipos/DTOs/client HTTP. (Ref: PLANO Passo 4)
+- **AD-006**: Auth colaborador por token-link + CPF + nascimento, persistido via abstração de storage (`Capacitor Preferences` pronto). (Ref: PLANO Passo 5)
+- **AD-007**: Socket.IO adaptado ao ciclo de vida mobile: reconexão em `visibilitychange`/`resume`, Web Push como PWA. (Ref: PLANO Passo 6)
+- **AD-008**: Distribuição faseada: PWA primeiro (M4) → Capacitor quando push/câmera nativa forem requisito duro (M5). Sem Expo/RN. (Ref: PLANO Passo 7)
+- **AD-009**: Backend está em `apps/backend` (não `/backend` na raiz). Monorepo usa apps/web, apps/mobile, apps/backend + packages/@repo/*.
+- **AD-010**: Checkpoints **bloqueantes** entre blocos de tasks: agente revisor designado deve aprovar (PASS) antes de avançar ao próximo bloco. Falha bloqueia progressão. (Ref: `.specs/CHECKPOINTS.md`)
+- **AD-011**: Mobile target: **Android** (PWA-first, Material Design 3, Roboto, touch targets ≥ 48dp). (Ref: skill mobile-design, platform-android.md)
+
+## Handoff
+
+<!-- Format: FEAT-NNN: [status] Descrição (Branch: <branch>, Commit: <hash>) -->
+
+- **FEAT-001**: [completed] api-types — extração de DTOs/enums (Branch: `main`, Commit: `d66bdcb`)
+- **FEAT-002**: [completed] api-client — wrapper HTTP + Socket.IO + injeção de storage (Branch: `main`, Commit: `b4a3145`)
+- **FEAT-003**: [completed] web migration — refatoração para @repo/api-client (Branch: `main`, Commit: `7f39358`)
+- **FEAT-004**: [pending] mobile-scaffold — Vite + React + estrutura de pastas + router (Branch: `feat/mobile-scaffold`, Commit: —)
+- **FEAT-005**: [pending] portal-flow — fluxo Colaborador `/p/:token/*` completo (Branch: `feat/portal-flow`, Commit: —)
+- **FEAT-006**: [pending] doctor-flow — fluxo Médico: fila, consulta ativa, histórico (Branch: `feat/doctor-flow`, Commit: —)
+- **FEAT-007**: [pending] pwa-capacitor — PWA instalável + preparação Capacitor (Branch: `feat/pwa-capacitor`, Commit: —)
+
+## Active Block
+
+<!-- Qual bloco está em execução agora -->
+
+- Bloco atual: **Bloco 1 — Reuso de Pacotes** → **CONCLUÍDO** ✅
+- CHECKPOINT-1: **PASS** (ver `validation.md` de api-types e api-client)
+- Próximo bloco: **Bloco 2 — Scaffold Mobile** (`feat/mobile-scaffold`)
