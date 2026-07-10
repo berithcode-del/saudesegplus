@@ -23,6 +23,23 @@ export async function apiGetRequiredExams(cboCode: string): Promise<{ data: unkn
 }
 
 export async function apiGetMedicoProfile(id: string): Promise<{ data: unknown }> {
+  const me = await apiFetch('/api/auth/me') as {
+    success?: boolean;
+    role?: string;
+    email?: string | null;
+    doctorProfile?: Record<string, unknown> | null;
+    data?: unknown;
+  };
+
+  if (me?.success !== false && me?.doctorProfile && (me.doctorProfile as { id?: string }).id === id) {
+    return {
+      data: {
+        ...(me.doctorProfile as Record<string, unknown>),
+        email: me.email ?? null,
+      },
+    };
+  }
+
   return apiFetch(`/api/medicos/${id}/perfil`) as Promise<{ data: unknown }>;
 }
 

@@ -15,6 +15,13 @@ import {
 import ChatWidget from '../../components/ChatWidget';
 import { apiGetMedicoProfile, getProfileIdFromToken } from '../../lib/api';
 
+interface DoctorProfileSummary {
+  id?: string;
+  name?: string;
+  gender?: string | null;
+  specialties?: string | null;
+}
+
 const navItems = [
   { href: '/medico', icon: ChartBarSquareIcon, label: 'Dashboard' },
   { href: '/medico/fila', icon: HeartIcon, label: 'Fila' },
@@ -39,7 +46,10 @@ export default function MedicoLayout({
 
     apiGetMedicoProfile(doctorId)
       .then((result) => {
-        const profile = result?.data ?? result;
+        if ((result as { success?: boolean })?.success === false) return;
+        const profile =
+          ((result as { data?: DoctorProfileSummary }).data ??
+            result) as DoctorProfileSummary;
         if (profile?.name) setDoctorName(profile.name);
         if (profile?.specialties) setDoctorSpecialty(profile.specialties);
         if (profile?.gender) setDoctorGender(profile.gender);

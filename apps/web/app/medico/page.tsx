@@ -47,7 +47,9 @@ export default function MedicoDashboard() {
           apiGetEvents('doctor', doctorId)
         ]);
 
-        if (profileRes?.data) setDoctorProfile(profileRes.data);
+        if ((profileRes as { success?: boolean })?.success !== false && profileRes?.data) {
+          setDoctorProfile(profileRes.data as { name: string; gender?: string | null; specialties?: string });
+        }
         if (solRes?.data) setSolicitacoes(Array.isArray(solRes.data) ? solRes.data : []);
         if (eventsRes) setEvents(eventsRes);
       } catch (err) {

@@ -76,7 +76,15 @@ export default function MedicoConfiguracaoPage() {
     setProfileLoading(true);
     apiGetMedicoProfile(id)
       .then((r) => {
-        const d = r?.data ?? r;
+        if ((r as { success?: boolean })?.success === false) {
+          setProfile(null);
+          return;
+        }
+        const d = (r as { data?: DoctorProfile }).data ?? (r as DoctorProfile);
+        if (!d?.id) {
+          setProfile(null);
+          return;
+        }
         setProfile(d);
         setFormCity(d?.city ?? "");
         setFormState(d?.state ?? "");
