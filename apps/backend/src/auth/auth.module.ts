@@ -8,14 +8,14 @@ import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { PrismaService } from '../prisma.service';
-import { getJwtSecret } from './jwt-secret';
+import { getJwtExpiresIn, getJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: getJwtSecret(),
-      signOptions: { expiresIn: (process.env.JWT_EXPIRES_IN || '24h') as any },
+      signOptions: { expiresIn: getJwtExpiresIn() as any },
     }),
   ],
   controllers: [AuthController],
