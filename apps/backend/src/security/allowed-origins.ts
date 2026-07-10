@@ -4,13 +4,35 @@ const DEVELOPMENT_ORIGINS = [
   'http://10.0.2.2:3000',
 ];
 
-export function getAllowedOrigins(): string[] {
-  const configured = process.env.CORS_ORIGINS
-    ?.split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+const ORIGIN_ENV_KEYS = [
+  'APP_BASE_URL',
+  'PUBLIC_APP_URL',
+  'FRONTEND_URL',
+  'WEB_URL',
+] as const;
 
-  if (configured?.length) return configured;
+function normalizeOrigin(origin: string): string | undefined {
+  const value = origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
+  if (!value) return undefined;
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value;
+  }
+}
+
+export function getAllowedOrigins(): string[] {
+  const configured = [
+    ...(process.env.CORS_ORIGINS?.split(',') ?? []),
+    ...ORIGIN_ENV_KEYS.map((key) => process.env[key]).filter(
+      (origin): origin is string => Boolean(origin),
+    ),
+  ]
+    .map((origin) => normalizeOrigin(origin))
+    .filter((origin): origin is string => Boolean(origin));
+
+  if (configured.length) return Array.from(new Set(configured));
   if (process.env.NODE_ENV === 'production') {
     throw new Error('CORS_ORIGINS must be configured in production');
   }
