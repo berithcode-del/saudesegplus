@@ -1,6 +1,6 @@
-import type { StorageAdapter } from './storage/types.js';
-import { getAuthToken, clearSession } from './auth.js';
-import { getBaseUrl } from './config.js';
+import type { StorageAdapter } from './storage/types';
+import { getAuthToken, clearSession } from './auth';
+import { getBaseUrl } from './config';
 
 export interface ApiClientConfig {
   storage: StorageAdapter;
@@ -24,7 +24,7 @@ export class ApiClient {
     };
   }
 
-  async fetch(path: string, options: RequestInit = {}): Promise<unknown> {
+  async fetch(path: string, options: RequestInit = {}): Promise<any> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const res = await globalThis.fetch(url, {
       ...options,
@@ -45,7 +45,7 @@ export class ApiClient {
     return res.json();
   }
 
-  async fetchWithFormData(path: string, formData: FormData): Promise<unknown> {
+  async fetchWithFormData(path: string, formData: FormData): Promise<any> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const token = getAuthToken(this.storage);
     const headers: Record<string, string> = {};

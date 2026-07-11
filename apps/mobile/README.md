@@ -1,56 +1,128 @@
-# Welcome to your Expo app 👋
+# SaudeSeg+ Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App mobile SPA (Vite + React) com PWA e preparação para Capacitor.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **Frontend**: React 19 + Vite + React Router v7
+- **PWA**: Service Worker + Manifest + Web Push
+- **Capacitor**: Configurado (wrapper nativo para futuro)
+- **Vendor**: `src/lib/vendor/api-types` e `api-client` (copias locais dos packages do monorepo)
 
-   ```bash
-   npm install
-   ```
+## Desenvolvimento
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Instalar dependências
 
 ```bash
-npm run reset-project
+cd apps/mobile
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Rodar em dispositivo físico (LAN)
 
-### Other setup steps
+```bash
+# Na máquina, descubra o IP (ipconfig no Windows)
+# O vite.config.ts já tem server.host: true
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+npm run dev
 
-## Learn more
+# Acesse no celular: http://<IP_DA_MAQUINA>:5173
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### Build para produção
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm run build
+# Output: apps/mobile/dist/
+```
 
-## Join the community
+### Checar tipos
 
-Join our community of developers creating universal apps.
+```bash
+npm run check-types
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Instalar como PWA no Android
+
+1. Abra Chrome no Android e acesse `http://<IP>:5173` (dev) ou a URL de produção
+2. Toque no menu (3 pontos) → "Instalar app" ou "Adicionar à tela inicial"
+3. O app aparece como ícone independente, sem barra do navegador
+
+### Testar offline
+
+1. Instale o PWA
+2. Navegue pelo portal (preencha dados)
+3. Ative modo avião
+4. Navegue novamente — o SW serve as páginas do cache
+5. O questionário (IndexedDB) funciona 100% offline
+
+## Web Push
+
+### Configurar VAPID keys
+
+1. Gere as chaves: `npx web-push generate-vapid-keys`
+2. Crie `.env` em `apps/mobile/`:
+   ```
+   VITE_VAPID_PUBLIC_KEY=<sua_chave_publica>
+   ```
+3. No backend, configure a chave privada no módulo de push
+
+### Fluxo
+
+1. Usuário concede permissão de notificação
+2. App inscreve no push service com as VAPID keys
+3. Backend envia push quando evento crítico (ex: teleconsulta iniciada)
+4. SW mostra notificação → click abre app na tela correta
+
+## Capacitor (preparação)
+
+O `capacitor.config.ts` está configurado:
+
+```json
+{
+  "appId": "com.saudesegplus.mobile",
+  "appName": "SaudeSeg+",
+  "webDir": "dist"
+}
+```
+
+### Para build nativo (futuro)
+
+```bash
+npm run build
+npx cap sync android
+npx cap open android
+```
+
+## Estrutura
+
+```
+apps/mobile/
+├── public/
+│   ├── manifest.json        # PWA manifest
+│   ├── sw.js                # Service worker
+│   └── icons/               # Ícones SVG (logo oficial)
+├── src/
+│   ├── app/                 # App.tsx, providers, globals.css
+│   ├── routes/
+│   │   ├── portal/[token]/  # Portal do colaborador (7 telas)
+│   │   ├── medico/          # Fluxo médico (login + 4 telas)
+│   │   └── consultorio/     # Placeholder
+│   ├── components/          # ConnectionStatus, ErrorBoundary
+│   ├── hooks/               # usePortalAuth, useQueue, useCamera, etc.
+│   └── lib/
+│       ├── vendor/          # Copias locais de api-types e api-client
+│       ├── storage.ts       # Storage adapter
+│       └── questionDraft.ts # IndexedDB draft
+├── capacitor.config.ts
+├── vite.config.ts
+└── package.json
+```
+
+## Nota sobre packages
+
+O mobile é um projeto independente do monorepo. Os packages `api-types` e `api-client`
+foram copiados para `src/lib/vendor/` para evitar dependência do npm workspaces do root.
+
+Se os packages do monorepo forem atualizados, copie as alterações para `src/lib/vendor/`
+manualmente ou execute o script de sincronização (a ser criado).

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { StorageAdapter } from './storage/types.js';
-import { getAuthToken } from './auth.js';
-import { getBaseUrl } from './config.js';
+import type { StorageAdapter } from './storage/types';
+import { getAuthToken } from './auth';
+import { getBaseUrl } from './config';
 import type { QueueEvent, QueueEventType } from '@repo/api-types';
 
 const EVENT_MAP: Record<string, QueueEventType> = {
@@ -49,10 +49,10 @@ export function useQueue({ storage, baseUrl }: UseQueueOptions) {
 
         const eventNames = ['queue_update', 'doctor_status', 'teleconsulta_iniciada', 'doctor_viewing_patient'];
         for (const name of eventNames) {
-          socket.on(name, (payload: Record<string, unknown>) => {
+          socket.on(name, (payload: unknown) => {
             if (cancelled) return;
             const type = EVENT_MAP[name] ?? 'ENQUEUED';
-            setEvents(prev => [...prev.slice(-(MAX_EVENTS - 1)), { type, payload }]);
+            setEvents(prev => [...prev.slice(-(MAX_EVENTS - 1)), { type, payload: (payload ?? {}) as Record<string, unknown> }]);
           });
         }
 
