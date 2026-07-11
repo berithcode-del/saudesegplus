@@ -1,8 +1,13 @@
 ﻿'use client';
 
-export { getAuthToken, getProfileIdFromToken, useQueue, clearSession } from '@repo/api-client';
+export { useQueue } from '@repo/api-client';
 
+import { getAuthToken as _getToken, getProfileIdFromToken as _getProfileId, clearSession as _clearSession } from '@repo/api-client';
 import { ApiClient, localStorageAdapter } from '@repo/api-client';
+
+export function getAuthToken(): string | null { return _getToken(localStorageAdapter); }
+export function getProfileIdFromToken(): string | null { return _getProfileId(localStorageAdapter); }
+export function clearSession(): void { return _clearSession(localStorageAdapter); }
 
 const apiClient = new ApiClient({ storage: localStorageAdapter });
 
@@ -197,8 +202,9 @@ export async function apiAdminApproveCompany(id: string, approvedBy: string) {
   });
 }
 
-export async function apiSearchCbo(query: string) {
+export async function apiSearchCbo(query: string): Promise<{ cboCode: string; functionName: string }[]> {
   if (!query || query.length < 2) return [];
   const r = await apiFetch(`/api/exams/cbo-search?q=${encodeURIComponent(query)}`);
-  return (r as { data?: unknown[] })?.data ?? [];
+  const raw = ((r as { data?: any[] })?.data ?? []) as any[];
+  return raw.map((item: any) => ({ cboCode: item.code ?? item.cboCode ?? '', functionName: item.name ?? item.functionName ?? '' }));
 }

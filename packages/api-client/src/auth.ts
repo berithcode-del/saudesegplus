@@ -1,4 +1,4 @@
-import type { StorageAdapter } from './storage/types.js';
+import type { StorageAdapter } from './storage/types';
 import type { JWTPayload } from '@repo/api-types';
 
 const TOKEN_KEY = 'token';

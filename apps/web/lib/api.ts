@@ -4,9 +4,12 @@ const BACKEND_URL =
     ? 'https://backend-production-fdc1.up.railway.app'
     : 'http://localhost:3001');
 
-export { getProfileIdFromToken } from '@repo/api-client';
-
+import { getProfileIdFromToken as _getProfileId } from '@repo/api-client';
 import { ApiClient, localStorageAdapter } from '@repo/api-client';
+
+export function getProfileIdFromToken(): string | null {
+  return _getProfileId(localStorageAdapter);
+}
 
 const apiClient = new ApiClient({ storage: localStorageAdapter });
 

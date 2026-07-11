@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class LoginDto {
   @IsEmail()
@@ -6,14 +6,14 @@ export class LoginDto {
   email: string;
 
   @IsString()
-  @MinLength(8)
+  @IsNotEmpty()
   @MaxLength(128)
   password: string;
 }
 
 export class ChangePasswordDto {
   @IsString()
-  @MinLength(8)
+  @IsNotEmpty()
   @MaxLength(128)
   currentPassword: string;
 

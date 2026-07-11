@@ -1,4 +1,4 @@
-import type { StorageAdapter } from './types.js';
+import type { StorageAdapter } from './types';
 
 /**
  * Creates a Capacitor Preferences storage adapter.
@@ -15,7 +15,7 @@ export function createCapacitorStorageAdapter(): StorageAdapter {
   const loadCapacitor = async (): Promise<void> => {
     if (preferences) return;
     try {
-      const mod = await import('@capacitor/preferences');
+      const mod = await import('@capacitor/preferences' as string);
       preferences = mod.Preferences;
     } catch {
       // Capacitor not available — localStorage fallback will be used

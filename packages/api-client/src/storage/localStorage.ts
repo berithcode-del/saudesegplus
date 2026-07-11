@@ -1,4 +1,4 @@
-import type { StorageAdapter } from './types.js';
+import type { StorageAdapter } from './types';
 
 class LocalStorageAdapter implements StorageAdapter {
   getItem(key: string): string | null {

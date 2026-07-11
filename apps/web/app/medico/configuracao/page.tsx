@@ -80,7 +80,7 @@ export default function MedicoConfiguracaoPage() {
           setProfile(null);
           return;
         }
-        const d = (r as { data?: DoctorProfile }).data ?? (r as DoctorProfile);
+        const d = (r as any)?.data ?? r;
         if (!d?.id) {
           setProfile(null);
           return;

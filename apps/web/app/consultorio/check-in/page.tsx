@@ -55,7 +55,7 @@ export default function CheckInPage() {
     if (patient.functionCboCode) {
       apiGetRequiredExams(patient.functionCboCode)
         .then(r => {
-          const exams = Array.isArray(r.data) ? r.data : [];
+          const exams = (Array.isArray(r.data) ? r.data : []) as string[];
           setRequiredExams(exams);
           if (exams.length > 0) {
             setInfoMessage(`Exames obrigatórios para esta função: ${exams.join(', ')}`);
