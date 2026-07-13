@@ -9,10 +9,7 @@ describe('password validation boundaries', () => {
       email: 'empresa@example.com',
       password: '123456',
     });
-
-    const errors = await validate(dto);
-
-    expect(errors).toHaveLength(0);
+    expect(await validate(dto)).toHaveLength(0);
   });
 
   it('keeps the six-character minimum for new company registrations', async () => {
@@ -22,10 +19,7 @@ describe('password validation boundaries', () => {
       contactEmail: 'empresa@example.com',
       password: '123456',
     });
-
-    const errors = await validate(dto);
-
-    expect(errors).toHaveLength(0);
+    expect(await validate(dto)).toHaveLength(0);
   });
 
   it('keeps collaborator invite passwords at twelve characters', async () => {
@@ -34,9 +28,7 @@ describe('password validation boundaries', () => {
       name: 'Colaborador de Teste',
       password: '123456',
     });
-
     const errors = await validate(dto);
-
     expect(errors.some((error) => error.property === 'password')).toBe(true);
   });
 });
