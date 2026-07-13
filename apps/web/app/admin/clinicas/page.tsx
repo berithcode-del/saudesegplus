@@ -18,16 +18,20 @@ export default function AdminClinicasPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', cnpj: '', city: '', state: '', capacity: '', email: '' });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [createdCreds, setCreatedCreds] = useState<{ email: string; tempPassword: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchClinics = async () => {
     setLoading(true);
+    setError('');
     try {
       const r = await apiAdminListClinics();
       setClinics(Array.isArray(r.data) ? r.data : []);
-    } catch { setClinics([]); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar clinicas.');
+    }
     finally { setLoading(false); }
   };
 
@@ -49,6 +53,11 @@ export default function AdminClinicasPage() {
       const result = await apiAdminCreateClinic(payload);
       setShowForm(false);
       setForm({ name: '', cnpj: '', city: '', state: '', capacity: '', email: '' });
+      setClinics((current) => {
+        const created = result && typeof result === 'object' ? result as Clinic : null;
+        if (!created?.id || current.some((clinic) => clinic.id === created.id)) return current;
+        return [...current, created].sort((a, b) => a.name.localeCompare(b.name));
+      });
       await fetchClinics();
       if (result?.tempPassword) {
         setCreatedCreds({ email: result.email, tempPassword: result.tempPassword });
@@ -207,6 +216,12 @@ export default function AdminClinicasPage() {
       <div className="card">
         {loading ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando...</p>
+        ) : error ? (
+          <div style={{ color: '#dc2626', textAlign: 'center', padding: '40px' }}>
+            <p style={{ marginBottom: '12px', fontWeight: 600 }}>Nao foi possivel carregar as clinicas.</p>
+            <p style={{ marginBottom: '16px', fontSize: '14px' }}>{error}</p>
+            <button className="btn btn-ghost" onClick={fetchClinics}>Tentar novamente</button>
+          </div>
         ) : clinics.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhuma clínica cadastrada.</p>
         ) : (

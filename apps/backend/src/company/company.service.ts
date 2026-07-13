@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -7,6 +7,7 @@ import { CompanyGateway } from './company.gateway';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CompanyService {
@@ -17,43 +18,96 @@ export class CompanyService {
   ) {}
 
   async createCompany(dto: CreateCompanyDto) {
-    const company = await this.prisma.company.create({
-      data: {
-        cnpj: dto.cnpj,
-        razaoSocial: dto.razaoSocial,
-        nomeFantasia: dto.nomeFantasia,
-        contactEmail: dto.contactEmail.trim().toLowerCase(),
-        address: dto.address,
-        cep: dto.cep,
-        city: dto.city,
-        state: dto.state,
-        lat: dto.lat,
-        lng: dto.lng,
-        status: 'CADASTRO_INCOMPLETO',
-      },
-    });
+    const email = dto.contactEmail.trim().toLowerCase();
+    const passwordHash = await bcrypt.hash(dto.password ?? randomUUID(), 12);
 
-    let passwordHash = await bcrypt.hash(randomUUID(), 12);
-    if (dto.password) {
-      passwordHash = await bcrypt.hash(dto.password, 12);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existingCompany = await tx.company.findUnique({
+          where: { cnpj: dto.cnpj },
+          include: { admins: true },
+        });
+        const existingUser = await tx.userAccount.findUnique({
+          where: { email },
+          include: { companyAdminProfile: true },
+        });
+
+        if (existingCompany?.admins.length) {
+          throw new ConflictException('CNPJ ja cadastrado');
+        }
+
+        if (existingUser?.companyAdminProfile) {
+          throw new ConflictException('E-mail ja cadastrado');
+        }
+
+        if (existingUser && existingUser.role !== 'COMPANY_ADMIN') {
+          throw new ConflictException('E-mail ja cadastrado em outro perfil');
+        }
+
+        const company = existingCompany
+          ? await tx.company.update({
+              where: { id: existingCompany.id },
+              data: {
+                razaoSocial: dto.razaoSocial,
+                nomeFantasia: dto.nomeFantasia,
+                contactEmail: email,
+                address: dto.address,
+                cep: dto.cep,
+                city: dto.city,
+                state: dto.state,
+                lat: dto.lat,
+                lng: dto.lng,
+              },
+            })
+          : await tx.company.create({
+              data: {
+                cnpj: dto.cnpj,
+                razaoSocial: dto.razaoSocial,
+                nomeFantasia: dto.nomeFantasia,
+                contactEmail: email,
+                address: dto.address,
+                cep: dto.cep,
+                city: dto.city,
+                state: dto.state,
+                lat: dto.lat,
+                lng: dto.lng,
+                status: 'CADASTRO_INCOMPLETO',
+              },
+            });
+
+        const user = existingUser
+          ? await tx.userAccount.update({
+              where: { id: existingUser.id },
+              data: { passwordHash, role: 'COMPANY_ADMIN' },
+            })
+          : await tx.userAccount.create({
+              data: {
+                email,
+                passwordHash,
+                role: 'COMPANY_ADMIN',
+              },
+            });
+
+        await tx.companyAdmin.create({
+          data: {
+            userId: user.id,
+            companyId: company.id,
+          },
+        });
+
+        const { passwordHash: _passwordHash, ...userWithoutPassword } = user;
+        return { company, user: userWithoutPassword };
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('CNPJ ou e-mail ja cadastrado');
+      }
+      throw error;
     }
-
-    const user = await this.prisma.userAccount.create({
-      data: {
-        email: dto.contactEmail.trim().toLowerCase(),
-        passwordHash,
-        role: 'COMPANY_ADMIN',
-      },
-    });
-
-    await this.prisma.companyAdmin.create({
-      data: {
-        userId: user.id,
-        companyId: company.id,
-      },
-    });
-
-    return { company, user };
   }
 
   async getCompany(companyId: string) {

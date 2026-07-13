@@ -1,6 +1,7 @@
 ﻿'use client';
 
 export { useQueue } from '@repo/api-client';
+
 import { getAuthToken as _getToken, getProfileIdFromToken as _getProfileId, clearSession as _clearSession } from '@repo/api-client';
 import { ApiClient, localStorageAdapter } from '@repo/api-client';
 
@@ -157,8 +158,25 @@ export async function apiAdminUpdateCompanyStatus(id: string, status: string) {
 }
 
 export async function apiAdminListClinics() {
-  const r = await apiFetch('/api/admin/clinics');
-  const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
+  let r: unknown;
+  try {
+    r = await apiFetch('/api/admin/clinics');
+  } catch (adminError) {
+    try {
+      r = await apiFetch('/api/clinics');
+    } catch {
+      throw adminError;
+    }
+  }
+
+  let arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
+  if (arr.length === 0) {
+    const publicResult = await apiFetch('/api/clinics').catch(() => null);
+    const publicArr = Array.isArray(publicResult)
+      ? publicResult
+      : (publicResult as { data?: unknown[] } | null)?.data ?? [];
+    if (Array.isArray(publicArr) && publicArr.length > 0) arr = publicArr;
+  }
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
