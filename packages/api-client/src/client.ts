@@ -24,12 +24,26 @@ export class ApiClient {
     };
   }
 
+  private toNetworkError(error: unknown): Error {
+    if (error instanceof TypeError) {
+      return new Error(
+        `Nao foi possivel conectar ao backend em ${this.baseUrl}. Verifique se o backend esta no ar e se a URL/CORS estao configurados corretamente.`,
+      );
+    }
+    return error instanceof Error ? error : new Error('Falha de rede ao conectar com o backend.');
+  }
+
   async fetch(path: string, options: RequestInit = {}): Promise<any> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
-    const res = await globalThis.fetch(url, {
-      ...options,
-      headers: { ...this.getAuthHeaders(), ...(options.headers as Record<string, string> ?? {}) },
-    });
+    let res: Response;
+    try {
+      res = await globalThis.fetch(url, {
+        ...options,
+        headers: { ...this.getAuthHeaders(), ...(options.headers as Record<string, string> ?? {}) },
+      });
+    } catch (error) {
+      throw this.toNetworkError(error);
+    }
 
     if (res.status === 401) {
       clearSession(this.storage);
@@ -51,11 +65,16 @@ export class ApiClient {
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await globalThis.fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    let res: Response;
+    try {
+      res = await globalThis.fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+    } catch (error) {
+      throw this.toNetworkError(error);
+    }
 
     const json = await res.json();
     if (!res.ok) throw new Error(json?.message || 'Falha ao enviar');
