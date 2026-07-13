@@ -4,6 +4,7 @@
 node_modules
 .pnp
 .pnp.js
+node_modules.*
 
 # Local env files
 .env
@@ -21,11 +22,27 @@ coverage
 # Vercel
 .vercel
 
+# Local agent/tooling state
+.agents/
+.codex/
+.claude/
+.cursor/
+
 # Build Outputs
 .next/
 out/
 build
 dist
+.local-mobile-build/
+.backups/
+.npm-cache/
+*.apk
+*.aab
+*.ipa
+*.zip
+
+# Mobile app/build workspace kept out of the web/backend repo commits
+apps/mobile/
 
 
 # Debug
