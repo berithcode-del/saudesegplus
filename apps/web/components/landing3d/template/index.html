@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SaúdeSeg+ — Plataforma de Medicina do Trabalho</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #EDEDFB;
+      --bg-2: #F6F6FD;
+      --surface: #FFFFFF;
+      --ink: #171A2A;
+      --ink-soft: #4B5568;
+      --accent: #4F46E5;
+      --accent-soft: #8B7CF6;
+      --accent-warm: #FF8A65;
+      --line: rgba(23, 26, 42, 0.12);
+      --c-empresa: #4F46E5;
+      --c-colaborador: #14B8A6;
+      --c-medico: #16A34A;
+      --c-clinica: #F59E0B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, sans-serif;
+      overflow-x: hidden;
+      transition: background .4s ease;
+    }
+    ::selection { background: var(--accent); color: #fff; }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      transition: opacity .45s ease, filter .45s ease;
+    }
+    #canvas-wrap { position: absolute; inset: 0; width: 100%; height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; }
+
+    #stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(60% 50% at 78% 30%, rgba(139, 124, 246, 0.20), transparent 60%),
+        radial-gradient(50% 40% at 15% 80%, rgba(255, 138, 101, 0.10), transparent 60%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 22px;
+      left: 24px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-brand-icon {
+      width: 46px;
+      height: 46px;
+      background: #4F46E5;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 5px 5px 12px rgba(79, 70, 229, 0.22), -3px -3px 8px rgba(255, 255, 255, 0.96);
+    }
+    .topbar-brand-icon svg {
+      width: 28px;
+      height: 28px;
+      display: block;
+    }
+    .topbar-brand-name {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: #1E1B4B;
+    }
+
+    .topbar-access {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px 12px 18px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 18px 38px -24px rgba(46, 58, 106, 0.34);
+    }
+    .topbar-access-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      text-align: right;
+    }
+    .topbar-access-label {
+      font-family: 'Manrope', sans-serif;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .topbar-access-sub {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(75, 85, 104, 0.88);
+    }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar-link,
+    .topbar-cta {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all .25s ease;
+    }
+    .topbar-link {
+      padding: 11px 18px;
+      color: #4F46E5;
+      background: rgba(79, 70, 229, 0.08);
+      border: 1px solid rgba(79, 70, 229, 0.14);
+    }
+    .topbar-link:hover {
+      background: rgba(79, 70, 229, 0.14);
+      transform: translateY(-1px);
+    }
+    .topbar-cta {
+      padding: 11px 20px;
+      border: 1px solid transparent;
+      color: #fff;
+      background: linear-gradient(135deg, #6255F7, #4F46E5);
+      box-shadow: 0 14px 26px -14px rgba(79, 70, 229, 0.7);
+    }
+    .topbar-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 28px -14px rgba(79, 70, 229, 0.82);
+    }
+
+    .rail {
+      position: fixed;
+      right: 38px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+      align-items: flex-end;
+    }
+    .rail .dot-row { display: flex; align-items: center; gap: 10px; }
+    .rail .label {
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--ink-soft);
+      opacity: 0;
+      transform: translateX(6px);
+      transition: all .3s ease;
+      white-space: nowrap;
+    }
+    .rail .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(20, 20, 43, 0.18);
+      transition: all .35s ease;
+    }
+    .rail .dot-row.active .dot { background: var(--accent); transform: scale(1.6); }
+    .rail .dot-row.active .label { opacity: 1; color: var(--ink); transform: translateX(0); }
+    @media (max-width: 980px) {
+      .topbar,
+      .topbar-access {
+        left: 16px;
+        right: 16px;
+      }
+      .topbar-access {
+        top: 96px;
+        justify-content: space-between;
+      }
+    }
+    @media (max-width: 860px) { .rail { display: none; } }
+
+    #scroll-spacer { position: relative; z-index: 0; }
+    .scene-block { height: 100vh; }
+
+    #content {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .panel {
+      position: absolute;
+      left: 5.2vw;
+      top: 0;
+      bottom: 0;
+      width: min(500px, 88vw);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    .panel-inner {
+      padding: 30px 32px;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 248, 255, 0.82));
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: 0 24px 56px -26px rgba(45, 57, 96, 0.34);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .panel.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+
+    body.post-scene-active #stage {
+      opacity: 0.2;
+      filter: saturate(0.8) blur(4px);
+    }
+    body.post-scene-active #content,
+    body.post-scene-active .rail,
+    body.post-scene-active .scroll-cue {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .35s ease;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Manrope', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 18px;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 16px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    h1, .h1 {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 800;
+      font-size: clamp(34px, 4.5vw, 52px);
+      line-height: 1.04;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      margin-bottom: 18px;
+    }
+    .h1 .accent { color: var(--accent); }
+
+    p.lede {
+      font-size: 16px;
+      line-height: 1.58;
+      color: var(--ink-soft);
+      max-width: 430px;
+      margin-bottom: 26px;
+    }
+
+    .cast-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 24px; }
+    .cast-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: 'Manrope', sans-serif;
+      font-weight: 700;
+      font-size: 12.5px;
+      letter-spacing: 0.02em;
+      color: var(--ink-soft);
+    }
+    .cast-item i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+    }
+
+    .cta-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .btn-primary {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      background: var(--accent);
+      color: #fff;
+      padding: 15px 28px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 12px 24px -10px rgba(91, 79, 229, 0.55);
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 28px -8px rgba(91, 79, 229, 0.6); }
+    .btn-ghost {
+      font-family: 'Manrope', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--ink);
+      background: transparent;
+      padding: 15px 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-ghost svg { transition: transform .2s ease; }
+    .btn-ghost:hover svg { transform: translateX(3px); }
+
+    .scroll-cue {
+      position: absolute;
+      bottom: 48px;
+      left: 6vw;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0;
+      transition: opacity .5s ease;
+      pointer-events: none;
+    }
+    .scroll-cue.visible { opacity: 0.75; }
+    .scroll-cue .line {
+      width: 1px;
+      height: 26px;
+      background: var(--ink-soft);
+      overflow: hidden;
+      position: relative;
+    }
+    .scroll-cue .line::after {
+      content: "";
+      position: absolute;
+      top: -100%;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--accent);
+      animation: cueMove 1.6s ease-in-out infinite;
+    }
+    @keyframes cueMove { 0% { top: -100%; } 60% { top: 100%; } 100% { top: 100%; } }
+
+    .badges { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 26px; }
+    .badge {
+      font-family: 'Manrope', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.84);
+      border: 1px solid var(--line);
+      padding: 8px 14px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+    }
+
+    #post-scene {
+      position: relative;
+      z-index: 40;
+      background:
+        radial-gradient(80% 50% at 15% 10%, rgba(79, 70, 229, 0.12), transparent 65%),
+        radial-gradient(60% 45% at 80% 0%, rgba(20, 184, 166, 0.12), transparent 68%),
+        linear-gradient(180deg, rgba(243, 246, 255, 0.92) 0%, #F7F9FC 18%, #F5F7FB 100%);
+      border-top: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 -32px 60px -44px rgba(34, 48, 92, 0.46);
+    }
+    .story-section {
+      min-height: 100vh;
+      display: grid;
+      align-items: center;
+      padding: clamp(72px, 8vw, 110px) 4vw;
+      position: relative;
+      overflow: hidden;
+    }
+    .story-section + .story-section {
+      border-top: 1px solid rgba(32, 40, 78, 0.08);
+    }
+    .story-section::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.58), transparent 46%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.52), transparent 32%);
+      pointer-events: none;
+    }
+    .story-grid {
+      position: relative;
+      z-index: 1;
+      width: min(1480px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.14fr) minmax(560px, 0.9fr);
+      gap: clamp(24px, 2.6vw, 44px);
+      align-items: center;
+    }
+    .story-copy {
+      max-width: 760px;
+    }
+    .story-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(47, 58, 115, 0.74);
+      margin-bottom: 14px;
+    }
+    .story-kicker::before {
+      content: "";
+      width: 22px;
+      height: 1px;
+      background: currentColor;
+      opacity: 0.55;
+    }
+    .story-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: clamp(42px, 4.7vw, 76px);
+      line-height: 0.98;
+      letter-spacing: -0.05em;
+      margin-bottom: 14px;
+      max-width: 15.5ch;
+    }
+    .story-title strong {
+      color: var(--accent);
+      font-weight: 800;
+    }
+    .story-subtitle {
+      font-family: 'Manrope', sans-serif;
+      font-size: clamp(15px, 1.1vw, 18px);
+      line-height: 1.42;
+      color: rgba(26, 35, 69, 0.7);
+      margin-bottom: 20px;
+      max-width: 42ch;
+    }
+    .story-body {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .story-body p {
+      font-size: 14px;
+      line-height: 1.56;
+      color: var(--ink-soft);
+      max-width: 78ch;
+    }
+    .story-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px 12px;
+      margin-bottom: 18px;
+    }
+    .story-list li {
+      min-height: 100%;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.66);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      box-shadow: 0 18px 38px -30px rgba(41, 58, 112, 0.34);
+      font-family: 'Manrope', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.32;
+      color: rgba(20, 28, 60, 0.88);
+    }
+    .quote-chip {
+      display: inline-block;
+      max-width: 56ch;
+      padding: 14px 16px;
+      border-radius: 20px;
+      background: rgba(26, 35, 69, 0.92);
+      color: #F7F9FF;
+      font-family: 'Manrope', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.42;
+      box-shadow: 0 24px 42px -28px rgba(18, 26, 62, 0.66);
+    }
+    .visual-card {
+      position: relative;
+      min-height: 560px;
+      padding: 24px;
+      border-radius: 36px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(240, 245, 255, 0.92)),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 40px 70px -42px rgba(24, 35, 80, 0.42);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      overflow: hidden;
+    }
+    .visual-card::before {
+      content: "";
+      position: absolute;
+      inset: -20% auto auto -10%;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(79, 70, 229, 0.16), transparent 68%);
+      pointer-events: none;
+    }
+    .visual-header,
+    .visual-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+    }
+    .visual-label {
+      font-family: 'Manrope', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(47, 58, 115, 0.64);
+    }
+    .visual-chip {
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      font-family: 'Manrope', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(20, 28, 60, 0.76);
+    }
+    .flow-scene {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .flow-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric-card {
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(19, 29, 68, 0.92);
+      color: #fff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .metric-card strong {
+      display: block;
+      font-family: 'Manrope', sans-serif;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 6px;
+    }
+    .metric-card span {
+      font-size: 11px;
+      line-height: 1.4;
+      color: rgba(239, 243, 255, 0.76);
+    }
+    .timeline-card,
+    .network-card,
+    .ecosystem-card {
+      position: relative;
+      padding: 20px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+    }
+    .timeline-line {
+      position: absolute;
+      left: 31px;
+      top: 32px;
+      bottom: 32px;
+      width: 2px;
+      background: linear-gradient(180deg, rgba(79, 70, 229, 0.15), rgba(79, 70, 229, 0.75), rgba(20, 184, 166, 0.45));
+    }
+    .timeline-step {
+      position: relative;
+      padding-left: 48px;
+      display: grid;
+      gap: 4px;
+    }
+    .timeline-step + .timeline-step {
+      margin-top: 16px;
+    }
+    .timeline-step::before {
+      content: "";
+      position: absolute;
+      left: 21px;
+      top: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #fff;
+      border: 5px solid var(--accent);
+      box-shadow: 0 0 0 6px rgba(79, 70, 229, 0.12);
+    }
+    .timeline-step strong,
+    .network-node strong,
+    .ecosystem-node strong {
+      font-family: 'Manrope', sans-serif;
+      font-size: 14px;
+      color: rgba(20, 28, 60, 0.94);
+    }
+    .timeline-step span,
+    .network-node span,
+    .ecosystem-node span {
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(69, 82, 122, 0.9);
+    }
+    .visual-footer {
+      margin-top: 16px;
+      align-items: flex-end;
+    }
+    .metric-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .metric-inline span {
+      padding: 9px 11px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(20, 28, 60, 0.82);
+    }
+    .network-grid {
+      position: relative;
+      min-height: 330px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+    }
+    .network-grid::before,
+    .network-grid::after {
+      content: "";
+      position: absolute;
+      inset: 15% 12%;
+      border-radius: 50%;
+      border: 1px dashed rgba(22, 163, 74, 0.24);
+    }
+    .network-grid::after {
+      inset: 25% 22%;
+      border-color: rgba(79, 70, 229, 0.2);
+    }
+    .network-center {
+      position: relative;
+      z-index: 1;
+      width: 160px;
+      height: 160px;
+      border-radius: 32px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(22, 163, 74, 0.9), rgba(11, 138, 58, 0.92));
+      color: #fff;
+      box-shadow: 0 32px 48px -32px rgba(11, 138, 58, 0.68);
+      padding: 20px;
+    }
+    .network-center strong {
+      font-family: 'Manrope', sans-serif;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+    .network-center span {
+      font-size: 12px;
+      line-height: 1.45;
+      color: rgba(238, 247, 241, 0.8);
+    }
+    .network-node {
+      position: absolute;
+      width: 154px;
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      box-shadow: 0 20px 40px -32px rgba(24, 35, 80, 0.5);
+    }
+    .network-node.top-left { top: 8%; left: 0; }
+    .network-node.top-right { top: 10%; right: 0; }
+    .network-node.bottom-left { bottom: 10%; left: 4%; }
+    .network-node.bottom-right { bottom: 8%; right: 2%; }
+    .network-list {
+      display: grid;
+      gap: 12px;
+    }
+    .network-list .network-node {
+      position: static;
+      width: auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .network-list .network-node em {
+      font-style: normal;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(22, 163, 74, 0.08);
+      color: rgba(18, 116, 50, 0.86);
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .ecosystem-shell {
+      position: relative;
+      min-height: 390px;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .ecosystem-shell::before {
+      content: "";
+      position: absolute;
+      inset: 14% 10%;
+      border-radius: 36px;
+      background:
+        linear-gradient(180deg, rgba(79, 70, 229, 0.06), rgba(20, 184, 166, 0.05)),
+        rgba(240, 244, 255, 0.74);
+      border: 1px solid rgba(79, 70, 229, 0.08);
+    }
+    .ecosystem-core {
+      position: relative;
+      z-index: 2;
+      width: 220px;
+      padding: 24px 22px;
+      border-radius: 28px;
+      text-align: center;
+      background: linear-gradient(160deg, rgba(79, 70, 229, 0.94), rgba(58, 76, 221, 0.92));
+      color: #fff;
+      box-shadow: 0 36px 54px -34px rgba(58, 76, 221, 0.76);
+    }
+    .ecosystem-core strong {
+      display: block;
+      font-family: 'Manrope', sans-serif;
+      font-size: 22px;
+      line-height: 1.08;
+      margin-bottom: 10px;
+    }
+    .ecosystem-core span {
+      font-size: 13px;
+      line-height: 1.5;
+      color: rgba(239, 243, 255, 0.8);
+    }
+    .ecosystem-node {
+      position: absolute;
+      z-index: 2;
+      width: 170px;
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      box-shadow: 0 20px 42px -34px rgba(24, 35, 80, 0.56);
+    }
+    .ecosystem-node.node-company { top: 7%; left: 6%; }
+    .ecosystem-node.node-clinics { top: 8%; right: 6%; }
+    .ecosystem-node.node-labs { bottom: 24%; right: 3%; }
+    .ecosystem-node.node-doctors { bottom: 4%; left: 50%; transform: translateX(-50%); }
+    .ecosystem-node.node-workers { bottom: 22%; left: 4%; }
+    .ecosystem-connector {
+      position: absolute;
+      z-index: 1;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(79, 70, 229, 0.14), rgba(79, 70, 229, 0.58), rgba(20, 184, 166, 0.3));
+      transform-origin: left center;
+      border-radius: 999px;
+    }
+    .connector-company { top: 28%; left: 26%; width: 180px; transform: rotate(18deg); }
+    .connector-clinics { top: 28%; right: 24%; width: 172px; transform: rotate(-20deg); }
+    .connector-workers { bottom: 34%; left: 25%; width: 180px; transform: rotate(-18deg); }
+    .connector-labs { bottom: 35%; right: 23%; width: 172px; transform: rotate(17deg); }
+    .connector-doctors {
+      bottom: 27%;
+      left: 50%;
+      width: 2px;
+      height: 110px;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, rgba(79, 70, 229, 0.2), rgba(20, 184, 166, 0.72));
+    }
+    .process-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .process-step {
+      padding: 14px 12px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      font-family: 'Manrope', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.45;
+      color: rgba(20, 28, 60, 0.84);
+      text-align: center;
+    }
+    .process-step strong {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(79, 70, 229, 0.76);
+      margin-bottom: 6px;
+    }
+
+    /* Diagram language: process, document and result flows share one visual grammar. */
+    .diagram-stage {
+      position: relative;
+      overflow: hidden;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(79, 70, 229, 0.1), transparent 34%),
+        rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      padding: 22px;
+    }
+    .diagram-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      color: rgba(20, 28, 60, 0.64);
+    }
+    .diagram-legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .diagram-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .diagram-legend i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    }
+    .diagram-legend .is-document i { background: rgba(93, 105, 145, 0.72); }
+    .diagram-legend .is-complete i { background: #16A34A; }
+
+    .journey-pipeline {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 9px;
+      padding-top: 12px;
+    }
+    .journey-pipeline::before {
+      content: "";
+      position: absolute;
+      top: 39px;
+      left: 8%;
+      right: 8%;
+      height: 2px;
+      background: rgba(79, 70, 229, 0.13);
+    }
+    .journey-pipeline::after {
+      content: "";
+      position: absolute;
+      top: 39px;
+      left: 8%;
+      width: 84%;
+      height: 2px;
+      transform: scaleX(0);
+      transform-origin: left;
+      background: linear-gradient(90deg, var(--accent), #6474E8 70%, #16A34A);
+    }
+    .journey-step {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    .journey-index {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto 16px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      border: 1px solid rgba(79, 70, 229, 0.18);
+      color: var(--accent);
+      font: 800 11px/1 'Manrope', sans-serif;
+      box-shadow: 0 10px 24px -16px rgba(42, 52, 112, 0.7);
+    }
+    .journey-step:last-child .journey-index {
+      color: #13753B;
+      border-color: rgba(22, 163, 74, 0.24);
+      background: #F2FBF5;
+    }
+    .journey-copy {
+      min-height: 120px;
+      padding: 13px 11px;
+      border-radius: 16px;
+      background: rgba(246, 248, 255, 0.92);
+    }
+    .journey-copy strong,
+    .triage-node strong,
+    .doctor-card strong,
+    .eco-node strong {
+      display: block;
+      font-family: 'Manrope', sans-serif;
+      color: rgba(20, 28, 60, 0.94);
+    }
+    .journey-copy strong { font-size: 12px; line-height: 1.25; margin-bottom: 6px; }
+    .journey-copy span { display: block; font-size: 10px; line-height: 1.4; color: rgba(69, 82, 122, 0.9); }
+    .journey-owner {
+      display: inline-flex !important;
+      margin-top: 9px;
+      padding: 5px 7px;
+      border-radius: 8px;
+      background: rgba(79, 70, 229, 0.08);
+      color: rgba(59, 55, 187, 0.9) !important;
+      font: 800 9px/1 'Manrope', sans-serif !important;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .journey-result {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      margin-top: 14px;
+      padding: 13px 15px;
+      border-radius: 17px;
+      background: rgba(19, 29, 68, 0.94);
+      color: #fff;
+    }
+    .journey-result strong { display: block; font: 750 13px/1.2 'Manrope', sans-serif; }
+    .journey-result span { font-size: 10px; color: rgba(239, 243, 255, 0.72); }
+    .result-status { color: #9BE6B3 !important; font: 800 10px/1 'Manrope', sans-serif !important; text-transform: uppercase; }
+
+    .triage-layout {
+      display: grid;
+      grid-template-columns: minmax(120px, .72fr) 36px minmax(180px, 1.1fr) 36px minmax(150px, .88fr);
+      align-items: center;
+      gap: 8px;
+      min-height: 300px;
+    }
+    .triage-node,
+    .doctor-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(247, 249, 255, 0.94);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    .triage-node strong,
+    .doctor-card strong { font-size: 12px; line-height: 1.3; margin-bottom: 5px; }
+    .triage-node span,
+    .doctor-card span { display: block; font-size: 10px; line-height: 1.4; color: rgba(69, 82, 122, 0.9); }
+    .triage-core {
+      background: linear-gradient(155deg, #373AC2, var(--accent));
+      color: #fff;
+      padding: 20px;
+      box-shadow: 0 28px 40px -30px rgba(54, 57, 194, 0.8);
+    }
+    .triage-core strong { color: #fff; font-size: 14px; }
+    .triage-core span { color: rgba(243, 245, 255, 0.78); }
+    .criteria-list { display: grid; gap: 7px; margin-top: 13px; }
+    .criteria-list em {
+      padding: 7px 8px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.12);
+      font: 700 9px/1 'Manrope', sans-serif;
+      font-style: normal;
+    }
+    .flow-arrow {
+      position: relative;
+      height: 2px;
+      background: rgba(79, 70, 229, 0.18);
+    }
+    .flow-arrow::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-top: 2px solid var(--accent);
+      border-right: 2px solid var(--accent);
+      transform: translateY(-50%) rotate(45deg);
+    }
+    .doctor-stack { display: grid; gap: 8px; }
+    .doctor-card { position: relative; padding-left: 36px; }
+    .doctor-card::before {
+      content: "";
+      position: absolute;
+      left: 15px;
+      top: 18px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #16A34A;
+      box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
+    }
+    .doctor-card.is-busy::before { background: #E3A52E; box-shadow: 0 0 0 4px rgba(227, 165, 46, 0.1); }
+    .doctor-card small { display: block; margin-top: 7px; color: rgba(79, 70, 229, 0.84); font: 800 9px/1 'Manrope', sans-serif; }
+    .triage-result {
+      margin-top: 13px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(22, 163, 74, 0.08);
+      color: #146C38;
+      font: 750 11px/1.4 'Manrope', sans-serif;
+      text-align: center;
+    }
+
+    .ecosystem-map {
+      position: relative;
+      min-height: 360px;
+      display: grid;
+      place-items: center;
+    }
+    .ecosystem-orbit {
+      position: absolute;
+      inset: 11% 9%;
+      border: 1px dashed rgba(79, 70, 229, 0.2);
+      border-radius: 46% 54% 48% 52%;
+      transform: scale(.94);
+      opacity: 0;
+    }
+    .eco-core,
+    .eco-node {
+      position: absolute;
+      z-index: 2;
+      border-radius: 18px;
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    .eco-core {
+      width: 190px;
+      padding: 22px 18px;
+      text-align: center;
+      background: linear-gradient(155deg, #3436BC, var(--accent));
+      color: #fff;
+      box-shadow: 0 32px 48px -32px rgba(54, 57, 194, 0.82);
+    }
+    .eco-core strong { display: block; font: 800 20px/1.1 'Manrope', sans-serif; margin-bottom: 7px; }
+    .eco-core span { font-size: 10px; line-height: 1.4; color: rgba(243, 245, 255, 0.78); }
+    .eco-node {
+      width: 145px;
+      padding: 13px 14px;
+      background: rgba(249, 250, 255, 0.96);
+      border: 1px solid rgba(53, 68, 132, 0.08);
+    }
+    .eco-node strong { font-size: 12px; margin-bottom: 4px; }
+    .eco-node span { display: block; font-size: 9px; line-height: 1.35; color: rgba(69, 82, 122, 0.9); }
+    .eco-node::after {
+      content: attr(data-flow);
+      display: block;
+      margin-top: 7px;
+      color: rgba(79, 70, 229, 0.78);
+      font: 800 8px/1 'Manrope', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .eco-company { top: 2%; left: 50%; margin-left: -72px; }
+    .eco-clinics { top: 25%; right: 0; }
+    .eco-labs { bottom: 4%; right: 10%; }
+    .eco-doctors { bottom: 4%; left: 10%; }
+    .eco-workers { top: 25%; left: 0; }
+    .eco-link {
+      position: absolute;
+      z-index: 1;
+      width: 2px;
+      height: 100px;
+      background: linear-gradient(180deg, rgba(79, 70, 229, 0.12), rgba(79, 70, 229, 0.68));
+      transform-origin: top;
+      opacity: 0;
+    }
+    .eco-link.l1 { top: 18%; left: 50%; height: 72px; }
+    .eco-link.l2 { top: 43%; left: 66%; transform: rotate(72deg); }
+    .eco-link.l3 { top: 55%; left: 63%; transform: rotate(132deg); }
+    .eco-link.l4 { top: 55%; left: 37%; transform: rotate(-132deg); }
+    .eco-link.l5 { top: 43%; left: 34%; transform: rotate(-72deg); }
+    .ecosystem-journey {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 12px;
+    }
+    .ecosystem-journey span {
+      position: relative;
+      padding: 10px 8px;
+      border-radius: 12px;
+      background: rgba(247, 249, 255, 0.94);
+      color: rgba(20, 28, 60, 0.82);
+      font: 750 9px/1.35 'Manrope', sans-serif;
+      text-align: center;
+    }
+    .ecosystem-journey span:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -7px;
+      top: 50%;
+      width: 7px;
+      height: 1px;
+      background: rgba(79, 70, 229, 0.36);
+    }
+
+    .diagram-visible .journey-pipeline::after { animation: drawFlow 1s cubic-bezier(.22,.8,.2,1) forwards; }
+    .diagram-visible .journey-step,
+    .diagram-visible .triage-node,
+    .diagram-visible .doctor-card,
+    .diagram-visible .eco-core,
+    .diagram-visible .eco-node { animation: diagramRise .58s cubic-bezier(.22,.8,.2,1) forwards; }
+    .diagram-visible .journey-step:nth-child(2),
+    .diagram-visible .doctor-card:nth-child(2) { animation-delay: .12s; }
+    .diagram-visible .journey-step:nth-child(3),
+    .diagram-visible .doctor-card:nth-child(3) { animation-delay: .24s; }
+    .diagram-visible .journey-step:nth-child(4) { animation-delay: .36s; }
+    .diagram-visible .journey-step:nth-child(5) { animation-delay: .48s; }
+    .diagram-visible .ecosystem-orbit { animation: orbitIn .7s cubic-bezier(.22,.8,.2,1) forwards; }
+    .diagram-visible .eco-link { animation: linkIn .55s cubic-bezier(.22,.8,.2,1) .22s forwards; }
+    .diagram-visible .eco-node { animation-delay: .32s; }
+    @keyframes drawFlow { to { transform: scaleX(1); } }
+    @keyframes diagramRise { to { opacity: 1; transform: translateY(0); } }
+    @keyframes orbitIn { to { opacity: 1; transform: scale(1); } }
+    @keyframes linkIn { to { opacity: 1; } }
+    .site-footer {
+      position: relative;
+      z-index: 40;
+      padding: clamp(56px, 8vw, 88px) 6vw 34px;
+      background:
+        radial-gradient(70% 120% at 0% 0%, rgba(123, 110, 255, 0.3), transparent 50%),
+        linear-gradient(135deg, #2F38C9 0%, #4F46E5 48%, #161D44 100%);
+      color: #F5F7FF;
+      overflow: hidden;
+    }
+    .site-footer::before {
+      content: "";
+      position: absolute;
+      inset: auto -10% -35% auto;
+      width: 420px;
+      height: 420px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.14), transparent 66%);
+      pointer-events: none;
+    }
+    .footer-grid {
+      position: relative;
+      z-index: 1;
+      width: min(1320px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: clamp(28px, 4vw, 72px);
+      align-items: start;
+    }
+    .footer-brand {
+      max-width: 640px;
+    }
+    .footer-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(237, 241, 255, 0.72);
+    }
+    .footer-kicker::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: currentColor;
+    }
+    .footer-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: clamp(34px, 4vw, 56px);
+      line-height: 1;
+      letter-spacing: -0.04em;
+      margin-bottom: 18px;
+      max-width: 10ch;
+    }
+    .footer-text {
+      max-width: 54ch;
+      font-size: 17px;
+      line-height: 1.7;
+      color: rgba(241, 244, 255, 0.78);
+    }
+    .footer-contact-panel {
+      padding: 28px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 28px 48px -36px rgba(6, 10, 30, 0.7);
+    }
+    .footer-contact-title {
+      font-family: 'Manrope', sans-serif;
+      font-size: 21px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+    .footer-contact-list {
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+    .footer-contact-item {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .footer-contact-item strong {
+      display: block;
+      margin-bottom: 5px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(233, 237, 255, 0.72);
+    }
+    .footer-contact-item span {
+      font-size: 16px;
+      line-height: 1.55;
+      color: #FFFFFF;
+    }
+    .footer-note {
+      margin-top: 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: rgba(233, 237, 255, 0.68);
+    }
+    .footer-bottom {
+      position: relative;
+      z-index: 1;
+      width: min(1320px, 100%);
+      margin: 28px auto 0;
+      padding-top: 22px;
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .footer-bottom span {
+      font-size: 13px;
+      line-height: 1.5;
+      color: rgba(233, 237, 255, 0.72);
+    }
+    .footer-watermark {
+      font-family: 'Manrope', sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    @media (max-width: 640px) {
+      .panel { left: 5vw; width: 90vw; }
+      .panel-inner {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(246, 246, 253, 0.86));
+        padding: 26px 24px;
+      }
+      .topbar {
+        top: 14px;
+        left: 12px;
+        right: 12px;
+      }
+      .topbar-brand-icon {
+        width: 42px;
+        height: 42px;
+      }
+      .topbar-brand-icon svg {
+        width: 24px;
+        height: 24px;
+      }
+      .topbar-brand-name { font-size: 18px; }
+      .topbar-access {
+        top: 84px;
+        left: 12px;
+        right: 12px;
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 12px 14px;
+      }
+      .topbar-access-copy {
+        align-items: flex-start;
+        text-align: left;
+      }
+      .topbar-actions {
+        width: 100%;
+      }
+      .topbar-link,
+      .topbar-cta {
+        flex: 1;
+        text-align: center;
+      }
+      .rail { display: none; }
+      h1, .h1 { font-size: clamp(28px, 8vw, 38px); }
+      p.lede { font-size: 16px; }
+      .story-section {
+        padding: 84px 5vw;
+      }
+      .story-grid {
+        grid-template-columns: 1fr;
+      }
+      .story-title {
+        max-width: none;
+      }
+      .story-subtitle {
+        max-width: none;
+      }
+      .story-list,
+      .flow-metrics,
+      .process-strip {
+        grid-template-columns: 1fr;
+      }
+      .story-body p {
+        font-size: 16px;
+        line-height: 1.68;
+      }
+      .story-list li {
+        font-size: 14px;
+      }
+      .visual-card {
+        min-height: auto;
+        padding: 22px;
+        border-radius: 28px;
+      }
+      .network-grid,
+      .ecosystem-shell {
+        min-height: auto;
+      }
+      .network-grid {
+        display: grid;
+        gap: 14px;
+      }
+      .network-grid::before,
+      .network-grid::after,
+      .ecosystem-shell::before,
+      .ecosystem-connector {
+        display: none;
+      }
+      .network-center,
+      .network-node,
+      .ecosystem-core,
+      .ecosystem-node {
+        position: static;
+        width: auto;
+        transform: none;
+      }
+      .ecosystem-shell {
+        gap: 14px;
+        padding: 0;
+      }
+      .diagram-stage {
+        padding: 16px;
+        border-radius: 22px;
+      }
+      .diagram-caption {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .journey-pipeline {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 0;
+      }
+      .journey-pipeline::before,
+      .journey-pipeline::after { display: none; }
+      .journey-step {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        align-items: stretch;
+      }
+      .journey-index { margin: 0; height: 100%; min-height: 72px; }
+      .journey-copy { min-height: 0; }
+      .journey-result { grid-template-columns: 1fr; }
+      .triage-layout {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+      .flow-arrow {
+        width: 2px;
+        height: 22px;
+        margin: 0 auto;
+      }
+      .flow-arrow::after {
+        right: 50%;
+        top: auto;
+        bottom: 0;
+        transform: translateX(50%) rotate(135deg);
+      }
+      .ecosystem-map {
+        min-height: 0;
+        display: grid;
+        gap: 9px;
+      }
+      .ecosystem-orbit,
+      .eco-link { display: none; }
+      .eco-core,
+      .eco-node {
+        position: static;
+        width: 100%;
+        margin: 0;
+        transform: translateY(12px);
+      }
+      .eco-core { order: -1; }
+      .ecosystem-journey { grid-template-columns: 1fr; }
+      .ecosystem-journey span:not(:last-child)::after { display: none; }
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+      .footer-contact-panel {
+        padding: 22px;
+        border-radius: 24px;
+      }
+      .footer-bottom {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .journey-pipeline::after { transform: scaleX(1); }
+      .journey-step,
+      .triage-node,
+      .doctor-card,
+      .ecosystem-orbit,
+      .eco-link,
+      .eco-core,
+      .eco-node {
+        opacity: 1;
+        transform: none;
+        animation: none !important;
+      }
+    }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div id="canvas-wrap"></div>
+  </div>
+
+  <div class="topbar">
+    <div class="topbar-brand-icon" aria-hidden="true">
+      <svg viewBox="0 0 105.23 102.14" xmlns="http://www.w3.org/2000/svg">
+        <path d="m73.4,3.64v23.83c0,24.17-19.6,43.77-43.77,43.77H3.92c-2.16,0-3.92-1.75-3.92-3.92v-23.66c0-7.05,5.72-12.77,12.77-12.77h10.55c4.7,0,8.51-3.81,8.51-8.51v-9.62c0-7.05,5.72-12.77,12.77-12.77h25.17c2.01,0,3.64,1.63,3.64,3.64Z" fill="#fff"/>
+        <path d="m31.83,98.5v-23.83c0-24.17,19.6-43.77,43.77-43.77h25.72c2.16,0,3.92,1.75,3.92,3.92v23.66c0,7.05-5.72,12.77-12.77,12.77h-10.55c-4.7,0-8.51,3.81-8.51,8.51v9.62c0,7.05-5.72,12.77-12.77,12.77h-25.17c-2.01,0-3.64-1.63-3.64-3.64Z" fill="#fff" opacity=".5"/>
+      </svg>
+    </div>
+    <span class="topbar-brand-name">
+      SaúdeSeg+
+    </span>
+  </div>
+
+  <div class="topbar-access">
+    <div class="topbar-access-copy">
+      <span class="topbar-access-label">Acesse a plataforma</span>
+      <span class="topbar-access-sub">Login e cadastro para empresas, médicos e parceiros</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="topbar-link" id="topCadastro">Criar acesso</button>
+      <button class="topbar-cta" id="topEntrar">Entrar</button>
+    </div>
+  </div>
+
+  <nav class="rail" aria-label="Progresso da página">
+    <div class="dot-row" data-i="0"><span class="dot"></span><span class="label">SaúdeSeg</span></div>
+    <div class="dot-row" data-i="1"><span class="dot"></span><span class="label">Empresas</span></div>
+    <div class="dot-row" data-i="2"><span class="dot"></span><span class="label">Médicos</span></div>
+    <div class="dot-row" data-i="3"><span class="dot"></span><span class="label">Cuidado</span></div>
+    <div class="dot-row" data-i="4"><span class="dot"></span><span class="label">Segurança</span></div>
+    <div class="dot-row" data-i="5"><span class="dot"></span><span class="label">Plataforma</span></div>
+    <div class="dot-row" data-i="6"><span class="dot"></span><span class="label">Conectar</span></div>
+  </nav>
+
+  <div id="content">
+    <div class="panel visible" data-i="0">
+      <div class="panel-inner">
+        <span class="eyebrow">Ecossistema digital · Medicina do Trabalho</span>
+        <h1 class="h1">A Medicina do Trabalho entrou em uma <span class="accent">nova era.</span></h1>
+        <p class="lede">A plataforma que conecta empresas, médicos e parceiros em um único ecossistema digital. Menos burocracia, mais eficiência e total rastreabilidade em cada etapa.</p>
+        <div class="cta-row">
+          <button class="btn-primary" id="heroEntrar">Entrar na plataforma</button>
+          <button class="btn-ghost" id="heroScroll">Ver como funciona
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="cast-row" aria-hidden="true">
+          <span class="cast-item" style="color:var(--c-empresa)"><i></i>Empresas</span>
+          <span class="cast-item" style="color:var(--c-medico)"><i></i>Médicos</span>
+          <span class="cast-item" style="color:var(--c-clinica)"><i></i>Parceiros</span>
+          <span class="cast-item" style="color:var(--c-colaborador)"><i></i>Pessoas</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" data-i="1">
+      <div class="panel-inner">
+        <span class="eyebrow">Frame 02 · Empresas</span>
+        <h1 class="h1">Mais controle.<br><span class="accent">Menos burocracia.</span></h1>
+        <p class="lede">Cadastre colaboradores, acompanhe exames em tempo real e tenha tudo em um só lugar. Sua equipe ganha tempo para focar no que realmente importa: as pessoas.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-i="2">
+      <div class="panel-inner">
+        <span class="eyebrow">Frame 03 · Médicos</span>
+        <h1 class="h1">Sua experiência merece mais <span class="accent">liberdade.</span></h1>
+        <p class="lede">Uma nova forma de atuar na Medicina do Trabalho, com segurança, flexibilidade e autonomia. Mais produtividade para o médico e mais agilidade para toda a operação.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-i="3">
+      <div class="panel-inner">
+        <span class="eyebrow">Frame 04 · Cuidado contínuo</span>
+        <h1 class="h1">Cuidar de pessoas é a nossa <span class="accent">prioridade.</span></h1>
+        <p class="lede">Tecnologia para proteger quem move a sua empresa. Quando a jornada termina, a confiança continua: informação segura, acompanhamento contínuo e mais tranquilidade para cada família.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-i="4">
+      <div class="panel-inner">
+        <span class="eyebrow">Frame 05 · Segurança</span>
+        <h1 class="h1">Porque segurança não começa no exame.<br><span class="accent">Começa no cuidado.</span></h1>
+        <p class="lede">Processos rastreáveis, dados protegidos e visibilidade do início ao fim ajudam empresas a manter ambientes mais seguros e colaboradores sempre amparados.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-i="5">
+      <div class="panel-inner">
+        <span class="eyebrow">Frame 06 · A Rede SaúdeSeg</span>
+        <h1 class="h1">Tudo conectado.<br>Tudo em <span class="accent">um só lugar.</span></h1>
+        <div class="badges">
+          <span class="badge">NR-7</span>
+          <span class="badge">PCMSO</span>
+          <span class="badge">Portaria MTb 211/2019</span>
+          <span class="badge">ICP-Brasil</span>
+          <span class="badge">PDF/A-1</span>
+        </div>
+        <p class="lede">Empresas, médicos, parceiros e processos atuam de forma integrada em uma única plataforma. A força da tecnologia unindo todo o ecossistema da Saúde Ocupacional.</p>
+      </div>
+    </div>
+
+    <div class="panel" data-i="6">
+      <div class="panel-inner">
+        <span class="eyebrow">Pronto para conectar sua operação</span>
+        <h1 class="h1">A plataforma de Medicina do Trabalho para quem quer <span class="accent">crescer com clareza.</span></h1>
+        <p class="lede">A SaúdeSeg organiza a operação, fortalece a rede e prepara sua empresa para uma gestão mais inteligente, humana e escalável.</p>
+        <div class="cta-row">
+          <button class="btn-primary" id="ctaEntrar">Entrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-cue" id="scrollCue"><span>Role para explorar</span><span class="line"></span></div>
+
+  <div id="scroll-spacer">
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+    <div class="scene-block"></div>
+  </div>
+
+  <main id="post-scene">
+    <section class="story-section" aria-labelledby="story-empresas">
+      <div class="story-grid">
+        <div class="story-copy">
+          <span class="story-kicker">Empresas</span>
+          <h2 class="story-title" id="story-empresas">Sua empresa no controle de <strong>toda a jornada ocupacional.</strong></h2>
+          <p class="story-subtitle">Da solicitação do exame à emissão do ASO, tudo acontece em um único ambiente digital.</p>
+          <div class="story-body">
+            <p>A SaúdeSeg centraliza toda a gestão da Medicina do Trabalho em uma plataforma única, eliminando processos manuais, ligações e trocas de documentos entre diferentes prestadores.</p>
+            <p>Cada exame admissional, periódico, demissional ou de mudança de função é acompanhado em tempo real, dando ao RH visibilidade completa do andamento de cada colaborador.</p>
+            <p>A plataforma automatiza notificações, organiza documentos, acompanha prazos e mantém todo o histórico ocupacional sempre disponível.</p>
+          </div>
+          <ul class="story-list">
+            <li>Processo totalmente digital.</li>
+            <li>Acompanhamento em tempo real.</li>
+            <li>Histórico ocupacional centralizado.</li>
+            <li>Redução da burocracia.</li>
+            <li>Mais agilidade para o RH.</li>
+            <li>Integração com clínicas e laboratórios parceiros.</li>
+          </ul>
+          <div class="quote-chip">Sua equipe deixa de acompanhar papéis e passa a acompanhar processos.</div>
+        </div>
+
+        <div class="visual-card">
+          <div class="visual-header">
+            <span class="visual-label">Painel operacional</span>
+            <span class="visual-chip">Dashboard moderno</span>
+          </div>
+          <div class="flow-scene">
+            <div class="flow-metrics">
+              <div class="metric-card">
+                <strong>124</strong>
+                <span>processos ativos acompanhados pelo RH</span>
+              </div>
+              <div class="metric-card">
+                <strong>12</strong>
+                <span>pendências priorizadas automaticamente</span>
+              </div>
+              <div class="metric-card">
+                <strong>97%</strong>
+                <span>documentos recebidos dentro do prazo</span>
+              </div>
+            </div>
+            <div class="diagram-stage" data-diagram>
+              <div class="diagram-caption">
+                <span>Jornada do colaborador</span>
+                <div class="diagram-legend" aria-label="Legenda dos estados">
+                  <span><i></i>Em andamento</span>
+                  <span class="is-complete"><i></i>Concluído</span>
+                </div>
+              </div>
+              <div class="journey-pipeline">
+                <div class="journey-step">
+                  <div class="journey-index">01</div>
+                  <div class="journey-copy"><strong>Solicitação</strong><span>RH abre a jornada ocupacional.</span><span class="journey-owner">Empresa</span></div>
+                </div>
+                <div class="journey-step">
+                  <div class="journey-index">02</div>
+                  <div class="journey-copy"><strong>Agendamento</strong><span>Rede disponível recebe a demanda.</span><span class="journey-owner">SaúdeSeg</span></div>
+                </div>
+                <div class="journey-step">
+                  <div class="journey-index">03</div>
+                  <div class="journey-copy"><strong>Exames</strong><span>Resultados entram no mesmo fluxo.</span><span class="journey-owner">Clínica</span></div>
+                </div>
+                <div class="journey-step">
+                  <div class="journey-index">04</div>
+                  <div class="journey-copy"><strong>Análise</strong><span>Documentação pronta para decisão.</span><span class="journey-owner">Médico</span></div>
+                </div>
+                <div class="journey-step">
+                  <div class="journey-index">05</div>
+                  <div class="journey-copy"><strong>ASO emitido</strong><span>Histórico completo disponível.</span><span class="journey-owner">Resultado</span></div>
+                </div>
+              </div>
+              <div class="journey-result">
+                <div><strong>Mariana Costa · Admissional</strong><span>Processo atualizado hoje às 14:32</span></div>
+                <span class="result-status">Rastreável</span>
+              </div>
+            </div>
+          </div>
+          <div class="visual-footer">
+            <div class="metric-inline">
+              <span>Fluxo ocupacional</span>
+              <span>Timeline do processo</span>
+              <span>Colaboradores monitorados</span>
+            </div>
+            <span class="visual-chip">RH em controle</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="story-section" aria-labelledby="story-medicos">
+      <div class="story-grid">
+        <div class="story-copy">
+          <span class="story-kicker">Médicos</span>
+          <h2 class="story-title" id="story-medicos">Uma nova forma de exercer a <strong>Medicina do Trabalho.</strong></h2>
+          <p class="story-subtitle">Mais autonomia, mais produtividade e uma rede nacional de atendimento.</p>
+          <div class="story-body">
+            <p>A SaúdeSeg conecta médicos do trabalho a uma plataforma nacional de processos ocupacionais, organizada para tornar a decisão clínica mais eficiente.</p>
+            <p>Os atendimentos são distribuídos dinamicamente conforme a disponibilidade dos profissionais, permitindo atuação de qualquer lugar do país com segurança e flexibilidade.</p>
+            <p>Toda a documentação necessária chega pronta para análise, reduzindo o tempo operacional e liberando o médico para focar no que realmente importa.</p>
+          </div>
+          <ul class="story-list">
+            <li>Trabalho remoto.</li>
+            <li>Flexibilidade de horários.</li>
+            <li>Rede nacional de atendimento.</li>
+            <li>Documentação organizada.</li>
+            <li>Mais produtividade.</li>
+            <li>Segurança jurídica e rastreabilidade.</li>
+          </ul>
+          <div class="quote-chip">Mais tempo para exercer a medicina. Menos tempo com burocracia.</div>
+        </div>
+
+        <div class="visual-card">
+          <div class="visual-header">
+            <span class="visual-label">Rede médica</span>
+            <span class="visual-chip">Atuação nacional</span>
+          </div>
+          <div class="flow-scene">
+            <div class="diagram-stage" data-diagram>
+              <div class="diagram-caption">
+                <span>Distribuição nacional de demandas</span>
+                <div class="diagram-legend"><span><i></i>Demanda ativa</span><span class="is-complete"><i></i>Disponível</span></div>
+              </div>
+              <div class="triage-layout">
+                <div class="triage-node">
+                  <strong>Nova demanda</strong>
+                  <span>Exame periódico</span>
+                  <span>Prazo: hoje, 17h</span>
+                  <span>Documentos: completos</span>
+                </div>
+                <div class="flow-arrow" aria-hidden="true"></div>
+                <div class="triage-node triage-core">
+                  <strong>Triagem SaúdeSeg</strong>
+                  <span>A plataforma encontra o profissional mais compatível.</span>
+                  <div class="criteria-list">
+                    <em>Especialidade</em>
+                    <em>Disponibilidade</em>
+                    <em>Prazo e prioridade</em>
+                  </div>
+                </div>
+                <div class="flow-arrow" aria-hidden="true"></div>
+                <div class="doctor-stack">
+                  <div class="doctor-card"><strong>Dra. Ana Ribeiro</strong><span>Sudeste · disponível agora</span><small>Compatibilidade alta</small></div>
+                  <div class="doctor-card is-busy"><strong>Dr. Carlos Lima</strong><span>Nordeste · em análise</span><small>2 processos ativos</small></div>
+                  <div class="doctor-card"><strong>Dra. Luiza Martins</strong><span>Sul · disponível às 15h</span><small>Agenda sincronizada</small></div>
+                </div>
+              </div>
+              <div class="triage-result">Demanda encaminhada com documentação organizada, registro de aceite e prazo monitorado.</div>
+            </div>
+          </div>
+          <div class="visual-footer">
+            <div class="metric-inline">
+              <span>Autonomia profissional</span>
+              <span>Fila dinâmica</span>
+              <span>Produtividade clínica</span>
+            </div>
+            <span class="visual-chip">Menos operação</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="story-section" aria-labelledby="story-plataforma">
+      <div class="story-grid">
+        <div class="story-copy">
+          <span class="story-kicker">A Plataforma SaúdeSeg</span>
+          <h2 class="story-title" id="story-plataforma">Uma <strong>infraestrutura nacional</strong> para a Medicina do Trabalho.</h2>
+          <p class="story-subtitle">Muito mais do que um software. A SaúdeSeg conecta empresas, médicos, clínicas, laboratórios e trabalhadores em um único ecossistema digital.</p>
+          <div class="story-body">
+            <p>A SaúdeSeg não substitui clínicas, médicos ou laboratórios. Ela conecta todos esses participantes em uma única plataforma inteligente, responsável por organizar processos, distribuir demandas e integrar informações.</p>
+            <p>Enquanto clínicas realizam exames, laboratórios produzem resultados e médicos emitem pareceres, a plataforma coordena toda a jornada ocupacional de forma transparente, segura e escalável.</p>
+            <p>Essa arquitetura reduz desperdícios, aumenta a produtividade e faz cada participante focar naquilo que realmente faz melhor.</p>
+          </div>
+          <ul class="story-list">
+            <li>Ecossistema integrado.</li>
+            <li>Processos padronizados.</li>
+            <li>Inteligência operacional.</li>
+            <li>Segurança das informações.</li>
+            <li>Escalabilidade nacional.</li>
+            <li>Experiência digital para todos os envolvidos.</li>
+          </ul>
+          <div class="quote-chip">A SaúdeSeg não conecta apenas sistemas. Ela conecta todo o ecossistema da Medicina do Trabalho.</div>
+        </div>
+
+        <div class="visual-card">
+          <div class="visual-header">
+            <span class="visual-label">Ecossistema integrado</span>
+            <span class="visual-chip">Visão da operação</span>
+          </div>
+          <div class="flow-scene">
+            <div class="diagram-stage" data-diagram>
+              <div class="diagram-caption">
+                <span>Coordenação de ponta a ponta</span>
+                <div class="diagram-legend"><span><i></i>Processos</span><span class="is-document"><i></i>Documentos</span></div>
+              </div>
+              <div class="ecosystem-map">
+                <div class="ecosystem-orbit"></div>
+                <div class="eco-link l1"></div>
+                <div class="eco-link l2"></div>
+                <div class="eco-link l3"></div>
+                <div class="eco-link l4"></div>
+                <div class="eco-link l5"></div>
+                <div class="eco-core"><strong>SaúdeSeg</strong><span>Organiza, distribui e acompanha toda a jornada.</span></div>
+                <div class="eco-node eco-company" data-flow="Inicia a demanda"><strong>Empresa</strong><span>Solicita e acompanha.</span></div>
+                <div class="eco-node eco-clinics" data-flow="Realiza exames"><strong>Clínicas</strong><span>Atendimento presencial.</span></div>
+                <div class="eco-node eco-labs" data-flow="Envia resultados"><strong>Laboratórios</strong><span>Exames complementares.</span></div>
+                <div class="eco-node eco-doctors" data-flow="Valida e emite ASO"><strong>Médicos</strong><span>Decisão clínica nacional.</span></div>
+                <div class="eco-node eco-workers" data-flow="Vivencia a jornada"><strong>Trabalhadores</strong><span>Processo mais simples.</span></div>
+              </div>
+              <div class="ecosystem-journey" aria-label="Resumo da jornada ocupacional">
+                <span>Empresa inicia</span>
+                <span>SaúdeSeg coordena</span>
+                <span>Parceiros executam</span>
+                <span>Médico valida</span>
+                <span>Empresa recebe</span>
+              </div>
+            </div>
+          </div>
+          <div class="visual-footer">
+            <div class="metric-inline">
+              <span>Coordenação transparente</span>
+              <span>Rede conectada</span>
+              <span>Escala nacional</span>
+            </div>
+            <span class="visual-chip">Operação inteligente</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer" aria-labelledby="footer-title">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <span class="footer-kicker">Fale com a SaúdeSeg</span>
+        <h2 class="footer-title" id="footer-title">Pronto para transformar sua operação ocupacional?</h2>
+        <p class="footer-text">Adicionamos um rodapé de destaque para receber as informações de contato da operação. Ele já organiza os canais principais para empresas, médicos e parceiros sem competir com a narrativa da landing.</p>
+      </div>
+
+      <div class="footer-contact-panel">
+        <h3 class="footer-contact-title">Informações de contato</h3>
+        <ul class="footer-contact-list">
+          <li class="footer-contact-item">
+            <strong>Comercial</strong>
+            <span>[inserir e-mail ou telefone comercial]</span>
+          </li>
+          <li class="footer-contact-item">
+            <strong>Atendimento</strong>
+            <span>[inserir canal principal de atendimento]</span>
+          </li>
+          <li class="footer-contact-item">
+            <strong>Parcerias e médicos</strong>
+            <span>[inserir contato para rede credenciada e parceiros]</span>
+          </li>
+        </ul>
+        <p class="footer-note">Esses campos estão prontos para receber os dados finais da operação sem exigir nova mudança estrutural.</p>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>SaúdeSeg+ · Plataforma de Medicina do Trabalho</span>
+      <span class="footer-watermark">Powered by BerithCode</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    import Scene3D from './src/Scene3D.js';
+
+    window.addEventListener('load', () => {
+      const canvasWrap = document.getElementById('canvas-wrap');
+      window.scene3D = new Scene3D(canvasWrap);
+
+      const diagrams = document.querySelectorAll('[data-diagram]');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (reduceMotion || !('IntersectionObserver' in window)) {
+        diagrams.forEach((diagram) => diagram.classList.add('diagram-visible'));
+        return;
+      }
+
+      const diagramObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('diagram-visible');
+          observer.unobserve(entry.target);
+        });
+      }, { threshold: 0.3 });
+
+      diagrams.forEach((diagram) => diagramObserver.observe(diagram));
+    });
+  </script>
+</body>
+</html>
