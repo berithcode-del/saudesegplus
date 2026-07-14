@@ -21,6 +21,9 @@ export class CompanyScopeGuard implements CanActivate {
       throw new ForbiddenException('Acesso restrito a esta empresa');
     }
 
+    // For multipart/form-data requests, body is not yet parsed when guard runs.
+    // Use user's profileId as the requested companyId (COMPANY_ADMIN can only access their own company).
+    // The controller will verify body.companyId matches user.profileId after interceptor parses the form.
     const contentType = request.headers?.['content-type'] || '';
     const isMultipart = contentType.includes('multipart/form-data');
 

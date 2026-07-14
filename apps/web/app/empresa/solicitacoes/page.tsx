@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { apiListSolicitacoes, apiGetRequiredExams, apiSearchCbo } from '../../lib/api';
+import { apiListSolicitacoes, apiSearchCbo, apiGetRequiredExams } from '../../lib/api';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
