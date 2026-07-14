@@ -87,9 +87,16 @@ export default function EmpresaSolicitacoesPage() {
       setLoading(true);
       try {
         const result = await apiListSolicitacoes({ companyId }, page) as any;
-        setSolicitacoes(result?.data ?? []);
-        setTotalPages(result?.meta?.totalPages ?? 1);
-        setTotal(result?.meta?.total ?? 0);
+        // Backend retorna: { success, data: { data: [], pagination: { totalPages, total, ... } } }
+        const items = Array.isArray(result?.data?.data)
+          ? result.data.data
+          : Array.isArray(result?.data)
+          ? result.data
+          : [];
+        const pag = result?.data?.pagination ?? result?.pagination ?? {};
+        setSolicitacoes(items);
+        setTotalPages(pag?.totalPages ?? 1);
+        setTotal(pag?.total ?? 0);
       } catch (err) {
         console.error('Erro ao carregar solicitações:', err);
       } finally {
