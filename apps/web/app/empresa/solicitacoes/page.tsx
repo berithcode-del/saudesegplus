@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { apiListSolicitacoes } from '../../lib/api';
+import { apiListSolicitacoes, apiGetRequiredExams, apiSearchCbo } from '../../lib/api';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
@@ -16,6 +16,11 @@ interface Solicitacao {
   patient: { name: string; cpf: string };
   asoDocuments?: Array<{ decision: string }>;
   token?: string;
+}
+
+interface RequiredExam {
+  examType: string;
+  required: boolean;
 }
 
 export default function EmpresaSolicitacoesPage() {
@@ -40,6 +45,28 @@ export default function EmpresaSolicitacoesPage() {
   const [inviteToken, setInviteToken] = useState('');
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // CBO autocomplete state
+  const [requiredExams, setRequiredExams] = useState<RequiredExam[]>([]);
+  const [loadingExams, setLoadingExams] = useState(false);
+
+  const handleCboSelect = useCallback(async (cboCode: string, functionName: string) => {
+    setInviteData(prev => ({ ...prev, roleFunction: functionName, roleFunctionCboCode: cboCode }));
+    if (cboCode) {
+      setLoadingExams(true);
+      try {
+        const result = await apiGetRequiredExams(cboCode);
+        const exams = Array.isArray(result.data) ? result.data : [];
+        setRequiredExams(exams.map((e: any) => ({ examType: e.examType || e.name || e, required: true })));
+      } catch {
+        setRequiredExams([]);
+      } finally {
+        setLoadingExams(false);
+      }
+    } else {
+      setRequiredExams([]);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchCompanyId = async () => {
@@ -129,9 +156,7 @@ export default function EmpresaSolicitacoesPage() {
   const handleCancelInvite = async (inviteId: string) => {
     if (!confirm('Deseja realmente excluir este convite?')) return;
     try {
-      const res = await fetch(`${BACKEND_URL}/api/company/invite/${inviteId}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`${BACKEND_URL}/api/company/invite/${inviteId}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData(page);
       } else {
@@ -173,7 +198,7 @@ export default function EmpresaSolicitacoesPage() {
       const data = await res.json();
       if (data.success && data.data?.token) {
         setInviteToken(data.data.token);
-        fetchData(1); // Atualiza lista
+        fetchData(1);
       } else {
         alert(data.message || 'Erro ao criar convite');
       }
@@ -203,7 +228,22 @@ export default function EmpresaSolicitacoesPage() {
             <button className="btn btn-secondary" onClick={handleExportCsv}>
               <ArrowDownTrayIcon className="icon" /> Exportar CSV
             </button>
-            <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => { 
+                setRequiredExams([]); 
+                setInviteData({ 
+                  collaboratorName: '', 
+                  expectedCpf: '', 
+                  expectedEmail: '', 
+                  expectedBirthDate: '', 
+                  roleFunction: '', 
+                  roleFunctionCboCode: '', 
+                  examType: 'admissional', 
+                  expiresInDays: 7 
+                }); 
+                setIsModalOpen(true); 
+              }}>
               <PlusIcon className="icon" /> Nova Solicitação
             </button>
           </div>
@@ -212,7 +252,7 @@ export default function EmpresaSolicitacoesPage() {
 
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>
-          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{inviteToken ? 'Convite Criado com Sucesso' : 'Nova Solicitação de Exame'}</h3>
               <button className="close-btn" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>&times;</button>
@@ -252,27 +292,43 @@ export default function EmpresaSolicitacoesPage() {
                     <label className="form-label">Data de Nascimento</label>
                     <input type="date" className="form-input" required value={inviteData.expectedBirthDate} onChange={e => setInviteData({...inviteData, expectedBirthDate: e.target.value})} />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label className="form-label">Função (CBO)</label>
                     <CboAutocomplete
-                      value={inviteData.roleFunction}
-                      onChange={(v) => setInviteData({...inviteData, roleFunction: v})}
-                      onSelect={(cboCode) => setInviteData({...inviteData, roleFunctionCboCode: cboCode})}
+                      value={inviteData.roleFunctionCboCode}
+                      onChange={(val) => setInviteData(prev => ({ ...prev, roleFunctionCboCode: val }))}
+                      onSelect={handleCboSelect}
                       required
                     />
+                    {loadingExams && <span style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>Buscando exames obrigatórios...</span>}
+                    {requiredExams.length > 0 && (
+                      <div style={{ marginTop: '8px', padding: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                        <strong style={{ color: '#166534', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Exames obrigatórios para este CBO:</strong>
+                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#166534' }}>
+                          {requiredExams.map((exam, i) => (
+                            <li key={i}><strong>{exam.examType}</strong> {exam.required ? '(obrigatório)' : '(opcional)'}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label">Tipo de Exame</label>
-                    <select className="form-input" required value={inviteData.examType} onChange={e => setInviteData({...inviteData, examType: e.target.value})}>
+                    <select className="form-select" value={inviteData.examType} onChange={e => setInviteData({...inviteData, examType: e.target.value})}>
                       <option value="admissional">Admissional</option>
                       <option value="periodico">Periódico</option>
                       <option value="demissional">Demissional</option>
                       <option value="mudanca_funcao">Mudança de Função</option>
-                      <option value="retorno">Retorno ao Trabalho</option>
+                      <option value="retorno_trabalho">Retorno ao Trabalho</option>
                     </select>
                   </div>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={creating}>
+                  <div className="form-group">
+                    <label className="form-label">Validade (dias)</label>
+                    <input type="number" className="form-input" min="1" value={inviteData.expiresInDays} onChange={e => setInviteData({...inviteData, expiresInDays: parseInt(e.target.value) || 7})} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', gridColumn: '1 / -1' }}>
+                    <button type="button" className="btn btn-ghost" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={creating}>
                       {creating ? 'Criando...' : 'Criar Convite'}
                     </button>
                   </div>
