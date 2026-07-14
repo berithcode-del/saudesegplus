@@ -44,6 +44,7 @@ model Clinic {
   calendarEvents        CalendarEvent[]
   companies             Company[]
   examRequests          ExamRequest[]
+  examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
   operators             Operator[]
 }
