@@ -79,6 +79,21 @@ export class UploadController {
     return { success: true, ...data };
   }
 
+  @Post('exam-file')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
+  @UseInterceptors(FileInterceptor('file', {
+    limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+    fileFilter: allowMimeTypes(PORTAL_MIME_TYPES),
+  }))
+  async uploadExamFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      return { success: false, message: 'Arquivo nao enviado' };
+    }
+    const data = await this.uploadService.uploadFile(file);
+    return { success: true, ...data };
+  }
+
   @Get('documents/:companyId')
   @Roles('ADMIN', 'COMPANY_ADMIN')
   @UseGuards(CompanyScopeGuard)
