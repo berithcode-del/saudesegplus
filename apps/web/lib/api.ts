@@ -22,7 +22,8 @@ export async function apiGetExamTypes(): Promise<{ data: unknown }> {
 }
 
 export async function apiGetRequiredExams(cboCode: string): Promise<{ data: unknown }> {
-  return apiFetch(`/api/exams/required-by-cbo?cbo=${encodeURIComponent(cboCode)}`) as Promise<{ data: unknown }>;
+  // Rota correta: /api/exams/required?cboCode=... (não /required-by-cbo que não existe)
+  return apiFetch(`/api/exams/required?cboCode=${encodeURIComponent(cboCode)}`) as Promise<{ data: unknown }>;
 }
 
 export async function apiGetMedicoProfile(id: string): Promise<{ data: unknown }> {
@@ -127,11 +128,28 @@ export async function apiCreateInvite(companyId: string, payload: Record<string,
 }
 
 export async function apiCancelInvite(inviteId: string) {
-  return apiFetch(`/api/invites/${inviteId}`, {
+  // Rota correta: DELETE /api/company/invite/:id (não /api/invites/:id)
+  return apiFetch(`/api/company/invite/${inviteId}`, {
     method: 'DELETE',
   });
 }
 
-export async function apiListSolicitacoes(companyId: string, page = 1, limit = 20) {
-  return apiFetch(`/api/company/${companyId}/solicitacoes?page=${page}&limit=${limit}`);
+// Busca ExamRequests (exames já iniciados) da empresa
+export async function apiListSolicitacoes(
+  filters: { status?: string; companyId?: string; patientId?: string } = {},
+  page = 1,
+  limit = 20
+) {
+  const params = new URLSearchParams();
+  if (filters.companyId) params.set('companyId', filters.companyId);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.patientId) params.set('patientId', filters.patientId);
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  return apiFetch(`/api/solicitacoes?${params.toString()}`);
+}
+
+// Busca ExamInvites (convites pendentes) da empresa
+export async function apiListInvites(companyId: string) {
+  return apiFetch(`/api/company/${companyId}/invites`);
 }

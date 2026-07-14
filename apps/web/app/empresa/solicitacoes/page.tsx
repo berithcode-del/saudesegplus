@@ -279,42 +279,43 @@ export default function EmpresaSolicitacoesPage() {
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Nome do Colaborador *</label>
-                  <input required className="form-control" value={inviteData.collaboratorName}
+                  <input required className="form-input" value={inviteData.collaboratorName}
                     onChange={e => setInviteData(p => ({ ...p, collaboratorName: e.target.value }))}
                     placeholder="Nome completo" />
                 </div>
 
                 <div className="form-group">
                   <label>CPF</label>
-                  <input className="form-control" value={inviteData.expectedCpf}
+                  <input className="form-input" value={inviteData.expectedCpf}
                     onChange={e => setInviteData(p => ({ ...p, expectedCpf: e.target.value }))}
                     placeholder="000.000.000-00" />
                 </div>
 
                 <div className="form-group">
                   <label>E-mail</label>
-                  <input type="email" className="form-control" value={inviteData.expectedEmail}
+                  <input type="email" className="form-input" value={inviteData.expectedEmail}
                     onChange={e => setInviteData(p => ({ ...p, expectedEmail: e.target.value }))}
                     placeholder="email@empresa.com" />
                 </div>
 
                 <div className="form-group">
                   <label>Data de Nascimento</label>
-                  <input type="date" className="form-control" value={inviteData.expectedBirthDate}
+                  <input type="date" className="form-input" value={inviteData.expectedBirthDate}
                     onChange={e => setInviteData(p => ({ ...p, expectedBirthDate: e.target.value }))} />
                 </div>
 
                 <div className="form-group">
                   <label>Validade (dias)</label>
-                  <input type="number" min={1} max={30} className="form-control" value={inviteData.expiresInDays}
+                  <input type="number" min={1} max={30} className="form-input" value={inviteData.expiresInDays}
                     onChange={e => setInviteData(p => ({ ...p, expiresInDays: Number(e.target.value) }))} />
                 </div>
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Função / CBO *</label>
+                  {/* value = texto da função; onSelect atualiza roleFunction + roleFunctionCboCode */}
                   <CboAutocomplete
-                    value={inviteData.roleFunctionCboCode}
-                    onChange={val => setInviteData(p => ({ ...p, roleFunctionCboCode: val }))}
+                    value={inviteData.roleFunction}
+                    onChange={val => setInviteData(p => ({ ...p, roleFunction: val }))}
                     onSelect={handleCboSelect}
                     required
                   />
@@ -335,7 +336,7 @@ export default function EmpresaSolicitacoesPage() {
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Tipo de Exame *</label>
-                  <select required className="form-control" value={inviteData.examType}
+                  <select required className="form-input" value={inviteData.examType}
                     onChange={e => setInviteData(p => ({ ...p, examType: e.target.value }))}>
                     <option value="admissional">Admissional</option>
                     <option value="periodico">Periódico</option>
