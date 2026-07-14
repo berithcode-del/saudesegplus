@@ -217,19 +217,17 @@ export class CompanyService {
 
     if (dto.expectedEmail) {
       const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-      try {
-        await this.mailService.sendInviteLink(
-          dto.expectedEmail,
-          invite.company.razaoSocial ?? '',
-          link,
-          invite.expiresAt,
-        );
-      } catch (err) {
+      this.mailService.sendInviteLink(
+        dto.expectedEmail,
+        invite.company.razaoSocial ?? '',
+        link,
+        invite.expiresAt,
+      ).catch((err) => {
         console.error(
-          `[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`,
+          `[Mail] Falha ao enviar e-mail em segundo plano para ${dto.expectedEmail}:`,
           err,
         );
-      }
+      });
     }
 
     return invite;

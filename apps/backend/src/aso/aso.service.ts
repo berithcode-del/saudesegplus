@@ -235,18 +235,16 @@ export class AsoService {
       where: { id: request.patient.userId },
     });
     if (patientUser?.email && !patientUser.email.endsWith('@walkin.temp')) {
-      try {
-        await this.mailService.sendAsoReady(
-          patientUser.email,
-          request.patient.name,
-          pdfUrl,
-        );
-      } catch (error) {
+      this.mailService.sendAsoReady(
+        patientUser.email,
+        request.patient.name,
+        pdfUrl,
+      ).catch((error) => {
         this.logger.error(
-          `Falha ao enviar ASO para ${patientUser.email}`,
+          `Falha ao enviar ASO para ${patientUser.email} em segundo plano`,
           error,
         );
-      }
+      });
     }
 
     this.logger.log(`ASO PDF gerado: ${pdfPath}`);
