@@ -86,7 +86,7 @@ export default function EmpresaSolicitacoesPage() {
     const loadSolicitacoes = async () => {
       setLoading(true);
       try {
-        const result = await apiListSolicitacoes(companyId, page) as any;
+        const result = await apiListSolicitacoes({ companyId }, page) as any;
         setSolicitacoes(result?.data ?? []);
         setTotalPages(result?.meta?.totalPages ?? 1);
         setTotal(result?.meta?.total ?? 0);
@@ -262,8 +262,9 @@ export default function EmpresaSolicitacoesPage() {
                   <label>Função / CBO *</label>
                   <CboAutocomplete
                     value={inviteData.roleFunctionCboCode}
+                    onChange={val => setInviteData(p => ({ ...p, roleFunctionCboCode: val }))}
                     onSelect={handleCboSelect}
-                    placeholder="Digite a função para buscar..."
+                    required
                   />
                 </div>
 

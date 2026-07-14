@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 export { useQueue } from '@repo/api-client';
 
@@ -225,3 +225,18 @@ export async function apiSearchCbo(query: string): Promise<{ cboCode: string; fu
   const raw = ((r as { data?: any[] })?.data ?? []) as any[];
   return raw.map((item: any) => ({ cboCode: item.code ?? item.cboCode ?? '', functionName: item.name ?? item.functionName ?? '' }));
 }
+
+export async function apiCreateInvite(companyId: string, payload: Record<string, unknown>) {
+  return apiFetch(`/api/company/${companyId}/invite`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiCancelInvite(inviteId: string) {
+  return apiFetch(`/api/invites/${inviteId}`, {
+    method: 'DELETE',
+  });
+}
+
+
