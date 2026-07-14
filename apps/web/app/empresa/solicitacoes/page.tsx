@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { apiListSolicitacoes, apiSearchCbo, apiGetRequiredExams } from '../../lib/api';
 import { Pagination } from '../../../components/ui/Pagination';
@@ -50,7 +50,7 @@ export default function EmpresaSolicitacoesPage() {
   const [requiredExams, setRequiredExams] = useState<RequiredExam[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
 
-  const handleCboSelect = async (cboCode: string, functionName: string) => {
+  const handleCboSelect = useCallback(async (cboCode: string, functionName: string) => {
     setInviteData(prev => ({ ...prev, roleFunction: functionName, roleFunctionCboCode: cboCode }));
     if (cboCode) {
       setLoadingExams(true);
@@ -66,7 +66,7 @@ export default function EmpresaSolicitacoesPage() {
     } else {
       setRequiredExams([]);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const fetchCompanyId = async () => {

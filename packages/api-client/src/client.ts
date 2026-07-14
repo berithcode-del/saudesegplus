@@ -34,40 +34,40 @@ export class ApiClient {
   }
 
   async fetch(path: string, options: RequestInit = {}): Promise<any> {
-      const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
-      let res: Response;
-      try {
-        res = await globalThis.fetch(url, {
-          ...options,
-          headers: { ...this.getAuthHeaders(), ...(options.headers as Record<string, string> ?? {}) },
-        });
-      } catch (error) {
-        throw this.toNetworkError(error);
-      }
-
-      if (res.status === 401) {
-        clearSession(this.storage);
-        console.warn(`[apiClient] 401 em ${path} — auth desabilitada`);
-        return { data: null, success: false };
-      }
-
-      // Check Content-Type before parsing JSON to avoid "Unexpected token '<'" errors
-      const contentType = res.headers.get('content-type') || '';
-      const isJson = contentType.includes('application/json');
-
-      if (!res.ok) {
-        const body = isJson ? await res.json().catch(() => ({})) : await res.text().catch(() => '');
-        const message = isJson && typeof body === 'object' ? (body as { message?: string })?.message : body?.toString();
-        throw new Error(message || `HTTP ${res.status}`);
-      }
-
-      if (!isJson) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Resposta inesperada do servidor (não-JSON): ${text.slice(0, 200)}`);
-      }
-
-      return res.json();
+    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    let res: Response;
+    try {
+      res = await globalThis.fetch(url, {
+        ...options,
+        headers: { ...this.getAuthHeaders(), ...(options.headers as Record<string, string> ?? {}) },
+      });
+    } catch (error) {
+      throw this.toNetworkError(error);
     }
+
+    if (res.status === 401) {
+      clearSession(this.storage);
+      console.warn(`[apiClient] 401 em ${path} — auth desabilitada`);
+      return { data: null, success: false };
+    }
+
+    // Check Content-Type before parsing JSON to avoid "Unexpected token '<'" errors
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
+    if (!res.ok) {
+      const body = isJson ? await res.json().catch(() => ({})) : await res.text().catch(() => '');
+      const message = isJson && typeof body === 'object' ? (body as { message?: string })?.message : body?.toString();
+      throw new Error(message || `HTTP ${res.status}`);
+    }
+
+    if (!isJson) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Resposta inesperada do servidor (não-JSON): ${text.slice(0, 200)}`);
+    }
+
+    return res.json();
+  }
 
   async fetchWithFormData(path: string, formData: FormData): Promise<any> {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
@@ -86,7 +86,10 @@ export class ApiClient {
       throw this.toNetworkError(error);
     }
 
-    const json = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+    const json = isJson ? await res.json().catch(() => ({})) : await res.text().catch(() => '');
+
     if (!res.ok) throw new Error(json?.message || 'Falha ao enviar');
     if (json?.success === false) throw new Error(json?.message || 'Falha ao enviar');
     return json;
