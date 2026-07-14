@@ -117,3 +117,20 @@ export async function apiCreateVideoRoom(examRequestId: string, doctorId?: strin
     body: JSON.stringify({ examRequestId, ...(doctorId ? { doctorId } : {}) }),
   });
 }
+
+export async function apiCreateInvite(companyId: string, payload: Record<string, unknown>) {
+  return apiFetch(`/api/company/${companyId}/invite`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiCancelInvite(inviteId: string) {
+  return apiFetch(`/api/invites/${inviteId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function apiListSolicitacoes(companyId: string, page = 1, limit = 20) {
+  return apiFetch(`/api/company/${companyId}/solicitacoes?page=${page}&limit=${limit}`);
+}
