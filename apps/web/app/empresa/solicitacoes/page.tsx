@@ -124,6 +124,10 @@ export default function EmpresaSolicitacoesPage() {
     if (!companyId) { setCreateError('ID da empresa não encontrado. Faça login novamente.'); return; }
     setCreating(true);
     setCreateError('');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     try {
       const result = await apiCreateInvite(companyId, {
         collaboratorName: inviteData.collaboratorName,
@@ -140,11 +144,17 @@ export default function EmpresaSolicitacoesPage() {
       if (token) {
         setInviteToken(token);
       } else {
-        throw new Error(result?.message || 'Convite criado, mas token não retornado.');
+        const msg = result?.data?.message ?? result?.message ?? '';
+        throw new Error(msg || 'Convite criado, mas token não retornado. Verifique o status da empresa.');
       }
     } catch (err: any) {
-      setCreateError(err.message || 'Erro ao criar convite.');
+      if (err?.name === 'AbortError') {
+        setCreateError('O servidor demorou muito para responder. Tente novamente.');
+      } else {
+        setCreateError(err.message || 'Erro ao criar convite. Tente novamente.');
+      }
     } finally {
+      clearTimeout(timeout);
       setCreating(false);
     }
   };
