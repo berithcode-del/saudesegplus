@@ -239,4 +239,9 @@ export async function apiCancelInvite(inviteId: string) {
   });
 }
 
+export async function apiListInvites(companyId: string) {
+  return apiFetch(`/api/company/${companyId}/invites`);
+}
+
+
 

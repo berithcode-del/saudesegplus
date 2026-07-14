@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { apiListSolicitacoes, apiFetch, apiGetRequiredExams, apiCreateInvite, apiCancelInvite } from '../../lib/api';
+import { apiListSolicitacoes, apiFetch, apiGetRequiredExams, apiCreateInvite, apiCancelInvite, apiListInvites } from '../../lib/api';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
@@ -80,23 +80,57 @@ export default function EmpresaSolicitacoesPage() {
     fetchCompanyId();
   }, []);
 
-  // Carrega solicitações quando companyId muda
+  // Carrega solicitações (ExamRequests) + convites pendentes (ExamInvites) mesclados
   useEffect(() => {
     if (!companyId) return;
     const loadSolicitacoes = async () => {
       setLoading(true);
       try {
-        const result = await apiListSolicitacoes({ companyId }, page) as any;
-        // Backend retorna: { success, data: { data: [], pagination: { totalPages, total, ... } } }
-        const items = Array.isArray(result?.data?.data)
+        // Busca ExamRequests (exames em andamento) e ExamInvites (convites enviados) em paralelo
+        const [result, invitesResult] = await Promise.all([
+          apiListSolicitacoes({ companyId }, page) as Promise<any>,
+          apiListInvites(companyId) as Promise<any>,
+        ]);
+
+        // Backend retorna: { success, data: { data: [], pagination: {} } }
+        const examRequests: Solicitacao[] = Array.isArray(result?.data?.data)
           ? result.data.data
           : Array.isArray(result?.data)
           ? result.data
           : [];
         const pag = result?.data?.pagination ?? result?.pagination ?? {};
-        setSolicitacoes(items);
+
+        // Convites pendentes = ExamInvites sem ExamRequest associado ainda
+        const rawInvites: any[] = Array.isArray(invitesResult?.data)
+          ? invitesResult.data
+          : Array.isArray(invitesResult)
+          ? invitesResult
+          : [];
+
+        const acceptedInviteIds = new Set(
+          examRequests.map((r: any) => r.inviteId ?? r.invite?.id).filter(Boolean)
+        );
+
+        // Transforma convites pendentes no mesmo formato de Solicitacao
+        const pendingInvites: Solicitacao[] = rawInvites
+          .filter((inv: any) => !acceptedInviteIds.has(inv.id))
+          .map((inv: any) => ({
+            id: inv.id,
+            examPurpose: inv.examType,
+            status: '⏳ ' + (inv.status ?? 'ENVIADO'),
+            createdAt: inv.createdAt,
+            patient: {
+              name: inv.collaboratorName || inv.expectedEmail || inv.expectedCpf || 'Novo Colaborador',
+              cpf: inv.expectedCpf || '—',
+            },
+            asoDocuments: [{ decision: 'Aguardando aceite do colaborador' }],
+            token: inv.token,
+          }));
+
+        // Convites pendentes aparecem no topo, seguidos dos exames em andamento
+        setSolicitacoes([...pendingInvites, ...examRequests]);
         setTotalPages(pag?.totalPages ?? 1);
-        setTotal(pag?.total ?? 0);
+        setTotal((pag?.total ?? 0) + pendingInvites.length);
       } catch (err) {
         console.error('Erro ao carregar solicitações:', err);
       } finally {
@@ -105,6 +139,7 @@ export default function EmpresaSolicitacoesPage() {
     };
     loadSolicitacoes();
   }, [companyId, page]);
+
 
   // Ao selecionar CBO, busca exames obrigatórios
   const handleCboSelect = async (cboCode: string, functionName: string) => {
