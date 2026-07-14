@@ -57,11 +57,9 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    let id = typeof window !== 'undefined'
-      ? window.localStorage.getItem('companyId')
-      : null;
-    
-    if (!id && token) {
+    let id: string | null = null;
+
+    if (token) {
       try {
         const parts = token.split('.');
         const payload = JSON.parse(atob(parts[1] ?? ''));
@@ -70,8 +68,16 @@ export default function ConfiguracoesPage() {
         console.error('Erro ao decodificar token:', err);
       }
     }
-    
-    setCompanyId(id ?? 'empresa-1');
+
+    if (!id && typeof window !== 'undefined') {
+      id = window.localStorage.getItem('companyId');
+    }
+
+    if (id && typeof window !== 'undefined') {
+      window.localStorage.setItem('companyId', id);
+    }
+
+    setCompanyId(id ?? '');
   }, []);
 
   useEffect(() => {

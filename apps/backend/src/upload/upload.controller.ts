@@ -50,16 +50,19 @@ export class UploadController {
     @Body('type') type: string,
     @Body('validUntil') validUntil: string,
   ) {
+    const normalizedType = type?.trim().toUpperCase() === 'PGR' ? 'PPRA' : type?.trim().toUpperCase();
+
     if (!file) {
-      return { success: false, message: 'Arquivo não enviado' };
+      return { success: false, message: 'Arquivo nao enviado' };
     }
-    if (!type || !['PCMSO', 'PPRA'].includes(type)) {
-      return { success: false, message: 'Tipo deve ser PCMSO ou PPRA' };
+    if (!normalizedType || !['PCMSO', 'PPRA'].includes(normalizedType)) {
+      return { success: false, message: 'Tipo deve ser PCMSO, PPRA ou PGR' };
     }
     if (file.mimetype !== 'application/pdf') {
-      return { success: false, message: 'Apenas arquivos PDF são aceitos para documentos' };
+      return { success: false, message: 'Apenas arquivos PDF sao aceitos para documentos' };
     }
-    const doc = await this.uploadService.saveDocument(file, companyId, type, validUntil);
+
+    const doc = await this.uploadService.saveDocument(file, companyId, normalizedType, validUntil);
     return { success: true, data: doc };
   }
 
@@ -73,7 +76,7 @@ export class UploadController {
   }))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
-      return { success: false, message: 'Arquivo não enviado' };
+      return { success: false, message: 'Arquivo nao enviado' };
     }
     const data = await this.uploadService.uploadFile(file);
     return { success: true, ...data };
