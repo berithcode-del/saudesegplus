@@ -1,12 +1,9 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { apiListSolicitacoes, apiSearchCbo, apiGetRequiredExams } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import { apiListSolicitacoes, apiFetch, apiGetRequiredExams, apiCreateInvite, apiCancelInvite } from '../../lib/api';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
 interface Solicitacao {
   id: string;
@@ -16,11 +13,6 @@ interface Solicitacao {
   patient: { name: string; cpf: string };
   asoDocuments?: Array<{ decision: string }>;
   token?: string;
-}
-
-interface RequiredExam {
-  examType: string;
-  required: boolean;
 }
 
 export default function EmpresaSolicitacoesPage() {
@@ -45,32 +37,13 @@ export default function EmpresaSolicitacoesPage() {
   const [inviteToken, setInviteToken] = useState('');
   const [copied, setCopied] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [requiredExams, setRequiredExams] = useState<string[]>([]);
+  const [createError, setCreateError] = useState('');
 
-  // CBO autocomplete state
-  const [requiredExams, setRequiredExams] = useState<RequiredExam[]>([]);
-  const [loadingExams, setLoadingExams] = useState(false);
-
-  const handleCboSelect = useCallback(async (cboCode: string, functionName: string) => {
-    setInviteData(prev => ({ ...prev, roleFunction: functionName, roleFunctionCboCode: cboCode }));
-    if (cboCode) {
-      setLoadingExams(true);
-      try {
-        const result = await apiGetRequiredExams(cboCode);
-        const exams = Array.isArray(result.data) ? result.data : [];
-        setRequiredExams(exams.map((e: any) => ({ examType: e.examType || e.name || e, required: true })));
-      } catch {
-        setRequiredExams([]);
-      } finally {
-        setLoadingExams(false);
-      }
-    } else {
-      setRequiredExams([]);
-    }
-  }, []);
-
+  // Busca o companyId do token ou localStorage
   useEffect(() => {
     const fetchCompanyId = async () => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
       let cid: string | null = null;
 
       if (token) {
@@ -86,13 +59,10 @@ export default function EmpresaSolicitacoesPage() {
       if (!cid) {
         cid = localStorage.getItem('companyId');
       }
-      
+
       if (!cid) {
         try {
-          const res = await fetch(`${BACKEND_URL}/api/company`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const result = await res.json();
+          const result = await apiFetch(`/api/company`) as any;
           if (result.data && result.data.length > 0) {
             cid = result.data[0].id;
             localStorage.setItem('companyId', cid as string);
@@ -101,7 +71,7 @@ export default function EmpresaSolicitacoesPage() {
           console.error('Erro ao buscar company ID', err);
         }
       }
-      
+
       if (cid) {
         localStorage.setItem('companyId', cid);
         setCompanyId(cid);
@@ -110,235 +80,230 @@ export default function EmpresaSolicitacoesPage() {
     fetchCompanyId();
   }, []);
 
-  const fetchData = async (p: number) => {
-    setLoading(true);
-    try {
-      const r = await apiListSolicitacoes({ companyId }, p, 20);
-      let requests = Array.isArray(r.data) ? r.data : [];
-
-      if (p === 1) {
-        try {
-          const invRes = await fetch(`${BACKEND_URL}/api/company/${companyId}/invites`);
-          const invData = await invRes.json();
-          if (invData.success && Array.isArray(invData.data)) {
-            const pendingInvites = invData.data
-              .filter((i: any) => ['ENVIADO', 'PENDENTE', 'ABERTO'].includes(i.status))
-              .filter((i: any) => !requests.some((req: any) => req.invite?.id === i.id || req.inviteId === i.id))
-              .map((i: any) => ({
-                id: i.id,
-                examPurpose: i.examType,
-                status: 'CONVITE ' + i.status,
-                createdAt: i.createdAt,
-                patient: { name: i.collaboratorName || i.expectedEmail || i.expectedCpf || 'Novo Colaborador', cpf: i.expectedCpf || '—' },
-                asoDocuments: [{ decision: 'Aguardando aceite' }],
-                token: i.token,
-              }));
-            requests = [...pendingInvites, ...requests];
-          }
-        } catch (e) {
-          console.error('Erro ao buscar convites', e);
-        }
-      }
-
-      setSolicitacoes(requests);
-      if (r.pagination) {
-        setTotalPages(r.pagination.totalPages);
-        setTotal(r.pagination.total);
-      }
-    } catch { setSolicitacoes([]); }
-    finally { setLoading(false); }
-  };
-
+  // Carrega solicitações quando companyId muda
   useEffect(() => {
-    if (companyId) fetchData(page);
+    if (!companyId) return;
+    const loadSolicitacoes = async () => {
+      setLoading(true);
+      try {
+        const result = await apiListSolicitacoes(companyId, page) as any;
+        setSolicitacoes(result?.data ?? []);
+        setTotalPages(result?.meta?.totalPages ?? 1);
+        setTotal(result?.meta?.total ?? 0);
+      } catch (err) {
+        console.error('Erro ao carregar solicitações:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSolicitacoes();
   }, [companyId, page]);
 
-  const handleCancelInvite = async (inviteId: string) => {
-    if (!confirm('Deseja realmente excluir este convite?')) return;
+  // Ao selecionar CBO, busca exames obrigatórios
+  const handleCboSelect = async (cboCode: string, functionName: string) => {
+    setInviteData(prev => ({ ...prev, roleFunctionCboCode: cboCode, roleFunction: functionName }));
+    if (!cboCode) { setRequiredExams([]); return; }
     try {
-      const res = await fetch(`${BACKEND_URL}/api/company/invite/${inviteId}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchData(page);
-      } else {
-        alert('Erro ao excluir convite.');
-      }
-    } catch (e) {
-      alert('Erro de conexão ao excluir convite.');
+      const result = await apiGetRequiredExams(cboCode) as any;
+      const exams: string[] = result?.data?.requiredExams ?? result?.requiredExams ?? [];
+      setRequiredExams(exams);
+    } catch {
+      setRequiredExams([]);
     }
-  };
-
-  const handleExportCsv = async () => {
-    const params = new URLSearchParams({ formato: 'csv' });
-    const token = localStorage.getItem('accessToken');
-    const url = `${BACKEND_URL}/api/company/${companyId}/relatorio?${params.toString()}`;
-    try {
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) { alert('Erro ao gerar relatório.'); return; }
-      const blob = await res.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `relatorio-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch { alert('Erro ao exportar CSV.'); }
   };
 
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!companyId) { setCreateError('ID da empresa não encontrado. Faça login novamente.'); return; }
     setCreating(true);
+    setCreateError('');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/company/${companyId}/invite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(inviteData),
-      });
-      const data = await res.json();
-      if (data.success && data.data?.token) {
-        setInviteToken(data.data.token);
-        fetchData(1);
+      const result = await apiCreateInvite(companyId, {
+        collaboratorName: inviteData.collaboratorName,
+        expectedCpf: inviteData.expectedCpf,
+        expectedEmail: inviteData.expectedEmail,
+        expectedBirthDate: inviteData.expectedBirthDate || undefined,
+        roleFunction: inviteData.roleFunction,
+        roleFunctionCboCode: inviteData.roleFunctionCboCode,
+        examType: inviteData.examType,
+        expiresInDays: Number(inviteData.expiresInDays),
+      }) as any;
+
+      const token = result?.data?.token ?? result?.token;
+      if (token) {
+        setInviteToken(token);
       } else {
-        alert(data.message || 'Erro ao criar convite');
+        throw new Error(result?.message || 'Convite criado, mas token não retornado.');
       }
-    } catch {
-      alert('Erro de conexão ao criar convite');
+    } catch (err: any) {
+      setCreateError(err.message || 'Erro ao criar convite.');
     } finally {
       setCreating(false);
     }
   };
 
-  const copyLink = () => {
-    const link = `${window.location.origin}/p/${inviteToken}`;
-    navigator.clipboard.writeText(link);
+  const handleCancelInvite = async (id: string) => {
+    if (!confirm('Deseja cancelar este convite?')) return;
+    try {
+      await apiCancelInvite(id);
+      setSolicitacoes(prev => prev.filter(s => s.id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao cancelar convite.');
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/p/${inviteToken}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const resetModal = () => {
+    setIsModalOpen(false);
+    setInviteToken('');
+    setCopied(false);
+    setCreateError('');
+    setRequiredExams([]);
+    setInviteData({
+      collaboratorName: '',
+      expectedCpf: '',
+      expectedEmail: '',
+      expectedBirthDate: '',
+      roleFunction: '',
+      roleFunctionCboCode: '',
+      examType: 'admissional',
+      expiresInDays: 7,
+    });
+  };
+
+  const inviteLink = inviteToken ? `${typeof window !== 'undefined' ? window.location.origin : ''}/p/${inviteToken}` : '';
+
   return (
     <>
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2>Solicitações</h2>
-            <p>Todas as solicitações de exame da empresa</p>
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="btn btn-secondary" onClick={handleExportCsv}>
-              <ArrowDownTrayIcon className="icon" /> Exportar CSV
-            </button>
-            <button 
-              className="btn btn-primary" 
-              onClick={() => { 
-                setRequiredExams([]); 
-                setInviteData({ 
-                  collaboratorName: '', 
-                  expectedCpf: '', 
-                  expectedEmail: '', 
-                  expectedBirthDate: '', 
-                  roleFunction: '', 
-                  roleFunctionCboCode: '', 
-                  examType: 'admissional', 
-                  expiresInDays: 7 
-                }); 
-                setIsModalOpen(true); 
-              }}>
-              <PlusIcon className="icon" /> Nova Solicitação
-            </button>
-          </div>
-        </div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700 }}>Solicitações</h1>
+        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <PlusIcon style={{ width: 18, height: 18 }} />
+          Nova Solicitação
+        </button>
       </div>
 
+      {/* Modal Nova Solicitação */}
       {isModalOpen && (
-        <div className="modal-overlay" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>
-          <div className="modal-content" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{inviteToken ? 'Convite Criado com Sucesso' : 'Nova Solicitação de Exame'}</h3>
-              <button className="close-btn" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>&times;</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: 'var(--card-bg, #fff)', borderRadius: '16px', padding: '32px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Novo Convite de Exame</h2>
+              <button onClick={resetModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}>✕</button>
             </div>
-            <div className="modal-body">
-              {inviteToken ? (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <p style={{ marginBottom: '16px', color: '#4b5563' }}>Envie este link para o colaborador iniciar o processo:</p>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f3f4f6', padding: '12px', borderRadius: '8px' }}>
-                    <input 
-                      readOnly 
-                      value={`${window.location.origin}/p/${inviteToken}`} 
-                      className="form-input" 
-                      style={{ marginBottom: 0, flex: 1 }}
-                    />
-                    <button className="btn btn-primary" onClick={copyLink}>
-                      {copied ? <ClipboardDocumentCheckIcon className="icon" /> : <ClipboardDocumentIcon className="icon" />}
-                      {copied ? 'Copiado!' : 'Copiar'}
-                    </button>
-                  </div>
+
+            {inviteToken ? (
+              /* Sucesso — mostra link */
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+                  <p style={{ color: '#166534', fontWeight: 600, marginBottom: '12px' }}>✅ Convite criado com sucesso!</p>
+                  <p style={{ fontSize: '13px', color: '#4b5563', marginBottom: '12px' }}>Copie o link abaixo e envie ao colaborador:</p>
+                  <code style={{ display: 'block', background: '#fff', border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px', fontSize: '12px', wordBreak: 'break-all', color: '#1d4ed8' }}>
+                    {inviteLink}
+                  </code>
                 </div>
-              ) : (
-                <form onSubmit={handleCreateInvite} className="form-grid">
-                  <div className="form-group">
-                    <label className="form-label">Nome do Colaborador</label>
-                    <input className="form-input" required value={inviteData.collaboratorName} onChange={e => setInviteData({...inviteData, collaboratorName: e.target.value})} />
+                <button className="btn btn-primary" onClick={handleCopyLink} style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto' }}>
+                  {copied ? <ClipboardDocumentCheckIcon style={{ width: 18 }} /> : <ClipboardDocumentIcon style={{ width: 18 }} />}
+                  {copied ? 'Copiado!' : 'Copiar Link'}
+                </button>
+                <button onClick={resetModal} style={{ marginTop: '12px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '14px' }}>
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              /* Formulário */
+              <form onSubmit={handleCreateInvite} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                {createError && (
+                  <div style={{ gridColumn: '1 / -1', background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '12px', borderRadius: '8px', fontSize: '14px' }}>
+                    {createError}
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">CPF</label>
-                    <input className="form-input" required value={inviteData.expectedCpf} onChange={e => setInviteData({...inviteData, expectedCpf: e.target.value})} />
+                )}
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Nome do Colaborador *</label>
+                  <input required className="form-control" value={inviteData.collaboratorName}
+                    onChange={e => setInviteData(p => ({ ...p, collaboratorName: e.target.value }))}
+                    placeholder="Nome completo" />
+                </div>
+
+                <div className="form-group">
+                  <label>CPF</label>
+                  <input className="form-control" value={inviteData.expectedCpf}
+                    onChange={e => setInviteData(p => ({ ...p, expectedCpf: e.target.value }))}
+                    placeholder="000.000.000-00" />
+                </div>
+
+                <div className="form-group">
+                  <label>E-mail</label>
+                  <input type="email" className="form-control" value={inviteData.expectedEmail}
+                    onChange={e => setInviteData(p => ({ ...p, expectedEmail: e.target.value }))}
+                    placeholder="email@empresa.com" />
+                </div>
+
+                <div className="form-group">
+                  <label>Data de Nascimento</label>
+                  <input type="date" className="form-control" value={inviteData.expectedBirthDate}
+                    onChange={e => setInviteData(p => ({ ...p, expectedBirthDate: e.target.value }))} />
+                </div>
+
+                <div className="form-group">
+                  <label>Validade (dias)</label>
+                  <input type="number" min={1} max={30} className="form-control" value={inviteData.expiresInDays}
+                    onChange={e => setInviteData(p => ({ ...p, expiresInDays: Number(e.target.value) }))} />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Função / CBO *</label>
+                  <CboAutocomplete
+                    value={inviteData.roleFunctionCboCode}
+                    onSelect={handleCboSelect}
+                    placeholder="Digite a função para buscar..."
+                  />
+                </div>
+
+                {requiredExams.length > 0 && (
+                  <div style={{ gridColumn: '1 / -1', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px' }}>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: '#1e40af', marginBottom: '8px' }}>Exames obrigatórios para este CBO:</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {requiredExams.map(exam => (
+                        <span key={exam} style={{ background: '#dbeafe', color: '#1d4ed8', padding: '2px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 500 }}>
+                          {exam.replace(/_/g, ' ')}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">E-mail</label>
-                    <input type="email" className="form-input" required value={inviteData.expectedEmail} onChange={e => setInviteData({...inviteData, expectedEmail: e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Data de Nascimento</label>
-                    <input type="date" className="form-input" required value={inviteData.expectedBirthDate} onChange={e => setInviteData({...inviteData, expectedBirthDate: e.target.value})} />
-                  </div>
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="form-label">Função (CBO)</label>
-                    <CboAutocomplete
-                      value={inviteData.roleFunctionCboCode}
-                      onChange={(val) => setInviteData(prev => ({ ...prev, roleFunctionCboCode: val }))}
-                      onSelect={handleCboSelect}
-                      required
-                    />
-                    {loadingExams && <span style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>Buscando exames obrigatórios...</span>}
-                    {requiredExams.length > 0 && (
-                      <div style={{ marginTop: '8px', padding: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
-                        <strong style={{ color: '#166534', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Exames obrigatórios para este CBO:</strong>
-                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#166534' }}>
-                          {requiredExams.map((exam, i) => (
-                            <li key={i}><strong>{exam.examType}</strong> {exam.required ? '(obrigatório)' : '(opcional)'}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Tipo de Exame</label>
-                    <select className="form-select" value={inviteData.examType} onChange={e => setInviteData({...inviteData, examType: e.target.value})}>
-                      <option value="admissional">Admissional</option>
-                      <option value="periodico">Periódico</option>
-                      <option value="demissional">Demissional</option>
-                      <option value="mudanca_funcao">Mudança de Função</option>
-                      <option value="retorno_trabalho">Retorno ao Trabalho</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Validade (dias)</label>
-                    <input type="number" className="form-input" min="1" value={inviteData.expiresInDays} onChange={e => setInviteData({...inviteData, expiresInDays: parseInt(e.target.value) || 7})} />
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', gridColumn: '1 / -1' }}>
-                    <button type="button" className="btn btn-ghost" onClick={() => { setIsModalOpen(false); setInviteToken(''); }}>Cancelar</button>
-                    <button type="submit" className="btn btn-primary" disabled={creating}>
-                      {creating ? 'Criando...' : 'Criar Convite'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
+                )}
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label>Tipo de Exame *</label>
+                  <select required className="form-control" value={inviteData.examType}
+                    onChange={e => setInviteData(p => ({ ...p, examType: e.target.value }))}>
+                    <option value="admissional">Admissional</option>
+                    <option value="periodico">Periódico</option>
+                    <option value="demissional">Demissional</option>
+                    <option value="mudanca_funcao">Mudança de Função</option>
+                    <option value="retorno">Retorno ao Trabalho</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={creating}>
+                    {creating ? 'Criando...' : 'Criar Convite'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
 
+      {/* Tabela de solicitações */}
       <div className="card">
         {loading ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando...</p>
@@ -361,8 +326,8 @@ export default function EmpresaSolicitacoesPage() {
               <tbody>
                 {solicitacoes.map(sol => (
                   <tr key={sol.id}>
-                    <td style={{ fontWeight: 600 }}>{sol.patient.name}</td>
-                    <td>{sol.patient.cpf}</td>
+                    <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
+                    <td>{sol.patient?.cpf ?? '—'}</td>
                     <td className="capitalize">{sol.examPurpose}</td>
                     <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td><span className="badge badge-done">{sol.status}</span></td>
@@ -370,8 +335,8 @@ export default function EmpresaSolicitacoesPage() {
                     <td>
                       {sol.token ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button 
-                            className="btn btn-secondary" 
+                          <button
+                            className="btn btn-secondary"
                             style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px' }}
                             onClick={() => {
                               navigator.clipboard.writeText(`${window.location.origin}/p/${sol.token}`);
@@ -380,8 +345,8 @@ export default function EmpresaSolicitacoesPage() {
                           >
                             Copiar Link
                           </button>
-                          <button 
-                            className="btn btn-outline" 
+                          <button
+                            className="btn btn-outline"
                             style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px', color: '#dc2626', borderColor: '#fca5a5' }}
                             onClick={() => handleCancelInvite(sol.id)}
                           >
