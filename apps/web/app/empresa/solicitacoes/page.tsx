@@ -44,9 +44,9 @@ export default function EmpresaSolicitacoesPage() {
   useEffect(() => {
     const fetchCompanyId = async () => {
       const token = localStorage.getItem('token');
-      let cid = localStorage.getItem('companyId');
-      
-      if (!cid && token) {
+      let cid: string | null = null;
+
+      if (token) {
         try {
           const parts = token.split('.');
           const payload = JSON.parse(atob(parts[1] ?? ''));
@@ -54,6 +54,10 @@ export default function EmpresaSolicitacoesPage() {
         } catch (err) {
           console.error('Erro ao decodificar token:', err);
         }
+      }
+
+      if (!cid) {
+        cid = localStorage.getItem('companyId');
       }
       
       if (!cid) {
@@ -71,7 +75,10 @@ export default function EmpresaSolicitacoesPage() {
         }
       }
       
-      if (cid) setCompanyId(cid);
+      if (cid) {
+        localStorage.setItem('companyId', cid);
+        setCompanyId(cid);
+      }
     };
     fetchCompanyId();
   }, []);

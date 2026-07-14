@@ -131,10 +131,19 @@ export class ExamsService {
   }
 
   async searchByFunctionName(query: string) {
-    if (!query || query.length < 2) return [];
+    const trimmedQuery = query?.trim();
+    if (!trimmedQuery || trimmedQuery.length < 2) return [];
+
+    const normalizedCodeQuery = trimmedQuery.replace(/\D/g, '');
     return this.prisma.occupationalRisk.findMany({
       where: {
-        functionName: { contains: query, mode: 'insensitive' },
+        OR: [
+          { functionName: { contains: trimmedQuery, mode: 'insensitive' } },
+          { cboCode: { contains: trimmedQuery } },
+          ...(normalizedCodeQuery.length >= 4
+            ? [{ cboCode: { contains: `${normalizedCodeQuery.slice(0, 4)}-${normalizedCodeQuery.slice(4)}` } }]
+            : []),
+        ],
       },
       select: { cboCode: true, functionName: true },
       take: 15,

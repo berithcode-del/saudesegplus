@@ -52,8 +52,8 @@ export default function EmpresaDashboard() {
       const parts = token?.split('.') ?? [];
       const payload = parts[1] ? JSON.parse(atob(parts[1])) : null;
       const profileId = payload?.profileId || payload?.companyId;
-      
-      const currentCompanyId = localStorage.getItem('companyId') || profileId;
+
+      const currentCompanyId = profileId || localStorage.getItem('companyId');
 
       if (!currentCompanyId) {
         setLoading(false);
