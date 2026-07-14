@@ -5,10 +5,11 @@ const BACKEND_URL =
     : 'http://localhost:3001');
 
 import { getProfileIdFromToken as _getProfileId } from '@repo/api-client';
-
 import { ApiClient, localStorageAdapter } from '@repo/api-client';
 
-export function getProfileIdFromToken(): string | null { return _getProfileId(localStorageAdapter); }
+export function getProfileIdFromToken(): string | null {
+  return _getProfileId(localStorageAdapter);
+}
 
 const apiClient = new ApiClient({ storage: localStorageAdapter });
 

@@ -4,6 +4,11 @@ const DEVELOPMENT_ORIGINS = [
   'http://10.0.2.2:3000',
 ];
 
+const MOBILE_APP_ORIGINS = [
+  'https://localhost',
+  'capacitor://localhost',
+];
+
 const ORIGIN_ENV_KEYS = [
   'APP_BASE_URL',
   'PUBLIC_APP_URL',
@@ -15,6 +20,10 @@ function normalizeOrigin(origin: string): string | undefined {
   const value = origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
   if (!value) return undefined;
 
+  if (value.startsWith('capacitor://')) {
+    return value;
+  }
+
   try {
     return new URL(value).origin;
   } catch {
@@ -24,6 +33,7 @@ function normalizeOrigin(origin: string): string | undefined {
 
 export function getAllowedOrigins(): string[] {
   const configured = [
+    ...MOBILE_APP_ORIGINS,
     ...(process.env.CORS_ORIGINS?.split(',') ?? []),
     ...ORIGIN_ENV_KEYS.map((key) => process.env[key]).filter(
       (origin): origin is string => Boolean(origin),
