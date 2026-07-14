@@ -42,6 +42,7 @@ export default function DocumentosPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [validUntil, setValidUntil] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [sessionError, setSessionError] = useState('');
 
   const fetchDocs = useCallback(async (cid: string) => {
     try {
@@ -57,9 +58,9 @@ export default function DocumentosPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    let cid = localStorage.getItem('companyId');
-    
-    if (!cid && token) {
+    let cid: string | null = null;
+
+    if (token) {
       try {
         const parts = token.split('.');
         const payload = JSON.parse(atob(parts[1] ?? ''));
@@ -68,8 +69,19 @@ export default function DocumentosPage() {
         console.error('Erro ao decodificar token:', err);
       }
     }
+
+    if (!cid) {
+      cid = localStorage.getItem('companyId');
+    }
     
-    cid = cid || 'empresa-1';
+    if (!cid) {
+      setSessionError('Nao foi possivel identificar a empresa da sessao. Entre novamente para enviar documentos.');
+      setLoading(false);
+      return;
+    }
+
+    setSessionError('');
+    localStorage.setItem('companyId', cid);
     setCompanyId(cid);
     fetchDocs(cid);
   }, [fetchDocs]);
@@ -154,6 +166,12 @@ export default function DocumentosPage() {
             <CheckCircleIcon style={{ width: '16px', height: '16px' }} />
             {statusMessage}
           </div>
+        </div>
+      )}
+
+      {sessionError && (
+        <div className="card" style={{ marginBottom: '20px', border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', color: '#b91c1c' }}>
+          {sessionError}
         </div>
       )}
 
@@ -243,7 +261,7 @@ export default function DocumentosPage() {
                 <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={uploading || !uploadFile}>
+                <button type="submit" className="btn btn-primary" disabled={uploading || !uploadFile || !companyId}>
                   {uploading ? 'Enviando...' : 'Enviar'}
                 </button>
               </div>
