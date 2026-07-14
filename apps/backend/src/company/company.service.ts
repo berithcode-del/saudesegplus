@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -159,7 +159,7 @@ export class CompanyService {
     });
 
     if (!company) {
-      throw new Error('Empresa não encontrada');
+      throw new NotFoundException('Empresa não encontrada');
     }
 
     const now = new Date();
@@ -167,14 +167,14 @@ export class CompanyService {
     const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
 
     if (company.status !== 'LIBERADA') {
-      throw new Error(
-        `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
+      throw new BadRequestException(
+        `Sua empresa está com status '${company.status}'. Para criar convites, a empresa precisa estar LIBERADA com documentação PCMSO e PPRA válidas. Entre em contato com o suporte.`,
       );
     }
 
     if (!pcmsoValid || !ppraValid) {
-      throw new Error(
-        'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
+      throw new BadRequestException(
+        `Documentação ${!pcmsoValid ? 'PCMSO' : 'PPRA'} vencida ou ausente. Por favor, renove o documento antes de criar novos convites.`,
       );
     }
 
