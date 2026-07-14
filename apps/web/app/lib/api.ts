@@ -234,7 +234,7 @@ export async function apiCreateInvite(companyId: string, payload: Record<string,
 }
 
 export async function apiCancelInvite(inviteId: string) {
-  return apiFetch(`/api/invites/${inviteId}`, {
+  return apiFetch(`/api/company/invite/${inviteId}`, {
     method: 'DELETE',
   });
 }
