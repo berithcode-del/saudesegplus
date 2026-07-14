@@ -147,16 +147,17 @@ export class CompanyService {
   }
 
   async createInvite(companyId: string, dto: CreateInviteDto) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        status: true,
-        pcmsoValidUntil: true,
-        ppraValidUntil: true,
-        razaoSocial: true,
-      },
-    });
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          status: true,
+          pcmsoValidUntil: true,
+          ppraValidUntil: true,
+          razaoSocial: true,
+          clinicId: true,
+        },
+      });
 
     if (!company) {
       throw new NotFoundException('Empresa não encontrada');
