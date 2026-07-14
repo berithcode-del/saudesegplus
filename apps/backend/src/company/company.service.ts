@@ -179,25 +179,38 @@ export class CompanyService {
     }
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+        expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
 
-    const invite = await this.prisma.examInvite.create({
-      data: {
-        companyId,
-        collaboratorName: dto.collaboratorName,
-        expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
-        expectedEmail: dto.expectedEmail,
-        expectedBirthDate: dto.expectedBirthDate
-          ? new Date(dto.expectedBirthDate)
-          : null,
-        roleFunction: dto.roleFunction,
-        roleFunctionCboCode: dto.roleFunctionCboCode,
-        examType: dto.examType,
-        expiresAt,
-        status: 'ENVIADO',
-      },
-      include: { company: true },
-    });
+        // Buscar clínica associada à empresa (se tiver) ou buscar a mais próxima/digital
+        let clinicId = company.clinicId ?? null;
+        if (!clinicId) {
+          // Buscar clínica digital (isFranchise=false) ou a mais próxima
+          const fallbackClinic = await this.prisma.clinic.findFirst({
+            where: { isActive: true, isFranchise: false },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+          });
+          clinicId = fallbackClinic?.id ?? null;
+        }
+
+        const invite = await this.prisma.examInvite.create({
+          data: {
+            companyId,
+            clinicId, // Associa clínica ao convite
+            collaboratorName: dto.collaboratorName,
+            expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
+            expectedEmail: dto.expectedEmail,
+            expectedBirthDate: dto.expectedBirthDate
+              ? new Date(dto.expectedBirthDate)
+              : null,
+            roleFunction: dto.roleFunction,
+            roleFunctionCboCode: dto.roleFunctionCboCode,
+            examType: dto.examType,
+            expiresAt,
+            status: 'ENVIADO',
+          },
+          include: { company: true },
+        });
 
     await this.prisma.examTimelineEvent.create({
       data: {

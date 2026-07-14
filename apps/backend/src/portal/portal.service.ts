@@ -95,15 +95,15 @@ export class PortalService {
     }
 
     if (!examRequest) {
-      // Se a empresa não tem clínica atribuída, pega a primeira ativa disponível
-      let resolvedClinicId = invite.company.clinicId ?? null;
-      if (!resolvedClinicId) {
-        const fallbackClinic = await this.prisma.clinic.findFirst({
-          where: { isActive: true },
-          orderBy: { createdAt: 'asc' },
-        });
-        resolvedClinicId = fallbackClinic?.id ?? null;
-      }
+          // Se a empresa não tem clínica atribuída, pega a primeira ativa disponível
+          let resolvedClinicId = invite.clinicId ?? invite.company.clinicId ?? null;
+          if (!resolvedClinicId) {
+            const fallbackClinic = await this.prisma.clinic.findFirst({
+              where: { isActive: true },
+              orderBy: { createdAt: 'asc' },
+            });
+            resolvedClinicId = fallbackClinic?.id ?? null;
+          }
 
       examRequest = await this.prisma.examRequest.create({
         data: {

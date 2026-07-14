@@ -135,6 +135,8 @@ model ExamInvite {
   /// Token UUID não-sequencial, transmitido no link enviado ao colaborador
   token             String              @unique @default(uuid())
   companyId         String
+  /// Clínica associada ao convite (para agendamento/atendimento)
+  clinicId          String?
   /// Vínculo de identidade esperado — reduz risco de uso indevido do link
   expectedCpf       String?
   expectedEmail     String?
@@ -151,6 +153,7 @@ model ExamInvite {
   collaboratorName  String?
   expectedBirthDate DateTime?
   company           Company             @relation(fields: [companyId], references: [id])
+  clinic            Clinic?             @relation(fields: [clinicId], references: [id])
   examRequest       ExamRequest?
   timelineEvents    ExamTimelineEvent[]
 }
