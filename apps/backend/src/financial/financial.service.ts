@@ -70,6 +70,18 @@ export class FinancialService {
     });
   }
 
+  async resolveClinicId(role: string, profileId?: string | null) {
+    if (!profileId) return null;
+    if (role === 'CLINIC') return profileId;
+    if (role !== 'OPERATOR') return null;
+
+    const operator = await this.prisma.operator.findUnique({
+      where: { id: profileId },
+      select: { clinicId: true },
+    });
+    return operator?.clinicId ?? null;
+  }
+
   async createTransaction(data: {
     type: 'RECEITA' | 'DESPESA' | 'REPASSE';
     category: 'EXAME_ASO' | 'HONORARIO_MEDICO' | 'TAXA_CLINICA' | 'CUSTO_OPERACIONAL' | 'OUTROS';

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, ForbiddenException } from '@nestjs/common';
 import { FinancialService } from './financial.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -50,12 +50,24 @@ export class FinancialController {
   // ── Transações ─────────────────────────────────────────────────────────────
 
   @Get('transactions')
-  async listTransactions(@Query() query: any) {
+  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
+  async listTransactions(
+    @Query() query: any,
+    @Req() req: { user: { role: string; profileId?: string | null } },
+  ) {
+    const scopedClinicId = await this.financialService.resolveClinicId(
+      req.user.role,
+      req.user.profileId,
+    );
+    if (req.user.role !== 'ADMIN' && !scopedClinicId) {
+      throw new ForbiddenException('Clinica da conta autenticada nao identificada.');
+    }
+
     const data = await this.financialService.listTransactions({
       type: query.type,
       category: query.category,
       status: query.status,
-      clinicId: query.clinicId,
+      clinicId: scopedClinicId ?? query.clinicId,
       doctorId: query.doctorId,
       companyId: query.companyId,
       month: query.month !== undefined ? Number(query.month) : undefined,
