@@ -54,29 +54,29 @@ export default function ConfirmarDadosPage({ params }: { params: Promise<{ token
   }, [token, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
-    try {
-      const portalToken = sessionStorage.getItem('portalToken');
-      const processId = sessionStorage.getItem('processId');
-      const res = await fetch(`${BACKEND_URL}/api/portal/confirmar-dados`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${portalToken}`,
-        },
-        body: JSON.stringify({ processId, telefone, email }),
-      });
-      if (!res.ok) throw new Error('Erro ao confirmar dados.');
-      setSuccess(true);
-      setTimeout(() => router.push(`/p/${token}/processo`), 1500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar.');
-    } finally {
-      setSaving(false);
-    }
-  };
+      e.preventDefault();
+      setError('');
+      setSaving(true);
+      try {
+        const portalToken = sessionStorage.getItem('portalToken');
+        const processId = sessionStorage.getItem('processId');
+        const res = await fetch(`${BACKEND_URL}/api/portal/confirmar-dados`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${portalToken}`,
+          },
+          body: JSON.stringify({ phone: telefone, email }),
+        });
+        if (!res.ok) throw new Error('Erro ao confirmar dados.');
+        setSuccess(true);
+        setTimeout(() => router.push(`/p/${token}/processo`), 1500);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro ao salvar.');
+      } finally {
+        setSaving(false);
+      }
+    };
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>Carregando...</div>;
