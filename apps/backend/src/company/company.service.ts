@@ -12,6 +12,7 @@ import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class CompanyService {
@@ -129,19 +130,20 @@ export class CompanyService {
   }
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
-    const data: Record<string, string> = {};
-    if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
-    if (dto.address !== undefined) data.address = dto.address;
-    if (dto.cep !== undefined) data.cep = dto.cep;
-    if (dto.city !== undefined) data.city = dto.city;
-    if (dto.state !== undefined) data.state = dto.state;
-    if (dto.phone !== undefined) data.phone = dto.phone;
-    if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
-    return this.prisma.company.update({
-      where: { id: companyId },
-      data,
-    });
-  }
+      const data: Record<string, string> = {};
+      if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
+      if (dto.address !== undefined) data.address = dto.address;
+      if (dto.cep !== undefined) data.cep = dto.cep;
+      if (dto.city !== undefined) data.city = dto.city;
+      if (dto.state !== undefined) data.state = dto.state;
+      if (dto.phone !== undefined) data.phone = dto.phone;
+      if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
+      if (dto.clinicId !== undefined) data.clinicId = dto.clinicId;
+      return this.prisma.company.update({
+        where: { id: companyId },
+        data,
+      });
+    }
 
   async updateCompanyStatus(companyId: string, status: string) {
     return this.prisma.company.update({
@@ -461,30 +463,104 @@ export class CompanyService {
     });
   }
 
-  async gerarRelatorio(companyId: string, de?: string, ate?: string) {
-    const where: any = {
-      patient: { companies: { some: { companyId } } },
-    };
-    if (de) where.createdAt = { ...where.createdAt, gte: new Date(de) };
-    if (ate) where.createdAt = { ...where.createdAt, lte: new Date(ate) };
+    async gerarRelatorio(companyId: string, de?: string, ate?: string) {
+      const where: any = {
+        patient: { companies: { some: { companyId } } },
+      };
+      if (de) where.createdAt = { ...where.createdAt, gte: new Date(de) };
+      if (ate) where.createdAt = { ...where.createdAt, lte: new Date(ate) };
 
-    const requests = await this.prisma.examRequest.findMany({
-      where,
-      include: {
-        patient: true,
-        asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+      const requests = await this.prisma.examRequest.findMany({
+        where,
+        include: {
+          patient: true,
+          asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    return requests.map((r) => [
-      r.patient.name,
-      r.patient.cpf,
-      r.patient.functionCboCode ?? '',
-      r.examPurpose,
-      r.createdAt.toISOString().split('T')[0],
-      r.asoDocuments[0]?.decision ?? '',
-      r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
-    ]);
+      return requests.map((r) => [
+        r.patient.name,
+        r.patient.cpf,
+        r.patient.functionCboCode ?? '',
+        r.examPurpose,
+        r.createdAt.toISOString().split('T')[0],
+        r.asoDocuments[0]?.decision ?? '',
+        r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
+      ]);
+    }
+
+    /**
+     * Encontra a melhor clínica para uma empresa baseado em:
+     * 1. Clínica Matriz da empresa (se definida)
+     * 2. Clínica na mesma cidade/estado
+     * 3. Clínica Matriz no mesmo estado
+     * 4. Qualquer clínica ativa
+     */
+    async findBestClinicForCompany(companyId: string) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          city: true,
+          state: true,
+          lat: true,
+          lng: true,
+          clinicId: true,
+          clinic: {
+            select: { id: true, name: true, isMatriz: true, city: true, state: true }
+          }
+        },
+      });
+
+      if (!company) throw new Error('Empresa não encontrada');
+
+      // 1. Se empresa já tem clínica atribuída e é Matriz, usa ela
+      if (company.clinicId && company.clinic?.isMatriz) {
+        return company.clinic;
+      }
+
+      // 2. Buscar clínica Matriz na mesma cidade/estado
+      const matrizSameCity = await this.prisma.clinic.findFirst({
+        where: {
+          isActive: true,
+          isMatriz: true,
+          city: company.city,
+          state: company.state,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (matrizSameCity) return matrizSameCity;
+
+      // 3. Buscar qualquer clínica ativa na mesma cidade/estado
+      const sameCity = await this.prisma.clinic.findFirst({
+        where: {
+          isActive: true,
+          city: company.city,
+          state: company.state,
+        },
+        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+      });
+      if (sameCity) return sameCity;
+
+      // 4. Buscar clínica Matriz no mesmo estado
+      const matrizSameState = await this.prisma.clinic.findFirst({
+        where: {
+          isActive: true,
+          isMatriz: true,
+          state: company.state,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (matrizSameState) return matrizSameState;
+
+      // 5. Qualquer clínica ativa (fallback)
+      const anyClinic = await this.prisma.clinic.findFirst({
+        where: { isActive: true },
+        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+      });
+      if (anyClinic) return anyClinic;
+
+      return null;
+    }
   }
-}

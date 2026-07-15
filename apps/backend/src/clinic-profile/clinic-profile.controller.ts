@@ -24,6 +24,31 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class ClinicProfileController {
   constructor(private prisma: PrismaService) {}
 
+  // GET /api/clinics?state=XX&city=YY — List clinics (public endpoint for company config)
+  @Get('clinics')
+  async listClinics(@Request() req: any, @Request() query: { state: string; city?: string }) {
+    const { state, city } = query;
+    if (!state) return { success: true, data: [] };
+
+    const where: any = { isActive: true, state };
+    if (city) where.city = city;
+
+    const clinics = await this.prisma.clinic.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        state: true,
+        isMatriz: true,
+        parentClinicId: true,
+      },
+      orderBy: [{ isMatriz: 'desc' }, { name: 'asc' }],
+    });
+
+    return { success: true, data: clinics };
+  }
+
   // GET /api/clinic/profile — Get own profile data
   @Get('profile')
   async getProfile(@Request() req: any) {

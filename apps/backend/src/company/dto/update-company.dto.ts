@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   ValidateIf,
@@ -29,4 +30,6 @@ export class UpdateCompanyDto {
   @IsEmail()
   @MaxLength(254)
   contactEmail?: string;
+
+  @IsOptional() @IsUUID() clinicId?: string;
 }

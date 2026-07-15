@@ -16,6 +16,8 @@ interface CompanyData {
   status?: string;
   phone?: string;
   contactEmail?: string;
+  clinicId?: string;
+  clinic?: { id: string; name: string; isMatriz: boolean; parentClinicId?: string; city?: string; state?: string };
 }
 
 const formatCNPJ = (val: string) => {
@@ -81,28 +83,43 @@ export default function ConfiguracoesPage() {
   }, []);
 
   useEffect(() => {
-    if (!companyId) return;
-    setLoading(true);
-    apiFetch(`/api/company/${companyId}`)
-      .then((result) => {
-        if (result.data) {
-          setCompanyData({
-            razaoSocial: result.data.razaoSocial ?? '',
-            nomeFantasia: result.data.nomeFantasia ?? '',
-            cnpj: formatCNPJ(result.data.cnpj ?? ''),
-            address: result.data.address ?? '',
-            cep: formatCEP(result.data.cep ?? ''),
-            city: result.data.city ?? '',
-            state: result.data.state ?? '',
-            status: result.data.status ?? '',
-            phone: result.data.phone ?? '',
-            contactEmail: result.data.contactEmail ?? '',
-          });
-        }
-      })
-      .catch(() => console.error('Falha ao carregar dados da empresa'))
-      .finally(() => setLoading(false));
-  }, [companyId]);
+      if (!companyId) return;
+      setLoading(true);
+      apiFetch(`/api/company/${companyId}`)
+        .then((result) => {
+          if (result.data) {
+            setCompanyData({
+              razaoSocial: result.data.razaoSocial ?? '',
+              nomeFantasia: result.data.nomeFantasia ?? '',
+              cnpj: formatCNPJ(result.data.cnpj ?? ''),
+              address: result.data.address ?? '',
+              cep: formatCEP(result.data.cep ?? ''),
+              city: result.data.city ?? '',
+              state: result.data.state ?? '',
+              status: result.data.status ?? '',
+              phone: result.data.phone ?? '',
+              contactEmail: result.data.contactEmail ?? '',
+              clinicId: result.data.clinicId ?? '',
+              clinic: result.data.clinic ?? undefined,
+            });
+          }
+        })
+        .catch(() => console.error('Falha ao carregar dados da empresa'))
+        .finally(() => setLoading(false));
+    }, [companyId]);
+
+    const [clinics, setClinics] = useState<{ id: string; name: string; isMatriz: boolean; parentClinicId?: string; city?: string; state?: string }[]>([]);
+
+    useEffect(() => {
+      if (!companyData.state) return;
+      apiFetch(`/api/clinics?state=${companyData.state}&city=${companyData.city}`)
+        .then((result) => {
+          if (result.data) {
+            setClinics(result.data);
+          }
+        })
+        .catch(() => console.error('Falha ao carregar clínicas'));
+    }, [companyData.state, companyData.city]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -263,42 +280,63 @@ export default function ConfiguracoesPage() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Estado</label>
-            <select
-              className="form-select"
-              value={companyData.state}
-              onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })}
-            >
-              <option value="">Selecione</option>
-              <option value="AC">AC</option>
-              <option value="AL">AL</option>
-              <option value="AP">AP</option>
-              <option value="AM">AM</option>
-              <option value="BA">BA</option>
-              <option value="CE">CE</option>
-              <option value="DF">DF</option>
-              <option value="ES">ES</option>
-              <option value="GO">GO</option>
-              <option value="MA">MA</option>
-              <option value="MT">MT</option>
-              <option value="MS">MS</option>
-              <option value="MG">MG</option>
-              <option value="PA">PA</option>
-              <option value="PB">PB</option>
-              <option value="PR">PR</option>
-              <option value="PE">PE</option>
-              <option value="PI">PI</option>
-              <option value="RJ">RJ</option>
-              <option value="RN">RN</option>
-              <option value="RS">RS</option>
-              <option value="RO">RO</option>
-              <option value="RR">RR</option>
-              <option value="SC">SC</option>
-              <option value="SP">SP</option>
-              <option value="SE">SE</option>
-              <option value="TO">TO</option>
-            </select>
-          </div>
+                      <label className="form-label">Estado</label>
+                      <select
+                        className="form-select"
+                        value={companyData.state}
+                        onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })}
+                      >
+                        <option value="">Selecione</option>
+                        <option value="AC">AC</option>
+                        <option value="AL">AL</option>
+                        <option value="AP">AP</option>
+                        <option value="AM">AM</option>
+                        <option value="BA">BA</option>
+                        <option value="CE">CE</option>
+                        <option value="DF">DF</option>
+                        <option value="ES">ES</option>
+                        <option value="GO">GO</option>
+                        <option value="MA">MA</option>
+                        <option value="MT">MT</option>
+                        <option value="MS">MS</option>
+                        <option value="MG">MG</option>
+                        <option value="PA">PA</option>
+                        <option value="PB">PB</option>
+                        <option value="PR">PR</option>
+                        <option value="PE">PE</option>
+                        <option value="PI">PI</option>
+                        <option value="RJ">RJ</option>
+                        <option value="RN">RN</option>
+                        <option value="RS">RS</option>
+                        <option value="RO">RO</option>
+                        <option value="RR">RR</option>
+                        <option value="SC">SC</option>
+                        <option value="SP">SP</option>
+                        <option value="SE">SE</option>
+                        <option value="TO">TO</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Clínica Atribuída</label>
+                      <select
+                        className="form-select"
+                        value={companyData.clinicId ?? ''}
+                        onChange={(e) => setCompanyData({ ...companyData, clinicId: e.target.value || undefined })}
+                      >
+                        <option value="">— Selecionar automaticamente por proximidade —</option>
+                        <option value="__MATRIZ__">🏢 Minha Clínica Matriz</option>
+                        {clinics.map((c) => (
+                          <option key={c.id} value={c.id} style={{ fontStyle: c.isMatriz ? 'italic' : 'normal', fontWeight: c.isMatriz ? 600 : 400 }}>
+                            {c.isMatriz ? '🏢 ' : '🏥 '}{c.name} {c.city && `(${c.city}/${c.state})`} {c.isMatriz && '— MATRIZ'}
+                          </option>
+                        ))}
+                      </select>
+                      {companyData.clinic && (
+                        <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                          Atual: {companyData.clinic.name} {companyData.clinic.isMatriz && '🏢 MATRIZ'}
+                        </p>
+                      )}
+                    </div>
         </div>
 
         {statusCheck && (
