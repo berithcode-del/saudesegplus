@@ -28,6 +28,9 @@ coverage
 .claude/
 .cursor/
 
+# Documentation/specs kept out of repo commits (local only)
+docs/
+
 # Build Outputs
 .next/
 out/
