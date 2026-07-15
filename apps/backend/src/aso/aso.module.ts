@@ -4,9 +4,10 @@ import { AsoController } from './aso.controller';
 import { AsoService } from './aso.service';
 import { MailModule } from '../mail/mail.module';
 import { FinancialModule } from '../financial/financial.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [MailModule, FinancialModule],
+  imports: [MailModule, FinancialModule, UploadModule],
   controllers: [AsoController],
   providers: [AsoService, PrismaService],
 })

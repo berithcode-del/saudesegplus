@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { getAuthToken } from '@/lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -104,10 +105,13 @@ export default function ExamPage() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const uploadRes = await fetch(`${BACKEND_URL}/api/upload/file`, {
-        method: 'POST',
-        body: formData,
-      });
+      const uploadRes = await fetch(`${BACKEND_URL}/api/upload/exam-file`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${getAuthToken()}`,
+              },
+              body: formData,
+            });
       const uploadData = await uploadRes.json();
       
       if (!uploadData.success || !uploadData.fileUrl) {

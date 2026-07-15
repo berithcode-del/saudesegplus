@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { getAllowedOrigins } from './security/allowed-origins';
@@ -30,20 +29,22 @@ async function bootstrap() {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Referrer-Policy', 'no-referrer');
-    response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    response.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=()',
+    );
     response.setHeader(
       'Content-Security-Policy',
       "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     if (process.env.NODE_ENV === 'production') {
-      response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+      response.setHeader(
+        'Strict-Transport-Security',
+        'max-age=31536000; includeSubDomains',
+      );
     }
     next();
   });
-
-  // Servir uploads como arquivos estáticos — usa process.cwd() para garantir
-  // que o caminho seja correto tanto em dev (ts-node) quanto em prod (dist/)
-  app.useStaticAssets(join(process.cwd(), 'uploads', 'files'), { prefix: '/uploads/files' });
 
   const allowedOrigins = getAllowedOrigins();
 

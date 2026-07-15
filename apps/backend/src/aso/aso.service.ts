@@ -7,9 +7,11 @@ import {
 import { PrismaService } from '../prisma.service';
 import { MailService } from '../mail/mail.service';
 import { FinancialService } from '../financial/financial.service';
-import * as puppeteer from 'puppeteer-core';
+import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 
 @Injectable()
 export class AsoService {
@@ -19,14 +21,15 @@ export class AsoService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
     private readonly financialService: FinancialService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   private escapeHtml(value: string) {
     return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/\"/g, '"')
       .replace(/'/g, '&#039;');
   }
 
@@ -191,11 +194,21 @@ export class AsoService {
     if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
     const pdfPath = path.join(pdfDir, `aso-${asoDoc.id}.pdf`);
 
+    // Use @sparticuz/chromium for serverless environments (Railway, Vercel, AWS Lambda)
+    const isProduction = process.env.NODE_ENV === 'production';
+    const executablePath = isProduction
+      ? await chromium.executablePath()
+      : process.env.CHROME_PATH;
+
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.env.CHROME_PATH ?? undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath,
+      args: isProduction
+        ? [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox']
+        : ['--no-sandbox', '--disable-setuid-sandbox'],
+      timeout: 60000,
     });
+
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'load' });
@@ -204,11 +217,20 @@ export class AsoService {
       await browser.close();
     }
 
-    const pdfUrl = `/uploads/aso/aso-${asoDoc.id}.pdf`;
+    // Upload to Supabase Storage
+    const { fileUrl } = await this.storage.uploadAsoPdf(pdfPath, asoDoc.id);
+
+    // Clean up local file
+    try {
+      fs.unlinkSync(pdfPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+
     await this.prisma.asoDocument.update({
       where: { id: asoDoc.id },
       data: {
-        pdfUrl,
+        pdfUrl: fileUrl,
         decision,
         restrictionNotes: restrictionNotes ?? '',
         validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -235,19 +257,21 @@ export class AsoService {
       where: { id: request.patient.userId },
     });
     if (patientUser?.email && !patientUser.email.endsWith('@walkin.temp')) {
-      this.mailService.sendAsoReady(
-        patientUser.email,
-        request.patient.name,
-        pdfUrl,
-      ).catch((error) => {
+      try {
+        await this.mailService.sendAsoReady(
+          patientUser.email,
+          request.patient.name,
+          fileUrl,
+        );
+      } catch (error) {
         this.logger.error(
-          `Falha ao enviar ASO para ${patientUser.email} em segundo plano`,
+          `Falha ao enviar ASO para ${patientUser.email}`,
           error,
         );
-      });
+      }
     }
 
     this.logger.log(`ASO PDF gerado: ${pdfPath}`);
-    return { pdfUrl, asoDocumentId: asoDoc.id };
+    return { pdfUrl: fileUrl, asoDocumentId: asoDoc.id };
   }
 }

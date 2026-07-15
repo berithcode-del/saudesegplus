@@ -391,75 +391,10 @@ function WaitingRoom({ status, teleconsultaUrl, doctorViewing }: { status: strin
   }
 
   if (isWaiting) {
-    return <OnlineWindowScreen doctorViewing={doctorViewing} />;
+      return <OnlineWindowScreen doctorViewing={doctorViewing} />;
+    }
 
-    return (
-      <div style={{
-        background: 'white', borderRadius: '20px',
-        padding: '36px 24px',
-        boxShadow: '0 2px 12px rgba(31,38,135,0.08)',
-        border: '1px solid #e5e7eb',
-        textAlign: 'center', marginBottom: '20px',
-      }}>
-        {/* Spinner animado */}
-        <div style={{
-          width: '72px', height: '72px', borderRadius: '50%',
-          background: 'rgba(79,70,229,0.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 20px', position: 'relative',
-        }}>
-          <div style={{
-            position: 'absolute', inset: 0, borderRadius: '50%',
-            border: '3px solid #4f46e5', borderTopColor: 'transparent',
-            animation: 'spin 1.2s linear infinite',
-          }} />
-          <SignalIcon style={{ width: '32px', height: '32px', color: '#4f46e5' }} />
-        </div>
-
-        <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1e1b4b', marginBottom: '10px' }}>
-          {status === 'NA_FILA_MEDICA' ? 'Você está na fila médica' : 'Médico analisando seus exames'}
-        </h2>
-        <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: 1.7, marginBottom: '24px', maxWidth: '320px', margin: '0 auto 24px' }}>
-          {status === 'NA_FILA_MEDICA'
-            ? 'Um médico do trabalho irá analisar seus exames em breve. Fique nesta tela — você será notificado assim que a videochamada estiver disponível.'
-            : 'O médico está revisando seus resultados. Aguarde — ele iniciará a videochamada em instantes.'}
-        </p>
-
-        {doctorViewing && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            padding: '10px 18px', borderRadius: '50px',
-            background: 'rgba(79,70,229,0.08)',
-            border: '1px solid rgba(79,70,229,0.18)',
-            fontSize: '13px', fontWeight: 700, color: '#4f46e5',
-            marginBottom: '12px',
-          }}>
-            <UserCircleIcon style={{ width: '16px', height: '16px' }} />
-            Medico esta vendo seu perfil
-          </div>
-        )}
-
-        {/* Badge online */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: '8px',
-          padding: '10px 20px', borderRadius: '50px',
-          background: 'rgba(34,197,94,0.08)',
-          border: '1px solid rgba(34,197,94,0.2)',
-          fontSize: '13px', fontWeight: 600, color: '#16a34a',
-          marginBottom: '16px',
-        }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', animation: 'blink 1.5s infinite' }} />
-          Você está online e disponível
-        </div>
-
-        <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '8px' }}>
-          ⏱ Esta página atualiza automaticamente a cada 5 segundos
-        </p>
-      </div>
-    );
-  }
-
-  return null;
+    return null;
 }
 
 export default function ProcessoPage({ params }: { params: Promise<{ token: string }> }) {
