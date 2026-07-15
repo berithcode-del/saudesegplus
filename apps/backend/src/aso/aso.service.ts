@@ -10,7 +10,6 @@ import { FinancialService } from '../financial/financial.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import * as fs from 'fs';
 import * as path from 'path';
-import chromium from '@sparticuz/chromium';
 
 @Injectable()
 export class AsoService {
@@ -26,6 +25,11 @@ export class AsoService {
   private async getPuppeteer() {
     const puppeteer = await import('puppeteer-core');
     return puppeteer.default;
+  }
+
+  private async getChromium() {
+    const chromium = await import('@sparticuz/chromium');
+    return chromium.default;
   }
 
   private escapeHtml(value: string) {
@@ -199,7 +203,8 @@ export class AsoService {
     const pdfPath = path.join(pdfDir, `aso-${asoDoc.id}.pdf`);
 
     // Use @sparticuz/chromium for serverless environments (Railway, Vercel, AWS Lambda)
-    const isProduction = process.env.NODE_ENV === 'production';
+        const isProduction = process.env.NODE_ENV === 'production';
+        const chromium = await this.getChromium();
         const executablePath = isProduction
           ? await chromium.executablePath()
           : process.env.CHROME_PATH;
