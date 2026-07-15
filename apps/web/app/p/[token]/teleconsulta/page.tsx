@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   VideoCameraIcon,
@@ -17,36 +17,75 @@ export default function TeleconsultaPage({ params }: { params: Promise<{ token: 
   const router = useRouter();
   const [linkSala, setLinkSala] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const socketRef = useRef<{
+    on: (event: string, handler: (payload?: Record<string, unknown>) => void) => void;
+    emit: (event: string, payload: Record<string, unknown>) => void;
+    disconnect: () => void;
+  } | null>(null);
 
   useEffect(() => {
+    const portalToken = sessionStorage.getItem('portalToken');
+    if (!portalToken) {
+      router.replace(`/p/${token}`);
+      return;
+    }
+
     const fetchSala = async () => {
-      const portalToken = sessionStorage.getItem('portalToken');
-      if (!portalToken) {
-        router.replace(`/p/${token}`);
-        return;
-      }
       try {
         const res = await fetch(`${BACKEND_URL}/api/portal/processo`, {
           headers: { Authorization: `Bearer ${portalToken}` },
         });
         const json = await res.json();
         const processo = json.data ?? json;
-        setLinkSala(processo?.teleconsulta?.linkSala ?? processo?.linkSala ?? null);
+        const newLinkSala = processo?.teleconsulta?.linkSala ?? processo?.linkSala ?? null;
+        if (newLinkSala && !linkSala) {
+          setLinkSala(newLinkSala);
+        }
       } catch {
         // ignore
       } finally {
         setLoading(false);
       }
     };
+
     fetchSala();
-  }, [token, router]);
+
+    // Polling a cada 5 segundos como fallback
+    intervalRef.current = setInterval(fetchSala, 5000);
+
+    // WebSocket listener para teleconsulta_iniciada (evento emitido pelo backend)
+    import('socket.io-client').then(({ io }) => {
+      socketRef.current = io(BACKEND_URL, {
+        transports: ['websocket', 'polling'],
+        auth: { token: portalToken },
+      });
+
+      socketRef.current.on('connect', () => {
+        // O backend emite teleconsulta_iniciada globalmente quando o médico cria a sala
+      });
+
+      socketRef.current.on('teleconsulta_iniciada', (payload = {}) => {
+              const linkSala = typeof payload.linkSala === 'string' ? payload.linkSala : null;
+              if (linkSala) {
+                setLinkSala(linkSala);
+              }
+            });
+    }).catch(() => {
+      // polling continua como fallback
+    });
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      socketRef.current?.disconnect();
+    };
+  }, [token, router, linkSala]);
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>Carregando...</div>;
-  }
+      return <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af' }}>Carregando...</div>;
+    }
 
-
-  return (
+    return (
     <div style={{
       background: 'white',
       borderRadius: '20px',

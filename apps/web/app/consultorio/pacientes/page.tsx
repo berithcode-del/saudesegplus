@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getAuthToken } from '@/lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -27,10 +28,15 @@ export default function PacientesPage() {
   const [filter, setFilter] = useState<string>('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const url = filter ? `${BACKEND_URL}/api/solicitacoes?status=${filter}` : `${BACKEND_URL}/api/solicitacoes`;
-        const res = await fetch(url);
+      const fetchData = async () => {
+        try {
+          const token = getAuthToken();
+          const url = filter ? `${BACKEND_URL}/api/solicitacoes?status=${filter}` : `${BACKEND_URL}/api/solicitacoes`;
+          const res = await fetch(url, {
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          });
         const result = await res.json();
         // O endpoint /api/solicitacoes retorna paginado: { success, data: { data: [], pagination } }
         const list = result.data?.data ?? result.data ?? [];

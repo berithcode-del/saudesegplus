@@ -1,4 +1,8 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -147,20 +151,19 @@ export class CompanyService {
   }
 
   async createInvite(companyId: string, dto: CreateInviteDto) {
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: {
-          id: true,
-          status: true,
-          pcmsoValidUntil: true,
-          ppraValidUntil: true,
-          razaoSocial: true,
-          clinicId: true,
-        },
-      });
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        status: true,
+        pcmsoValidUntil: true,
+        ppraValidUntil: true,
+        razaoSocial: true,
+      },
+    });
 
     if (!company) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new Error('Empresa não encontrada');
     }
 
     const now = new Date();
@@ -168,50 +171,37 @@ export class CompanyService {
     const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
 
     if (company.status !== 'LIBERADA') {
-      throw new BadRequestException(
-        `Sua empresa está com status '${company.status}'. Para criar convites, a empresa precisa estar LIBERADA com documentação PCMSO e PPRA válidas. Entre em contato com o suporte.`,
+      throw new Error(
+        `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
       );
     }
 
     if (!pcmsoValid || !ppraValid) {
-      throw new BadRequestException(
-        `Documentação ${!pcmsoValid ? 'PCMSO' : 'PPRA'} vencida ou ausente. Por favor, renove o documento antes de criar novos convites.`,
+      throw new Error(
+        'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
       );
     }
 
     const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
 
-        // Buscar clínica associada à empresa (se tiver) ou buscar a mais próxima/digital
-        let clinicId = company.clinicId ?? null;
-        if (!clinicId) {
-          // Buscar clínica digital (isFranchise=false) ou a mais próxima
-          const fallbackClinic = await this.prisma.clinic.findFirst({
-            where: { isActive: true, isFranchise: false },
-            orderBy: { createdAt: 'asc' },
-            select: { id: true },
-          });
-          clinicId = fallbackClinic?.id ?? null;
-        }
-
-        const invite = await this.prisma.examInvite.create({
-          data: {
-            companyId,
-            clinicId, // Associa clínica ao convite
-            collaboratorName: dto.collaboratorName,
-            expectedCpf: dto.expectedCpf ? dto.expectedCpf.replace(/\D/g, '') : null,
-            expectedEmail: dto.expectedEmail,
-            expectedBirthDate: dto.expectedBirthDate
-              ? new Date(dto.expectedBirthDate)
-              : null,
-            roleFunction: dto.roleFunction,
-            roleFunctionCboCode: dto.roleFunctionCboCode,
-            examType: dto.examType,
-            expiresAt,
-            status: 'ENVIADO',
-          },
-          include: { company: true },
-        });
+    const invite = await this.prisma.examInvite.create({
+      data: {
+        companyId,
+        collaboratorName: dto.collaboratorName,
+        expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
+        expectedEmail: dto.expectedEmail,
+        expectedBirthDate: dto.expectedBirthDate
+          ? new Date(dto.expectedBirthDate)
+          : null,
+        roleFunction: dto.roleFunction,
+        roleFunctionCboCode: dto.roleFunctionCboCode,
+        examType: dto.examType,
+        expiresAt,
+        status: 'ENVIADO',
+      },
+      include: { company: true },
+    });
 
     await this.prisma.examTimelineEvent.create({
       data: {
@@ -231,17 +221,19 @@ export class CompanyService {
 
     if (dto.expectedEmail) {
       const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-      this.mailService.sendInviteLink(
-        dto.expectedEmail,
-        invite.company.razaoSocial ?? '',
-        link,
-        invite.expiresAt,
-      ).catch((err) => {
+      try {
+        await this.mailService.sendInviteLink(
+          dto.expectedEmail,
+          invite.company.razaoSocial ?? '',
+          link,
+          invite.expiresAt,
+        );
+      } catch (err) {
         console.error(
-          `[Mail] Falha ao enviar e-mail em segundo plano para ${dto.expectedEmail}:`,
+          `[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`,
           err,
         );
-      });
+      }
     }
 
     return invite;
@@ -262,7 +254,6 @@ export class CompanyService {
     const now = new Date();
     const asos = await this.prisma.asoDocument.findMany({
       where: {
-        decision: { equals: 'APTO', mode: 'insensitive' },
         validUntil: { gte: now },
         request: {
           patient: {
@@ -420,6 +411,15 @@ export class CompanyService {
         pcmsoValidUntil: true,
         ppraValidUntil: true,
         clinicId: true,
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+          },
+        },
       },
     });
     if (!company) throw new Error('Empresa não encontrada');
@@ -433,6 +433,15 @@ export class CompanyService {
       pcmsoValid: !!company.pcmsoValidUntil && company.pcmsoValidUntil > now,
       ppraValid: !!company.ppraValidUntil && company.ppraValidUntil > now,
       hasClinicAssigned: !!company.clinicId,
+      clinic: company.clinic
+        ? {
+            id: company.clinic.id,
+            name: company.clinic.name,
+            address: company.clinic.address,
+            city: company.clinic.city,
+            state: company.clinic.state,
+          }
+        : null,
       status: company.status,
       isComplete:
         !!company.pcmsoValidUntil &&

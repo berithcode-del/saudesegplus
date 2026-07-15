@@ -8,6 +8,10 @@ import QuickActionsCompany from '../../components/empresa/QuickActionsCompany';
 import InvitesChart from '../../components/empresa/InvitesChart';
 import ScheduleCalendar from '../../components/dashboard/ScheduleCalendar';
 import { apiGetEvents } from '../../lib/api';
+import {
+  BuildingOffice2Icon,
+  MapPinIcon,
+} from '@heroicons/react/24/outline';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -31,6 +35,14 @@ interface Invite {
   timelineEvents: { eventType: string; occurredAt: string }[];
 }
 
+interface ClinicInfo {
+  id: string;
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+}
+
 export default function EmpresaDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
@@ -45,6 +57,7 @@ export default function EmpresaDashboard() {
   const [companyName, setCompanyName] = useState<string>('');
   const [companyId, setCompanyId] = useState<string>('');
   const [events, setEvents] = useState<any[]>([]);
+  const [clinic, setClinic] = useState<ClinicInfo | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -91,6 +104,10 @@ export default function EmpresaDashboard() {
             currentCompany.name ||
             'Empresa',
         );
+        // Set clinic info if available
+        if (currentCompany.clinic) {
+          setClinic(currentCompany.clinic);
+        }
       }
 
       if (statsResult.data) {
@@ -154,6 +171,36 @@ export default function EmpresaDashboard() {
         <div data-tour="painel">
           <GreetingCompany name={companyName} />
         </div>
+        {clinic && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'rgba(79,70,229,0.08)',
+              border: '1px solid rgba(79,70,229,0.2)',
+              borderRadius: '8px',
+              marginBottom: '16px',
+            }}
+          >
+            <BuildingOffice2Icon style={{ width: 20, height: 20, color: '#4f46e5' }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e1b4b' }}>
+                Clínica Atribuída
+              </div>
+              <div style={{ fontSize: '14px', color: '#374151', fontWeight: 700 }}>
+                {clinic.name}
+              </div>
+              {clinic.address && (
+                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPinIcon style={{ width: 14, height: 14 }} />
+                  {clinic.address}, {clinic.city}/{clinic.state}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <CompanyStats stats={stats} />
         <div data-tour="solicitacoes">
           <RecentInvitesTable invites={recentInvites} />

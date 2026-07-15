@@ -1,27 +1,37 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { SupabaseStorageService } from './supabase-storage.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: SupabaseStorageService,
+  ) {}
 
-  async saveDocument(file: Express.Multer.File, companyId: string, type: string, validUntil: string) {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+  async saveDocument(
+    file: Express.Multer.File,
+    companyId: string,
+    type: string,
+    validUntil: string,
+  ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
     if (!company) {
       throw new NotFoundException('Empresa não encontrada');
     }
 
-    const uploadDir = join(process.cwd(), 'private-uploads', 'documents');
-    await mkdir(uploadDir, { recursive: true });
-
-    const fileName = `${randomUUID()}.pdf`;
-    const filePath = join(uploadDir, fileName);
-    await writeFile(filePath, file.buffer);
-
-    const fileUrl = `/api/upload/documents/${companyId}/file/${fileName}`;
+    const { fileUrl, fileName } = await this.storage.uploadDocument(
+      file,
+      companyId,
+      type,
+    );
 
     const doc = await this.prisma.companyDocument.create({
       data: {
@@ -42,10 +52,11 @@ export class UploadService {
       updateData.ppraDocumentUrl = fileUrl;
       updateData.ppraValidUntil = new Date(validUntil);
     }
-    // Ao enviar documento, colocar empresa em EM_ANALISE se estava CADASTRO_INCOMPLETO
-    // A aprovação final para LIBERADA deve ser feita manualmente pelo admin
     if (Object.keys(updateData).length > 0) {
-      const current = await this.prisma.company.findUnique({ where: { id: companyId }, select: { status: true } });
+      const current = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { status: true },
+      });
       if (current?.status === 'CADASTRO_INCOMPLETO') {
         updateData.status = 'EM_ANALISE';
       }
@@ -59,27 +70,14 @@ export class UploadService {
   }
 
   async uploadFile(file: Express.Multer.File) {
-    const uploadDir = join(process.cwd(), 'uploads', 'files');
-    await mkdir(uploadDir, { recursive: true });
-
-    const extensionByMime: Record<string, string> = {
-      'application/pdf': 'pdf',
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-    };
-    const extension = extensionByMime[file.mimetype];
-    if (!extension) {
-      throw new BadRequestException('Tipo de arquivo nao permitido');
-    }
-    const fileName = `${randomUUID()}.${extension}`;
-    const filePath = join(uploadDir, fileName);
-    await writeFile(filePath, file.buffer);
-
-    return { fileUrl: `/uploads/files/${fileName}` };
+    const { fileUrl, fileName } = await this.storage.uploadFile(file);
+    return { fileUrl, fileName };
   }
 
   async listDocuments(companyId: string) {
-    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+    });
     if (!company) {
       throw new NotFoundException('Empresa não encontrada');
     }
@@ -92,24 +90,28 @@ export class UploadService {
 
   async getDocumentFile(companyId: string, fileName: string) {
     if (!/^[0-9a-f-]{36}\.pdf$/i.test(fileName)) {
-      throw new NotFoundException('Documento nao encontrado');
+      throw new NotFoundException('Documento não encontrado');
     }
 
     const document = await this.prisma.companyDocument.findFirst({
       where: {
         companyId,
-        fileUrl: `/api/upload/documents/${companyId}/file/${fileName}`,
+        fileUrl: { endsWith: fileName },
       },
     });
-    if (!document) throw new NotFoundException('Documento nao encontrado');
+    if (!document) throw new NotFoundException('Documento não encontrado');
 
     try {
+      const buffer = await this.storage.downloadFile(
+        `documents/${companyId}/${document.type}`,
+        fileName,
+      );
       return {
-        buffer: await readFile(join(process.cwd(), 'private-uploads', 'documents', fileName)),
+        buffer,
         originalName: document.originalName,
       };
     } catch {
-      throw new NotFoundException('Documento nao encontrado');
+      throw new NotFoundException('Documento não encontrado');
     }
   }
 }
