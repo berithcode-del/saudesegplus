@@ -52,8 +52,12 @@ export class CreateInviteDto {
   collaboratorName?: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(30)
-  expiresInDays?: number;
-}
+    @IsInt()
+    @Min(1)
+    @Max(30)
+    expiresInDays?: number;
+
+    @IsOptional()
+    @IsUUID()
+    clinicId?: string;
+  }

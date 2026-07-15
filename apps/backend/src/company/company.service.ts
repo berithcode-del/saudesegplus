@@ -185,25 +185,33 @@ export class CompanyService {
     }
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+        expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
 
-    const invite = await this.prisma.examInvite.create({
-          data: {
-            companyId,
-            collaboratorName: dto.collaboratorName,
-            expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
-            expectedEmail: dto.expectedEmail,
-            expectedBirthDate: dto.expectedBirthDate
-              ? new Date(dto.expectedBirthDate)
-              : null,
-            roleFunction: dto.roleFunction,
-            roleFunctionCboCode: dto.roleFunctionCboCode,
-            examType: dto.examType,
-            expiresAt,
-            status: 'ENVIADO',
-          },
-          include: { company: true },
-        });
+        // Determine clinic: use provided clinicId, or find best clinic for company
+        let clinicId = dto.clinicId;
+        if (!clinicId) {
+          const bestClinic = await this.findBestClinicForCompany(companyId);
+          if (bestClinic) clinicId = bestClinic.id;
+        }
+
+        const invite = await this.prisma.examInvite.create({
+              data: {
+                companyId,
+                clinicId,
+                collaboratorName: dto.collaboratorName,
+                expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
+                expectedEmail: dto.expectedEmail,
+                expectedBirthDate: dto.expectedBirthDate
+                  ? new Date(dto.expectedBirthDate)
+                  : null,
+                roleFunction: dto.roleFunction,
+                roleFunctionCboCode: dto.roleFunctionCboCode,
+                examType: dto.examType,
+                expiresAt,
+                status: 'ENVIADO',
+              },
+              include: { company: true },
+            });
 
     await this.prisma.examTimelineEvent.create({
       data: {

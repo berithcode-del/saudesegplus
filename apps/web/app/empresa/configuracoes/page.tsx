@@ -141,32 +141,40 @@ export default function ConfiguracoesPage() {
   }, [companyId]);
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const result = await apiFetch(`/api/company/${companyId}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          nomeFantasia: companyData.nomeFantasia,
-          address: companyData.address,
-          cep: companyData.cep.replace(/\D/g, ''),
-          city: companyData.city,
-          state: companyData.state,
-          phone: companyData.phone,
-          contactEmail: companyData.contactEmail,
-        }),
-      });
-      if (result.success) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      } else {
-        alert(result.message ?? 'Erro ao salvar');
+      setSaving(true);
+      try {
+        let clinicIdToSend = companyData.clinicId;
+        if (clinicIdToSend === '__MATRIZ__') {
+          // Find user's own clinic (Matriz)
+          const result = await apiFetch(`/api/clinic/clinics?state=${companyData.state}&city=${companyData.city}`);
+          const matriz = result.data?.find((c: any) => c.isMatriz);
+          clinicIdToSend = matriz?.id;
+        }
+        const result = await apiFetch(`/api/company/${companyId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            nomeFantasia: companyData.nomeFantasia,
+            address: companyData.address,
+            cep: companyData.cep.replace(/\D/g, ''),
+            city: companyData.city,
+            state: companyData.state,
+            phone: companyData.phone,
+            contactEmail: companyData.contactEmail,
+            clinicId: clinicIdToSend,
+          }),
+        });
+        if (result.success) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 3000);
+        } else {
+          alert(result.message ?? 'Erro ao salvar');
+        }
+      } catch {
+        alert('Erro de conexão com o servidor');
+      } finally {
+        setSaving(false);
       }
-    } catch {
-      alert('Erro de conexão com o servidor');
-    } finally {
-      setSaving(false);
-    }
-  };
+    };
 
   if (loading) {
     return (
