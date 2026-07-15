@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
   NotFoundException,
@@ -26,7 +27,8 @@ export class ClinicProfileController {
 
   // GET /api/clinics?state=XX&city=YY — List clinics (public endpoint for company config)
   @Get('clinics')
-  async listClinics(@Request() req: any, @Request() query: { state: string; city?: string }) {
+  @Roles('CLINIC', 'COMPANY_ADMIN', 'ADMIN')
+  async listClinics(@Query() query: { state: string; city?: string }) {
     const { state, city } = query;
     if (!state) return { success: true, data: [] };
 
