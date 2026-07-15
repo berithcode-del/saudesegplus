@@ -36,6 +36,8 @@ model Clinic {
   lng                   Float?
   isActive              Boolean                @default(true)
   isFranchise           Boolean                @default(false)
+  isMatriz              Boolean                @default(false)
+  parentClinicId        String?
   credentialSource      String?
   userId                String?                @unique
   user                  UserAccount?           @relation(fields: [userId], references: [id])
@@ -47,6 +49,10 @@ model Clinic {
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
   operators             Operator[]
+  parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
+  childClinics          Clinic[]               @relation("ClinicHierarchy")
+  @@index([isMatriz])
+  @@index([parentClinicId])
 }
 
 model Operator {
