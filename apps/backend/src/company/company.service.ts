@@ -199,7 +199,7 @@ export class CompanyService {
             companyId,
             clinicId, // Associa clínica ao convite
             collaboratorName: dto.collaboratorName,
-            expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
+            expectedCpf: dto.expectedCpf ? dto.expectedCpf.replace(/\D/g, '') : null,
             expectedEmail: dto.expectedEmail,
             expectedBirthDate: dto.expectedBirthDate
               ? new Date(dto.expectedBirthDate)

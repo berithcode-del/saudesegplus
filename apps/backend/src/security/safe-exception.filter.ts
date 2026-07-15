@@ -16,8 +16,9 @@ export class SafeExceptionFilter implements ExceptionFilter {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
     const request = context.getRequest<Request>();
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
+    const isHttpException = exception && typeof (exception as any).getStatus === 'function';
+    const status = isHttpException
+      ? (exception as any).getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     if (status >= 500) {
@@ -28,8 +29,8 @@ export class SafeExceptionFilter implements ExceptionFilter {
       );
     }
 
-    const publicResponse = exception instanceof HttpException
-      ? exception.getResponse()
+    const publicResponse = isHttpException
+      ? (exception as any).getResponse()
       : { message: 'Erro interno. Tente novamente mais tarde.' };
 
     response.status(status).json({

@@ -14,11 +14,15 @@ import {
 } from 'class-validator';
 
 export class CreateInviteDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @Transform(({ value }) => typeof value === 'string' ? value.replace(/\D/g, '') : value)
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const digits = value.replace(/\D/g, '');
+    return digits.length > 0 ? digits : undefined;
+  })
   @Matches(/^\d{11}$/, { message: 'CPF invalido' })
-  expectedCpf: string;
+  expectedCpf?: string;
 
   @IsEmail()
   @MaxLength(254)
