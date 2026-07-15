@@ -243,5 +243,64 @@ export async function apiListInvites(companyId: string) {
   return apiFetch(`/api/company/${companyId}/invites`);
 }
 
+// ============================================
+// Calendar / Events (missing exports for build)
+// ============================================
+
+export async function apiGetEvents(ownerType: string, ownerId: string, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams({ ownerType, ownerId });
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  const data = await apiFetch(`/api/calendar?${params.toString()}`);
+  return (data as { data?: unknown[] })?.data ?? [];
+}
+
+export async function apiCreateEvent(payload: { title: string; type: string; date: string; ownerType: string; ownerId: string }) {
+  const data = await apiFetch('/api/calendar', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return (data as { data?: unknown })?.data;
+}
+
+export async function apiUpdateEvent(id: string, payload: { title?: string; type?: string; date?: string }) {
+  const data = await apiFetch(`/api/calendar/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return (data as { data?: unknown })?.data;
+}
+
+export async function apiDeleteEvent(id: string) {
+  return apiFetch(`/api/calendar/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================
+// Medico Profile (missing export for build)
+// ============================================
+
+export async function apiGetMedicoProfile(id: string): Promise<{ data: unknown }> {
+  const me = await apiFetch('/api/auth/me') as {
+    success?: boolean;
+    role?: string;
+    email?: string | null;
+    doctorProfile?: Record<string, unknown> | null;
+    data?: unknown;
+  };
+
+  if (me?.success !== false && me?.doctorProfile && (me.doctorProfile as { id?: string }).id === id) {
+    return {
+      data: {
+        ...(me.doctorProfile as Record<string, unknown>),
+        email: me.email ?? null,
+      },
+    };
+  }
+
+  return apiFetch(`/api/medicos/${id}/perfil`) as Promise<{ data: unknown }>;
+}
+
 
 
