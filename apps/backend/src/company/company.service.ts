@@ -12,7 +12,6 @@ import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class CompanyService {
