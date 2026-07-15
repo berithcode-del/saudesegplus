@@ -89,8 +89,13 @@ export async function apiGetColaboradorSolicitacoes(patientId: string) {
   return apiFetch(`/api/colaboradores/${patientId}/solicitacoes`);
 }
 
-export async function apiGetMedicoSolicitacoes(doctorId: string) {
-  return apiFetch(`/api/medicos/${doctorId}/solicitacoes`);
+export async function apiGetMedicoSolicitacoes(doctorId: string, startDate?: string, endDate?: string) {
+  let url = `/api/medicos/${doctorId}/solicitacoes`;
+  const params = new URLSearchParams();
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  if (params.toString()) url += `?${params.toString()}`;
+  return apiFetch(url);
 }
 
 export async function apiListMedicos(filters: { search?: string; city?: string; state?: string } = {}) {
