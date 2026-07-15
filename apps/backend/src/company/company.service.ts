@@ -186,22 +186,22 @@ export class CompanyService {
     expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
 
     const invite = await this.prisma.examInvite.create({
-      data: {
-        companyId,
-        collaboratorName: dto.collaboratorName,
-        expectedCpf: dto.expectedCpf.replace(/\D/g, ''),
-        expectedEmail: dto.expectedEmail,
-        expectedBirthDate: dto.expectedBirthDate
-          ? new Date(dto.expectedBirthDate)
-          : null,
-        roleFunction: dto.roleFunction,
-        roleFunctionCboCode: dto.roleFunctionCboCode,
-        examType: dto.examType,
-        expiresAt,
-        status: 'ENVIADO',
-      },
-      include: { company: true },
-    });
+          data: {
+            companyId,
+            collaboratorName: dto.collaboratorName,
+            expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
+            expectedEmail: dto.expectedEmail,
+            expectedBirthDate: dto.expectedBirthDate
+              ? new Date(dto.expectedBirthDate)
+              : null,
+            roleFunction: dto.roleFunction,
+            roleFunctionCboCode: dto.roleFunctionCboCode,
+            examType: dto.examType,
+            expiresAt,
+            status: 'ENVIADO',
+          },
+          include: { company: true },
+        });
 
     await this.prisma.examTimelineEvent.create({
       data: {
