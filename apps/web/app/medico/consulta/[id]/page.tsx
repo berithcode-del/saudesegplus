@@ -91,6 +91,8 @@ export default function ConsultaPage() {
   const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [expandedExamId, setExpandedExamId] = useState<string | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"video" | "exam" | "anamnese" | "notas">("video");
+  const [workspaceExamId, setWorkspaceExamId] = useState<string | null>(null);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [patientOnline, setPatientOnline] = useState(false);
   const [roomError, setRoomError] = useState("");
@@ -99,10 +101,8 @@ export default function ConsultaPage() {
   const [signatureError, setSignatureError] = useState("");
 
   const openExamAttachment = async (resultId: string) => {
-    if (expandedExamId === resultId) {
-      setExpandedExamId(null);
-      return;
-    }
+    setWorkspaceMode("exam");
+    setWorkspaceExamId(resultId);
     setExpandedExamId(resultId);
     if (attachmentUrls[resultId]) return;
     const response = await fetch(`${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`, {
@@ -258,6 +258,7 @@ export default function ConsultaPage() {
         return;
       }
       setVideoRoomUrl(roomUrl);
+      setWorkspaceMode("video");
     } catch (err) {
       setRoomError(
         err instanceof Error
@@ -377,6 +378,9 @@ export default function ConsultaPage() {
   }
 
   const patient = solicitacao.patient;
+  const workspaceExam = parsedExams?.find((exam) => exam.id === workspaceExamId);
+  const workspaceExamUrl = workspaceExamId ? attachmentUrls[workspaceExamId] : null;
+  const workspaceExamIsImage = !!workspaceExam?.attachmentUrl?.match(/\.(jpeg|jpg|gif|png)$/i);
 
   return (
     <div
@@ -400,7 +404,71 @@ export default function ConsultaPage() {
             justifyContent: "center",
           }}
         >
-          {!videoRoomUrl ? (
+          {workspaceMode === "exam" ? (
+            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase" }}>
+                    Visualização de exame
+                  </div>
+                  <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: 800 }}>
+                    {workspaceExam?.parsedValues["nome_exame"] || workspaceExam?.type?.name || "Exame anexado"}
+                  </div>
+                </div>
+                <button className="btn btn-ghost" onClick={() => setWorkspaceMode("video")}>
+                  Voltar para vídeo
+                </button>
+              </div>
+              <div style={{ flex: 1, minHeight: "620px", padding: "16px", background: "#f8fafc" }}>
+                {!workspaceExam ? (
+                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                    Selecione um exame na lateral para visualizar.
+                  </div>
+                ) : !workspaceExamUrl ? (
+                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                    Carregando anexo do exame...
+                  </div>
+                ) : workspaceExamIsImage ? (
+                  <img src={workspaceExamUrl} alt="Exame" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "12px", background: "white" }} />
+                ) : (
+                  <iframe src={workspaceExamUrl} style={{ width: "100%", height: "100%", minHeight: "620px", border: "none", borderRadius: "12px", background: "white" }} title="PDF do Exame" />
+                )}
+              </div>
+            </div>
+          ) : workspaceMode === "anamnese" ? (
+            <div style={{ width: "100%", height: "100%", padding: "28px", overflowY: "auto" }}>
+              <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "18px", color: "var(--text-primary)" }}>
+                Anamnese do paciente
+              </h2>
+              <div style={{ display: "grid", gap: "14px", color: "var(--text-secondary)", lineHeight: 1.7 }}>
+                {anamnese ? (
+                  <>
+                    {anamnese.queixas && <section className="card" style={{ boxShadow: "none" }}><strong>Queixas</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.queixas}</p></section>}
+                    {anamnese.historicoMedico && <section className="card" style={{ boxShadow: "none" }}><strong>Histórico médico</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.historicoMedico}</p></section>}
+                    {anamnese.historicoOcupacional && <section className="card" style={{ boxShadow: "none" }}><strong>Histórico ocupacional</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.historicoOcupacional}</p></section>}
+                    {anamnese.medicamentos && <section className="card" style={{ boxShadow: "none" }}><strong>Medicamentos</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.medicamentos}</p></section>}
+                    {anamnese.habitos && <section className="card" style={{ boxShadow: "none" }}><strong>Hábitos</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.habitos}</p></section>}
+                  </>
+                ) : (
+                  <p style={{ color: "var(--text-muted)" }}>Nenhuma anamnese registrada para este paciente.</p>
+                )}
+              </div>
+            </div>
+          ) : workspaceMode === "notas" ? (
+            <div style={{ width: "100%", height: "100%", padding: "28px", display: "flex", flexDirection: "column" }}>
+              <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "18px", color: "var(--text-primary)" }}>
+                Notas clínicas
+              </h2>
+              <textarea
+                id="clinical-notes-workspace"
+                className="form-input"
+                style={{ flex: 1, minHeight: "560px", resize: "vertical", fontSize: "15px", lineHeight: 1.6 }}
+                placeholder="Anotações clínicas (criptografadas em repouso)..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          ) : !videoRoomUrl ? (
             <div style={{ textAlign: "center" }}>
               <VideoCameraIcon
                 className="icon"
@@ -597,6 +665,16 @@ export default function ConsultaPage() {
         }}
       >
         <div className="card" style={{ padding: "0" }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-light)" }}>
+            <button
+              className={workspaceMode === "video" ? "btn btn-primary" : "btn btn-ghost"}
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={() => setWorkspaceMode("video")}
+            >
+              <VideoCameraIcon className="icon icon-sm" />
+              Área de vídeo
+            </button>
+          </div>
           <div
             style={{
               display: "flex",
@@ -616,7 +694,11 @@ export default function ConsultaPage() {
             ).map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === "anamnese") setWorkspaceMode("anamnese");
+                  if (tab.id === "notas") setWorkspaceMode("notas");
+                }}
                 style={{
                   flex: 1,
                   display: "flex",
@@ -655,11 +737,7 @@ export default function ConsultaPage() {
                 {parsedExams && parsedExams.length > 0 ? (
                   parsedExams.map((exam) => {
                     if (exam.attachmentUrl) {
-                      const isExpanded = expandedExamId === exam.id;
-                      const isImage = exam.attachmentUrl.match(
-                        /\.(jpeg|jpg|gif|png)$/i,
-                      );
-                      const fullUrl = attachmentUrls[exam.id];
+                      const isSelected = workspaceExamId === exam.id && workspaceMode === "exam";
                       return (
                         <div
                           key={exam.id}
@@ -699,38 +777,9 @@ export default function ConsultaPage() {
                             <span
                               style={{ fontSize: "12px", color: "#3b6ff5" }}
                             >
-                              {isExpanded ? "Ocultar" : "Visualizar"}
+                              {isSelected ? "Aberto" : "Abrir"}
                             </span>
                           </div>
-
-                          {isExpanded && fullUrl && (
-                            <div
-                              style={{
-                                marginTop: "16px",
-                                borderTop: "1px solid var(--border-light)",
-                                paddingTop: "16px",
-                              }}
-                            >
-                              {isImage ? (
-                                <img
-                                  src={fullUrl}
-                                  alt="Exame"
-                                  style={{ width: "100%", borderRadius: "8px" }}
-                                />
-                              ) : (
-                                <iframe
-                                  src={fullUrl}
-                                  style={{
-                                    width: "100%",
-                                    height: "500px",
-                                    border: "none",
-                                    borderRadius: "8px",
-                                  }}
-                                  title="PDF do Exame"
-                                />
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     }
