@@ -65,9 +65,7 @@ export class ColaboradorService {
       where: { email: invite.expectedEmail },
     });
     if (existingUser) {
-      throw new BadRequestException(
-        'Já existe um cadastro com este e-mail',
-      );
+      throw new BadRequestException('Já existe um cadastro com este e-mail');
     }
 
     // 2. Criar UserAccount para o colaborador
@@ -88,7 +86,8 @@ export class ColaboradorService {
         name,
         birthDate: invite.expectedBirthDate ?? undefined,
         phone: '', // Placeholder (Fase 3: coleta real)
-        functionCboCode: invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
+        functionCboCode:
+          invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
       },
     });
 
@@ -111,6 +110,7 @@ export class ColaboradorService {
         source: 'convite_empresa',
         examPurpose: invite.examType,
         status: 'AGUARDANDO_COLETA',
+        paymentId: invite.paymentId ?? undefined,
       },
     });
 

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowPathIcon, PlusIcon, CheckIcon, TrashIcon, XMarkIcon, ClipboardIcon } from '@heroicons/react/24/outline';
 import { apiAdminListDoctors, apiAdminCreateDoctor, apiAdminVerifyDoctor } from '../../../app/lib/api';
+import { maskPhone, maskCNPJ, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../lib/formatUtils';
 
 interface Doctor {
   id: string;

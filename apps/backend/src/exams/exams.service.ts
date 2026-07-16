@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PaymentFlow, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { QueueService } from '../queue/queue.service';
@@ -13,7 +20,14 @@ export class ExamsService {
     private readonly queueService: QueueService,
   ) {}
 
-  async createExam(examRequestId: string, examType: string, valueJson: Record<string, any>, attachmentUrl?: string) {
+  async createExam(
+    examRequestId: string,
+    examType: string,
+    valueJson: Record<string, any>,
+    attachmentUrl?: string,
+    actor?: { role: string; profileId?: string | null },
+    selectedOperatorId?: string,
+  ) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id: examRequestId },
       include: { patient: true },
@@ -27,9 +41,15 @@ export class ExamsService {
       throw new BadRequestException('Tipo de exame nao informado');
     }
 
-    const operator = await this.resolveOperator(request.clinicId);
+    const operator = await this.resolveOperatorForCollection(
+      request.clinicId,
+      actor,
+      selectedOperatorId,
+    );
     if (!operator) {
-      throw new BadRequestException('Nenhum operador cadastrado para a clínica informada. Cadastre um operador antes de registrar exames.');
+      throw new BadRequestException(
+        'Nenhum operador cadastrado para a clínica informada. Cadastre um operador antes de registrar exames.',
+      );
     }
 
     if (examType === 'outros' && !String(valueJson?.nome_exame ?? '').trim()) {
@@ -38,10 +58,16 @@ export class ExamsService {
 
     const cboCode = request.patient.functionCboCode;
     if (cboCode) {
-      const risk = await this.prisma.occupationalRisk.findUnique({ where: { cboCode } });
+      const risk = await this.prisma.occupationalRisk.findUnique({
+        where: { cboCode },
+      });
       const requiredExams = risk?.requiredExams ?? [];
 
-      if (requiredExams.length > 0 && examType !== 'outros' && !requiredExams.includes(examType)) {
+      if (
+        requiredExams.length > 0 &&
+        examType !== 'outros' &&
+        !requiredExams.includes(examType)
+      ) {
         throw new BadRequestException(
           `Exame "${examType}" nao e obrigatorio para o CBO ${cboCode}. Se for adicional, registre como "outros".`,
         );
@@ -55,9 +81,11 @@ export class ExamsService {
     }[examType];
 
     if (requiredFields && !attachmentUrl) {
-      const missingFields = requiredFields.filter(field => !valueJson[field]);
+      const missingFields = requiredFields.filter((field) => !valueJson[field]);
       if (missingFields.length > 0) {
-        throw new BadRequestException(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);
+        throw new BadRequestException(
+          `Campos obrigatórios faltando: ${missingFields.join(', ')}`,
+        );
       }
     }
 
@@ -77,16 +105,27 @@ export class ExamsService {
       });
     }
 
-    const result = await this.prisma.examResult.create({
-      data: {
-        requestId: examRequestId,
-        typeId: examTypeRecord.id,
-        valueJson: JSON.stringify(valueJson),
-        attachmentUrl: attachmentUrl || null,
-        collectedById: operator.id,
-        source: 'manual',
-      },
-    });
+    let result;
+    try {
+      result = await this.prisma.examResult.create({
+        data: {
+          requestId: examRequestId,
+          typeId: examTypeRecord.id,
+          valueJson: JSON.stringify(valueJson),
+          attachmentUrl: attachmentUrl || null,
+          collectedById: operator.id,
+          source: 'manual',
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Este exame ja foi registrado para a solicitacao.');
+      }
+      throw error;
+    }
 
     await this.prisma.examRequest.update({
       where: { id: examRequestId },
@@ -117,12 +156,28 @@ export class ExamsService {
   }
 
   async findTypes() {
-    return this.prisma.examType.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, category: true, requiresEquipment: true, canBeRemoteReview: true } });
+    return this.prisma.examType.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        requiresEquipment: true,
+        canBeRemoteReview: true,
+      },
+    });
   }
 
   async findRequiredByCbo(cboCode: string) {
-    const risk = await this.prisma.occupationalRisk.findUnique({ where: { cboCode } });
-    if (!risk) return { requiredExams: [], riskGrade: 'desconhecido', requiresInPerson: false };
+    const risk = await this.prisma.occupationalRisk.findUnique({
+      where: { cboCode },
+    });
+    if (!risk)
+      return {
+        requiredExams: [],
+        riskGrade: 'desconhecido',
+        requiresInPerson: false,
+      };
     return {
       requiredExams: risk.requiredExams,
       riskGrade: risk.riskGrade,
@@ -141,7 +196,13 @@ export class ExamsService {
           { functionName: { contains: trimmedQuery, mode: 'insensitive' } },
           { cboCode: { contains: trimmedQuery } },
           ...(normalizedCodeQuery.length >= 4
-            ? [{ cboCode: { contains: `${normalizedCodeQuery.slice(0, 4)}-${normalizedCodeQuery.slice(4)}` } }]
+            ? [
+                {
+                  cboCode: {
+                    contains: `${normalizedCodeQuery.slice(0, 4)}-${normalizedCodeQuery.slice(4)}`,
+                  },
+                },
+              ]
             : []),
         ],
       },
@@ -151,11 +212,19 @@ export class ExamsService {
     });
   }
 
-  async resolveOperator(clinicId?: string | null) {
-    if (!clinicId) return null;
-    const operator = await this.prisma.operator.findFirst({ where: { clinicId } });
-    if (operator) return operator;
-    return null;
+  async resolveOperatorForCollection(
+    clinicId: string | null | undefined,
+    actor?: { role: string; profileId?: string | null },
+    selectedOperatorId?: string,
+  ) {
+    if (!clinicId) throw new BadRequestException('Clinica da solicitacao nao informada.');
+    const operatorId = actor?.role === 'OPERATOR' ? actor.profileId : selectedOperatorId;
+    if (!operatorId) throw new BadRequestException('Informe o operador responsavel pela coleta.');
+    const operator = await this.prisma.operator.findUnique({ where: { id: operatorId } });
+    if (!operator || operator.clinicId !== clinicId) {
+      throw new BadRequestException('Operador nao pertence a clinica desta solicitacao.');
+    }
+    return operator;
   }
 
   async createPatient(data: {
@@ -166,7 +235,39 @@ export class ExamsService {
     examPurpose: string;
     clinicId?: string;
     inviteId?: string;
+    paymentId: string;
   }) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: data.paymentId },
+      select: {
+        id: true,
+        flow: true,
+        status: true,
+        clinicId: true,
+        examRequest: { select: { id: true } },
+      },
+    });
+    if (
+      !payment ||
+      payment.flow !== PaymentFlow.CLINIC_WALK_IN ||
+      payment.status !== PaymentStatus.PAGO
+    ) {
+      throw new BadRequestException(
+        'O atendimento exige um pagamento presencial confirmado.',
+      );
+    }
+    if (
+      payment.clinicId &&
+      data.clinicId &&
+      payment.clinicId !== data.clinicId
+    ) {
+      throw new BadRequestException('O pagamento pertence a outra clinica.');
+    }
+    if (payment.examRequest) {
+      throw new BadRequestException(
+        'Este pagamento ja foi usado em outro atendimento.',
+      );
+    }
     const existingPatient = await this.prisma.patient.findUnique({
       where: { cpf: data.cpf },
     });
@@ -176,7 +277,11 @@ export class ExamsService {
         where: { patientId: existingPatient.id, status: { not: 'CONCLUIDO' } },
       });
       if (existingRequest) {
-        return { patient: existingPatient, examRequest: existingRequest, existing: true };
+        return {
+          patient: existingPatient,
+          examRequest: existingRequest,
+          existing: true,
+        };
       }
 
       const examRequest = await this.prisma.examRequest.create({
@@ -187,6 +292,7 @@ export class ExamsService {
           examPurpose: data.examPurpose,
           status: 'AGUARDANDO_COLETA',
           inviteId: data.inviteId,
+          paymentId: payment.id,
         },
       });
       return { patient: existingPatient, examRequest };
@@ -218,6 +324,7 @@ export class ExamsService {
         examPurpose: data.examPurpose,
         status: 'AGUARDANDO_COLETA',
         inviteId: data.inviteId,
+        paymentId: payment.id,
       },
     });
 

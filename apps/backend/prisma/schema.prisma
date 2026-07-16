@@ -9,12 +9,12 @@ datasource db {
 }
 
 model UserAccount {
-  id                  String        @id @default(uuid())
-  email               String        @unique
+  id                  String          @id @default(uuid())
+  email               String          @unique
   passwordHash        String
   role                Role
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   companyAdminProfile CompanyAdmin?
   doctorProfile       Doctor?
   operatorProfile     Operator?
@@ -48,9 +48,11 @@ model Clinic {
   examRequests          ExamRequest[]
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
+  payments              Payment[]
   operators             Operator[]
   parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
   childClinics          Clinic[]               @relation("ClinicHierarchy")
+
   @@index([isMatriz])
   @@index([parentClinicId])
 }
@@ -59,6 +61,7 @@ model Operator {
   id          String       @id @default(uuid())
   userId      String       @unique
   clinicId    String
+  name        String
   examResults ExamResult[]
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   user        UserAccount  @relation(fields: [userId], references: [id])
@@ -124,6 +127,7 @@ model Company {
   patients              CompanyPatientRelation[]
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
+  payments              Payment[]
 }
 
 /// Papel "Cadastrador" — único papel por empresa nesta fase
@@ -138,31 +142,33 @@ model CompanyAdmin {
 
 /// Token de convite gerado pela Empresa para um colaborador específico
 model ExamInvite {
-  id                String              @id @default(uuid())
+  id                  String              @id @default(uuid())
   /// Token UUID não-sequencial, transmitido no link enviado ao colaborador
-  token             String              @unique @default(uuid())
-  companyId         String
+  token               String              @unique @default(uuid())
+  companyId           String
   /// Clínica associada ao convite (para agendamento/atendimento)
-  clinicId          String?
+  clinicId            String?
   /// Vínculo de identidade esperado — reduz risco de uso indevido do link
-  expectedCpf       String?
-  expectedEmail     String?
+  expectedCpf         String?
+  expectedEmail       String?
   /// Função CBO e tipo de exame pré-definidos — não digitados livremente
-  roleFunction      String
+  roleFunction        String
   /// Código CBO numérico (ex: "7232-10") — preenchido via autocomplete
   roleFunctionCboCode String?
-  examType          String
-  status            InviteStatus        @default(ENVIADO)
-  expiresAt         DateTime
-  sentAt            DateTime            @default(now())
-  openedAt          DateTime?
-  createdAt         DateTime            @default(now())
-  collaboratorName  String?
-  expectedBirthDate DateTime?
-  company           Company             @relation(fields: [companyId], references: [id])
-  clinic            Clinic?             @relation(fields: [clinicId], references: [id])
-  examRequest       ExamRequest?
-  timelineEvents    ExamTimelineEvent[]
+  examType            String
+  status              InviteStatus        @default(ENVIADO)
+  expiresAt           DateTime
+  sentAt              DateTime            @default(now())
+  openedAt            DateTime?
+  createdAt           DateTime            @default(now())
+  collaboratorName    String?
+  expectedBirthDate   DateTime?
+  company             Company             @relation(fields: [companyId], references: [id])
+  clinic              Clinic?             @relation(fields: [clinicId], references: [id])
+  examRequest         ExamRequest?
+  timelineEvents      ExamTimelineEvent[]
+  payment             Payment?            @relation(fields: [paymentId], references: [id])
+  paymentId           String?             @unique
 }
 
 /// Eventos append-only — apenas progresso operacional, nunca dado clínico
@@ -247,6 +253,8 @@ model ExamRequest {
   documents             PatientDocument[]
   queueEntry            QueueEntry?
   teleconsultations     Teleconsultation[]
+  payment               Payment?               @relation(fields: [paymentId], references: [id])
+  paymentId             String?                @unique
 }
 
 model ExamResult {
@@ -261,6 +269,8 @@ model ExamResult {
   collectedBy   Operator    @relation(fields: [collectedById], references: [id])
   request       ExamRequest @relation(fields: [requestId], references: [id])
   type          ExamType    @relation(fields: [typeId], references: [id])
+
+  @@unique([requestId, typeId])
 }
 
 model QueueEntry {
@@ -376,6 +386,48 @@ model ServicePrice {
   transactions       FinancialTransaction[]
 }
 
+/// Item de precificacao usado na composicao do pacote ocupacional.
+model ExamItemPrice {
+  id                 String            @id @default(uuid())
+  code               String            @unique
+  name               String
+  category           PriceItemCategory
+  amount             Float
+  clinicFeePercent   Float             @default(30.0)
+  doctorFeePercent   Float             @default(40.0)
+  platformFeePercent Float             @default(30.0)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([category, isActive])
+}
+
+/// Pagamento do pacote antes da criacao do convite ou atendimento presencial.
+model Payment {
+  id              String                 @id @default(uuid())
+  flow            PaymentFlow
+  status          PaymentStatus          @default(PENDENTE)
+  amount          Float
+  method          String?
+  companyId       String?
+  clinicId        String?
+  quoteSnapshot   String
+  checkoutPayload String?
+  externalId      String?                @unique
+  confirmedAt     DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  company         Company?               @relation(fields: [companyId], references: [id])
+  clinic          Clinic?                @relation(fields: [clinicId], references: [id])
+  invite          ExamInvite?
+  examRequest     ExamRequest?
+  transactions    FinancialTransaction[]
+
+  @@index([companyId, status])
+  @@index([clinicId, status])
+}
+
 /// Configuração global de repasse — valores padrão da plataforma
 model FinancialConfig {
   id                        String   @id @default(uuid())
@@ -401,6 +453,7 @@ model FinancialTransaction {
   doctorId        String?
   companyId       String?
   servicePriceId  String?
+  paymentId       String?
   transactionDate DateTime          @default(now())
   paidAt          DateTime?
   createdAt       DateTime          @default(now())
@@ -409,23 +462,24 @@ model FinancialTransaction {
   doctor          Doctor?           @relation(fields: [doctorId], references: [id])
   examRequest     ExamRequest?      @relation(fields: [examRequestId], references: [id])
   servicePrice    ServicePrice?     @relation(fields: [servicePriceId], references: [id])
+  payment         Payment?          @relation(fields: [paymentId], references: [id])
 }
 
 /// Chamado de suporte aberto por Empresa/Clínica/Médico
 model SupportTicket {
-  id          String                @id @default(uuid())
+  id          String              @id @default(uuid())
   userId      String
-  userProfile String                /// "EMPRESA" | "CLINICA" | "MEDICO"
+  userProfile String /// "EMPRESA" | "CLINICA" | "MEDICO"
   companyId   String?
   clinicId    String?
   doctorId    String?
   subject     String
-  status      SupportTicketStatus   @default(ABERTO)
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  status      SupportTicketStatus @default(ABERTO)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-  user        UserAccount           @relation(fields: [userId], references: [id])
-  messages    SupportMessage[]
+  user     UserAccount      @relation(fields: [userId], references: [id])
+  messages SupportMessage[]
 
   @@index([userId])
   @@index([status])
@@ -434,14 +488,14 @@ model SupportTicket {
 
 /// Mensagem dentro de um chamado de suporte
 model SupportMessage {
-  id         String        @id @default(uuid())
+  id         String   @id @default(uuid())
   ticketId   String
   content    String
   authorId   String
-  authorRole String        /// "USER" | "ADMIN"
-  createdAt  DateTime      @default(now())
+  authorRole String /// "USER" | "ADMIN"
+  createdAt  DateTime @default(now())
 
-  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
 }
@@ -505,6 +559,17 @@ enum PaymentStatus {
   PAGO
   CANCELADO
   ESTORNADO
+}
+
+enum PaymentFlow {
+  COMPANY_INVITE
+  CLINIC_WALK_IN
+}
+
+enum PriceItemCategory {
+  ASO
+  EXAM
+  SPECIAL_CLEARANCE
 }
 
 enum SupportTicketStatus {

@@ -2,6 +2,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/app/lib/api';
+import { maskPhone, maskCNPJ, maskCEP, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../../lib/formatUtils';
 import {
   ArrowLeftIcon,
   BuildingOffice2Icon,
@@ -57,20 +58,26 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (isNew) {
-        await apiFetch('/api/admin/companies', {
-          method: 'POST',
-          body: JSON.stringify(form),
-        });
-        router.push('/admin/empresas');
-      } else {
-        await apiFetch(`/api/admin/companies/${id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(form),
-        });
-        setEditing(false);
-        fetchCompany();
-      }
+      const payload = {
+                ...form,
+                cnpj: form.cnpj.replace(/\D/g, ''),
+                cep: form.cep.replace(/\D/g, ''),
+                phone: form.phone.replace(/\D/g, ''),
+              };
+              if (isNew) {
+                        await apiFetch('/api/admin/companies', {
+                          method: 'POST',
+                          body: JSON.stringify(payload),
+                        });
+                        router.push('/admin/empresas');
+                      } else {
+                        await apiFetch(`/api/admin/companies/${id}`, {
+                          method: 'PATCH',
+                          body: JSON.stringify(payload),
+                        });
+                        setEditing(false);
+                        fetchCompany();
+                      }
     } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
     finally { setSaving(false); }
   };
@@ -154,7 +161,30 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
             ].map(({ label, key }) => (
               <div className="form-group" key={key}>
                 <label className="form-label">{label}</label>
-                <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
+                {key === 'state' ? (
+                  <select className="form-select" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}>
+                    <option value="">Selecione</option>
+                    {BR_STATE_OPTIONS}
+                  </select>
+                ) : key === 'cnpj' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: maskCNPJ(e.target.value) }))} placeholder="00.000.000/0000-00" maxLength={FIELD_LIMITS.CNPJ} />
+                ) : key === 'cep' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: maskCEP(e.target.value) }))} placeholder="00000-000" maxLength={FIELD_LIMITS.CEP} />
+                ) : key === 'phone' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: maskPhone(e.target.value) }))} placeholder="(00) 00000-0000" maxLength={FIELD_LIMITS.PHONE} />
+                ) : (key === 'contactEmail' || key === 'accessEmail') ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
+                ) : key === 'razaoSocial' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.RAZAO_SOCIAL} />
+                ) : key === 'nomeFantasia' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.NOME_FANTASIA} />
+                ) : key === 'address' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.ADDRESS} />
+                ) : key === 'city' ? (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.CITY} />
+                ) : (
+                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
+                )}
               </div>
             ))}
             <div className="form-group">

@@ -2,6 +2,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/app/lib/api';
+import { maskPhone, maskCNPJ, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../../lib/formatUtils';
 import {
   ArrowLeftIcon,
   TrashIcon,
@@ -167,13 +168,17 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
               <div className="form-group" key={key}>
                 <label className="form-label">{label}</label>
                 {key === 'gender' ? (
-                  <select className="form-input" value={form[key] ?? 'male'} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}>
-                    <option value="male">Masculino</option>
-                    <option value="female">Feminino</option>
-                  </select>
-                ) : (
-                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
-                )}
+                                  <select className="form-input" value={form[key] ?? 'male'} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}>
+                                    <option value="male">Masculino</option>
+                                    <option value="female">Feminino</option>
+                                  </select>
+                                ) : key === 'phone' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: maskPhone(e.target.value) }))} maxLength={FIELD_LIMITS.PHONE} />
+                                ) : (key === 'contactEmail' || key === 'accessEmail') ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
+                                ) : (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
+                                )}
               </div>
             ))}
           </div>

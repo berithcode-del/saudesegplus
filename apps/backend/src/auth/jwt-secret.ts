@@ -16,3 +16,9 @@ export function getJwtSecret(): string {
 export function getJwtExpiresIn(): string {
   return cleanEnvValue(process.env.JWT_EXPIRES_IN) ?? '24h';
 }
+
+export function getPortalJwtExpiresIn(): string {
+  return cleanEnvValue(process.env.PORTAL_JWT_EXPIRES_IN)
+    ?? cleanEnvValue(process.env.JWT_EXPIRES_IN)
+    ?? '4h';
+}

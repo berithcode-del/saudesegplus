@@ -14,6 +14,7 @@ export class UpdateCompanyDto {
   @IsOptional() @IsString() @MaxLength(250) address?: string;
 
   @IsOptional()
+  @ValidateIf((_object, value) => value !== '')
   @IsString()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.replace(/\D/g, '') : value,
@@ -22,7 +23,11 @@ export class UpdateCompanyDto {
   cep?: string;
 
   @IsOptional() @IsString() @MaxLength(100) city?: string;
-  @IsOptional() @IsString() @Matches(/^[A-Za-z]{2}$/) state?: string;
+  @IsOptional()
+  @ValidateIf((_object, value) => value !== '')
+  @IsString()
+  @Matches(/^[A-Za-z]{2}$/)
+  state?: string;
 
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
   @IsOptional()
@@ -31,5 +36,4 @@ export class UpdateCompanyDto {
   @MaxLength(254)
   contactEmail?: string;
 
-  @IsOptional() @IsUUID() clinicId?: string;
 }

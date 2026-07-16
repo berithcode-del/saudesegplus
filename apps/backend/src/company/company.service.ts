@@ -11,7 +11,7 @@ import { CompanyGateway } from './company.gateway';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { PaymentFlow, PaymentStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class CompanyService {
@@ -129,20 +129,31 @@ export class CompanyService {
   }
 
   async updateCompany(companyId: string, dto: UpdateCompanyDto) {
-      const data: Record<string, string> = {};
-      if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
-      if (dto.address !== undefined) data.address = dto.address;
-      if (dto.cep !== undefined) data.cep = dto.cep;
-      if (dto.city !== undefined) data.city = dto.city;
-      if (dto.state !== undefined) data.state = dto.state;
-      if (dto.phone !== undefined) data.phone = dto.phone;
-      if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
-      if (dto.clinicId !== undefined) data.clinicId = dto.clinicId;
-      return this.prisma.company.update({
-        where: { id: companyId },
-        data,
-      });
+    const data: Record<string, string> = {};
+    if (dto.nomeFantasia !== undefined) data.nomeFantasia = dto.nomeFantasia;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.cep !== undefined) data.cep = dto.cep;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.state !== undefined) data.state = dto.state;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
+    const locationChanged =
+      dto.cep !== undefined || dto.city !== undefined || dto.state !== undefined;
+    const updated = await this.prisma.company.update({
+      where: { id: companyId },
+      data,
+    });
+    if (locationChanged || !updated.clinicId) {
+      const clinic = await this.findBestClinicForCompany(companyId, locationChanged);
+      if (clinic?.id !== updated.clinicId) {
+        return this.prisma.company.update({
+          where: { id: companyId },
+          data: { clinicId: clinic?.id ?? null },
+        });
+      }
     }
+    return updated;
+  }
 
   async updateCompanyStatus(companyId: string, status: string) {
     return this.prisma.company.update({
@@ -183,34 +194,81 @@ export class CompanyService {
       );
     }
 
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+      select: {
+        id: true,
+        companyId: true,
+        flow: true,
+        status: true,
+        quoteSnapshot: true,
+        invite: { select: { id: true } },
+      },
+    });
+    if (
+      !payment ||
+      payment.companyId !== companyId ||
+      payment.flow !== PaymentFlow.COMPANY_INVITE ||
+      payment.status !== PaymentStatus.PAGO
+    ) {
+      throw new ConflictException(
+        'O convite exige um pagamento empresarial confirmado.',
+      );
+    }
+    if (payment.invite) {
+      throw new ConflictException(
+        'Este pagamento ja foi usado para gerar um convite.',
+      );
+    }
+    try {
+      const quote = JSON.parse(payment.quoteSnapshot) as {
+        cboCode?: string;
+        examPurpose?: string;
+      };
+      if (
+        quote.cboCode !== dto.roleFunctionCboCode ||
+        quote.examPurpose !== dto.examType
+      ) {
+        throw new ConflictException(
+          'O pagamento foi cotado para outro CBO ou tipo de exame.',
+        );
+      }
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      throw new ConflictException(
+        'A cotacao vinculada ao pagamento e invalida.',
+      );
+    }
+
     const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
 
-        // Determine clinic: use provided clinicId, or find best clinic for company
-        let clinicId = dto.clinicId;
-        if (!clinicId) {
-          const bestClinic = await this.findBestClinicForCompany(companyId);
-          if (bestClinic) clinicId = bestClinic.id;
-        }
+    // Determine clinic: use provided clinicId, or find best clinic for company
+    let clinicId = dto.clinicId;
+    if (!clinicId) {
+      const bestClinic = await this.findBestClinicForCompany(companyId);
+      if (bestClinic) clinicId = bestClinic.id;
+    }
 
-        const invite = await this.prisma.examInvite.create({
-              data: {
-                companyId,
-                clinicId,
-                collaboratorName: dto.collaboratorName,
-                expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
-                expectedEmail: dto.expectedEmail,
-                expectedBirthDate: dto.expectedBirthDate
-                  ? new Date(dto.expectedBirthDate)
-                  : null,
-                roleFunction: dto.roleFunction,
-                roleFunctionCboCode: dto.roleFunctionCboCode,
-                examType: dto.examType,
-                expiresAt,
-                status: 'ENVIADO',
-              },
-              include: { company: true },
-            });
+    const invite = await this.prisma.examInvite.create({
+      data: {
+        companyId,
+        clinicId,
+        collaboratorName: dto.collaboratorName,
+        expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
+        expectedEmail: dto.expectedEmail,
+        expectedBirthDate: dto.expectedBirthDate
+          ? new Date(dto.expectedBirthDate)
+          : null,
+        roleFunction: dto.roleFunction,
+        roleFunctionCboCode: dto.roleFunctionCboCode,
+        examType: dto.examType,
+        paymentId: payment.id,
+        expiresAt,
+        status: 'ENVIADO',
+      },
+      include: { company: true },
+    });
 
     await this.prisma.examTimelineEvent.create({
       data: {
@@ -230,19 +288,16 @@ export class CompanyService {
 
     if (dto.expectedEmail) {
       const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-      try {
-        await this.mailService.sendInviteLink(
+      void this.mailService
+        .sendInviteLink(
           dto.expectedEmail,
           invite.company.razaoSocial ?? '',
           link,
           invite.expiresAt,
+        )
+        .catch((err) =>
+          console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err),
         );
-      } catch (err) {
-        console.error(
-          `[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`,
-          err,
-        );
-      }
     }
 
     return invite;
@@ -470,104 +525,136 @@ export class CompanyService {
     });
   }
 
-    async gerarRelatorio(companyId: string, de?: string, ate?: string) {
-      const where: any = {
-        patient: { companies: { some: { companyId } } },
-      };
-      if (de) where.createdAt = { ...where.createdAt, gte: new Date(de) };
-      if (ate) where.createdAt = { ...where.createdAt, lte: new Date(ate) };
+  async gerarRelatorio(companyId: string, de?: string, ate?: string) {
+    const where: any = {
+      invite: { companyId },
+    };
+    if (de) where.createdAt = { ...where.createdAt, gte: new Date(de) };
+    if (ate) where.createdAt = { ...where.createdAt, lte: new Date(ate) };
 
-      const requests = await this.prisma.examRequest.findMany({
-        where,
-        include: {
-          patient: true,
-          asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+    const requests = await this.prisma.examRequest.findMany({
+      where,
+      include: {
+        patient: true,
+        asoDocuments: { orderBy: { signedAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-      return requests.map((r) => [
-        r.patient.name,
-        r.patient.cpf,
-        r.patient.functionCboCode ?? '',
-        r.examPurpose,
-        r.createdAt.toISOString().split('T')[0],
-        r.asoDocuments[0]?.decision ?? '',
-        r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
-      ]);
-    }
-
-    /**
-     * Encontra a melhor clínica para uma empresa baseado em:
-     * 1. Clínica Matriz da empresa (se definida)
-     * 2. Clínica na mesma cidade/estado
-     * 3. Clínica Matriz no mesmo estado
-     * 4. Qualquer clínica ativa
-     */
-    async findBestClinicForCompany(companyId: string) {
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: {
-          id: true,
-          city: true,
-          state: true,
-          lat: true,
-          lng: true,
-          clinicId: true,
-          clinic: {
-            select: { id: true, name: true, isMatriz: true, city: true, state: true }
-          }
-        },
-      });
-
-      if (!company) throw new Error('Empresa não encontrada');
-
-      // 1. Se empresa já tem clínica atribuída e é Matriz, usa ela
-      if (company.clinicId && company.clinic?.isMatriz) {
-        return company.clinic;
-      }
-
-      // 2. Buscar clínica Matriz na mesma cidade/estado
-      const matrizSameCity = await this.prisma.clinic.findFirst({
-        where: {
-          isActive: true,
-          isMatriz: true,
-          city: company.city,
-          state: company.state,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-      if (matrizSameCity) return matrizSameCity;
-
-      // 3. Buscar qualquer clínica ativa na mesma cidade/estado
-      const sameCity = await this.prisma.clinic.findFirst({
-        where: {
-          isActive: true,
-          city: company.city,
-          state: company.state,
-        },
-        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
-      });
-      if (sameCity) return sameCity;
-
-      // 4. Buscar clínica Matriz no mesmo estado
-      const matrizSameState = await this.prisma.clinic.findFirst({
-        where: {
-          isActive: true,
-          isMatriz: true,
-          state: company.state,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-      if (matrizSameState) return matrizSameState;
-
-      // 5. Qualquer clínica ativa (fallback)
-      const anyClinic = await this.prisma.clinic.findFirst({
-        where: { isActive: true },
-        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
-      });
-      if (anyClinic) return anyClinic;
-
-      return null;
-    }
+    return requests.map((r) => [
+      r.patient.name,
+      r.patient.cpf,
+      r.patient.functionCboCode ?? '',
+      r.examPurpose,
+      r.createdAt.toISOString().split('T')[0],
+      r.asoDocuments[0]?.decision ?? '',
+      r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
+    ].map((value) => {
+      const safeValue = String(value ?? '');
+      return /[",;\n\r]/.test(safeValue) ? `"${safeValue.replace(/"/g, '""')}"` : safeValue;
+    }).join(';'));
   }
+
+  /**
+   * Encontra a melhor clínica para uma empresa baseado em:
+   * 1. Clínica Matriz da empresa (se definida)
+   * 2. Clínica na mesma cidade/estado
+   * 3. Clínica Matriz no mesmo estado
+   * 4. Qualquer clínica ativa
+   */
+  async findBestClinicForCompany(companyId: string, ignoreCurrentAssignment = false) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        city: true,
+        state: true,
+        lat: true,
+        lng: true,
+        clinicId: true,
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+            isMatriz: true,
+            city: true,
+            state: true,
+          },
+        },
+      },
+    });
+
+    if (!company) throw new Error('Empresa não encontrada');
+
+    // 1. Se empresa já tem clínica atribuída e é Matriz, usa ela
+    if (!ignoreCurrentAssignment && company.clinicId && company.clinic?.isMatriz) {
+      return company.clinic;
+    }
+
+    if (company.lat !== null && company.lng !== null) {
+      const clinics = await this.prisma.clinic.findMany({
+        where: { isActive: true, lat: { not: null }, lng: { not: null } },
+      });
+      const nearest = clinics
+        .map((clinic) => ({
+          clinic,
+          distance: this.distanceKm(company.lat!, company.lng!, clinic.lat!, clinic.lng!),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (nearest && nearest.distance <= 100) return nearest.clinic;
+    }
+
+    // 2. Buscar clínica Matriz na mesma cidade/estado
+    const matrizSameCity = await this.prisma.clinic.findFirst({
+      where: {
+        isActive: true,
+        isMatriz: true,
+        city: company.city,
+        state: company.state,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (matrizSameCity) return matrizSameCity;
+
+    // 3. Buscar qualquer clínica ativa na mesma cidade/estado
+    const sameCity = await this.prisma.clinic.findFirst({
+      where: {
+        isActive: true,
+        city: company.city,
+        state: company.state,
+      },
+      orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (sameCity) return sameCity;
+
+    // 4. Buscar clínica Matriz no mesmo estado
+    const matrizSameState = await this.prisma.clinic.findFirst({
+      where: {
+        isActive: true,
+        isMatriz: true,
+        state: company.state,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (matrizSameState) return matrizSameState;
+
+    // 5. Qualquer clínica ativa (fallback)
+    const anyClinic = await this.prisma.clinic.findFirst({
+      where: { isActive: true },
+      orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (anyClinic) return anyClinic;
+
+    return null;
+  }
+
+  private distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const a =
+      Math.sin((toRadians(lat2) - toRadians(lat1)) / 2) ** 2 +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin((toRadians(lng2) - toRadians(lng1)) / 2) ** 2;
+    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+}

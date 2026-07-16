@@ -8,6 +8,7 @@ import {
 import { apiFetch, getProfileIdFromToken } from "../../lib/api";
 import { apiGetMedicoProfile } from "@/lib/api";
 import FaqHelp from "../../../components/FaqHelp";
+import { maskPhone, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 type TabType = "perfil" | "seguranca" | "assinatura";
 
@@ -104,7 +105,7 @@ export default function MedicoConfiguracaoPage() {
         body: JSON.stringify({
           city: formCity || null,
           state: formState || null,
-          phone: formPhone,
+          phone: formPhone.replace(/\D/g, ''),
           contactEmail: formContactEmail.trim() || undefined,
         }),
       });
@@ -285,8 +286,9 @@ export default function MedicoConfiguracaoPage() {
                     type="tel"
                     className="form-input"
                     value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
+                    onChange={(e) => setFormPhone(maskPhone(e.target.value))}
                     placeholder="(00) 00000-0000"
+                    maxLength={FIELD_LIMITS.PHONE}
                   />
                 </div>
                 <div className="form-group">
@@ -297,6 +299,7 @@ export default function MedicoConfiguracaoPage() {
                     value={formContactEmail}
                     onChange={(e) => setFormContactEmail(e.target.value)}
                     placeholder="contato@exemplo.com"
+                    maxLength={FIELD_LIMITS.EMAIL}
                   />
                 </div>
                 <div className="form-group">
@@ -307,6 +310,7 @@ export default function MedicoConfiguracaoPage() {
                     value={formCity}
                     onChange={(e) => setFormCity(e.target.value)}
                     placeholder="Ex: São Paulo"
+                    maxLength={FIELD_LIMITS.CITY}
                   />
                 </div>
                 <div className="form-group">

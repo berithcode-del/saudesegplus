@@ -183,8 +183,8 @@ export class CompanyController {
   @UseGuards(CompanyScopeGuard)
   async relatorio(@Param('id') id: string, @Res() res: Response, @Query('de') de?: string, @Query('ate') ate?: string) {
     const dados = await this.companyService.gerarRelatorio(id, de, ate);
-    const header = 'Nome,CPF,CBO,Tipo Exame,Data,Decisao ASO,Validade ASO\n';
-    const csv = header + dados.map(row => row.map(v => `"${v}"`).join(',')).join('\n');
+    const header = 'Nome;CPF;CBO;Tipo Exame;Data;Decisao ASO;Validade ASO\n';
+    const csv = header + dados.join('\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="relatorio-${id}.csv"`);
     res.send('\uFEFF' + csv);

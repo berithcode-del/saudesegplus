@@ -4,6 +4,7 @@ import { CheckCircleIcon, ClockIcon, XMarkIcon, PlusCircleIcon } from '@heroicon
 import { apiFetch } from '../../lib/api';
 import FaqHelp from '../../../components/FaqHelp';
 import React from 'react';
+import { maskPhone, maskCNPJ as maskCnpjUtil, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 interface ClinicData {
   name: string;
@@ -227,7 +228,7 @@ export default function ConsultorioConfiguracoesPage() {
           address: clinicData.address,
           city: clinicData.city,
           state: clinicData.state,
-          phone: clinicData.phone,
+          phone: clinicData.phone.replace(/\D/g, ''),
           contactEmail: clinicData.contactEmail,
         }),
       });
@@ -315,19 +316,19 @@ export default function ConsultorioConfiguracoesPage() {
             </div>
             <div className="form-group">
               <label className="form-label">Endereço</label>
-              <input type="text" className="form-input" value={clinicData.address} onChange={(e) => setClinicData({ ...clinicData, address: e.target.value })} />
+              <input type="text" className="form-input" value={clinicData.address} onChange={(e) => setClinicData({ ...clinicData, address: e.target.value })} maxLength={FIELD_LIMITS.ADDRESS} />
             </div>
             <div className="form-group">
               <label className="form-label">Telefone de Contato</label>
-              <input type="text" className="form-input" value={clinicData.phone} onChange={(e) => setClinicData({ ...clinicData, phone: e.target.value })} placeholder="(00) 0000-0000" />
+              <input type="tel" className="form-input" value={clinicData.phone} onChange={(e) => setClinicData({ ...clinicData, phone: maskPhone(e.target.value) })} placeholder="(00) 00000-0000" maxLength={FIELD_LIMITS.PHONE} />
             </div>
             <div className="form-group">
               <label className="form-label">E-mail de Contato</label>
-              <input type="email" className="form-input" value={clinicData.contactEmail} onChange={(e) => setClinicData({ ...clinicData, contactEmail: e.target.value })} placeholder="contato@clinica.com.br" />
+              <input type="email" className="form-input" value={clinicData.contactEmail} onChange={(e) => setClinicData({ ...clinicData, contactEmail: e.target.value })} placeholder="contato@clinica.com.br" maxLength={FIELD_LIMITS.EMAIL} />
             </div>
             <div className="form-group">
               <label className="form-label">Cidade</label>
-              <input type="text" className="form-input" value={clinicData.city} onChange={(e) => setClinicData({ ...clinicData, city: e.target.value })} />
+              <input type="text" className="form-input" value={clinicData.city} onChange={(e) => setClinicData({ ...clinicData, city: e.target.value })} maxLength={FIELD_LIMITS.CITY} />
             </div>
             <div className="form-group">
               <label className="form-label">Estado</label>

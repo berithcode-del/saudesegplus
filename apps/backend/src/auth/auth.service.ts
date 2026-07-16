@@ -15,7 +15,7 @@ export class AuthService {
       where: { email },
       include: {
         doctorProfile: true,
-        operatorProfile: true,
+        operatorProfile: { include: { clinic: true } },
         patientProfile: true,
         companyAdminProfile: { include: { company: true } },
         clinicProfile: true,
@@ -55,7 +55,7 @@ export class AuthService {
       where: { id: userId },
       include: {
         doctorProfile: true,
-        operatorProfile: true,
+        operatorProfile: { include: { clinic: true } },
         patientProfile: true,
         companyAdminProfile: { include: { company: true } },
         clinicProfile: true,
