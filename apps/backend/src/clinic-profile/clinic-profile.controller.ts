@@ -57,21 +57,22 @@ export class ClinicProfileController {
     const userId = req.user.sub;
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true },
+      include: { clinicProfile: true, operatorProfile: { include: { clinic: true } } },
     });
-    if (!user?.clinicProfile) {
+    const clinic = user?.clinicProfile ?? user?.operatorProfile?.clinic;
+    if (!clinic) {
       return null;
     }
     return {
-      id: user.clinicProfile.id,
-      name: user.clinicProfile.name,
-      cnpj: user.clinicProfile.cnpj,
-      address: user.clinicProfile.address,
-      city: user.clinicProfile.city,
-      state: user.clinicProfile.state,
-      phone: user.clinicProfile.phone,
-      contactEmail: user.clinicProfile.contactEmail,
-      email: user.email,
+      id: clinic.id,
+      name: clinic.name,
+      cnpj: clinic.cnpj,
+      address: clinic.address,
+      city: clinic.city,
+      state: clinic.state,
+      phone: clinic.phone,
+      contactEmail: clinic.contactEmail,
+      email: user!.email,
     };
   }
 
@@ -83,7 +84,7 @@ export class ClinicProfileController {
     const userId = req.user.sub;
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true },
+      include: { clinicProfile: true, operatorProfile: { select: { clinicId: true } } },
     });
     if (!user?.clinicProfile) {
       return { success: false, message: 'Perfil de clínica não encontrado' };
@@ -108,9 +109,9 @@ export class ClinicProfileController {
   private async getOwnClinicId(userId: string): Promise<string | null> {
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true },
+      include: { clinicProfile: true, operatorProfile: { select: { clinicId: true } } },
     });
-    return user?.clinicProfile?.id ?? null;
+    return user?.clinicProfile?.id ?? user?.operatorProfile?.clinicId ?? null;
   }
 
   // ─── Operators ───────────────────────────────────────────────────────────

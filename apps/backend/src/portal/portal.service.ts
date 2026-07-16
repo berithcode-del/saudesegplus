@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { getJwtSecret } from '../auth/jwt-secret';
+import { getJwtSecret, getPortalJwtExpiresIn } from '../auth/jwt-secret';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { readFile } from 'fs/promises';
@@ -95,20 +95,15 @@ export class PortalService {
     }
 
     if (!examRequest) {
+      const resolvedClinic = await this.findBestClinicForInvite(
+        invite.companyId,
+        invite.clinicId ?? invite.company.clinicId ?? null,
+      );
           // Se a empresa não tem clínica atribuída, pega a primeira ativa disponível
-          let resolvedClinicId = invite.clinicId ?? invite.company.clinicId ?? null;
-          if (!resolvedClinicId) {
-            const fallbackClinic = await this.prisma.clinic.findFirst({
-              where: { isActive: true },
-              orderBy: { createdAt: 'asc' },
-            });
-            resolvedClinicId = fallbackClinic?.id ?? null;
-          }
-
       examRequest = await this.prisma.examRequest.create({
         data: {
           patientId: patient.id,
-          clinicId: resolvedClinicId ?? undefined,
+          clinicId: resolvedClinic?.id,
           inviteId: invite.id,
           source: 'convite_empresa',
           examPurpose: invite.examType,
@@ -139,7 +134,7 @@ export class PortalService {
 
     const sessionToken = this.jwtService.sign(
       { sub: patient.id, processId: examRequest.id, role: 'PORTAL' },
-      { secret: getJwtSecret(), expiresIn: '4h' },
+      { secret: getJwtSecret(), expiresIn: getPortalJwtExpiresIn() as any },
     );
 
     // Apenas garante que não foi expirado
@@ -340,7 +335,7 @@ export class PortalService {
     }
 
     const updateData: any = {};
-    if (phone !== undefined) updateData.phone = phone;
+    if (phone !== undefined) updateData.phone = phone.trim();
 
     if (Object.keys(updateData).length > 0) {
       await this.prisma.patient.update({
@@ -426,6 +421,14 @@ export class PortalService {
     });
     if (!request || request.patientId !== patientId) {
       throw new NotFoundException('Processo não encontrado');
+    }
+
+    if (!data.declaracaoVeracidade) {
+      throw new BadRequestException('Confirme a veracidade das informações para continuar');
+    }
+
+    if (data.tabagismo !== 'nao' && !data.tabagismoDetalhe?.trim()) {
+      throw new BadRequestException('Informe o detalhe do tabagismo para continuar');
     }
 
     const anamneseData: any = {};
@@ -558,6 +561,85 @@ export class PortalService {
     } catch {
       throw new NotFoundException('ASO nao encontrado');
     }
+  }
+
+  private async findBestClinicForInvite(companyId: string, preferredClinicId: string | null) {
+    if (preferredClinicId) {
+      const preferredClinic = await this.prisma.clinic.findFirst({
+        where: { id: preferredClinicId, isActive: true },
+      });
+      if (preferredClinic) {
+        return preferredClinic;
+      }
+    }
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        city: true,
+        state: true,
+        lat: true,
+        lng: true,
+      },
+    });
+
+    if (company?.lat != null && company?.lng != null) {
+      const clinics = await this.prisma.clinic.findMany({
+        where: { isActive: true, lat: { not: null }, lng: { not: null } },
+      });
+      const nearest = clinics
+        .map((clinic) => ({
+          clinic,
+          distance: this.distanceKm(company.lat!, company.lng!, clinic.lat!, clinic.lng!),
+        }))
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      if (nearest && nearest.distance <= 100) {
+        return nearest.clinic;
+      }
+    }
+
+    if (company?.city && company?.state) {
+      const sameCity = await this.prisma.clinic.findFirst({
+        where: {
+          isActive: true,
+          city: company.city,
+          state: company.state,
+        },
+        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+      });
+      if (sameCity) {
+        return sameCity;
+      }
+    }
+
+    if (company?.state) {
+      const sameState = await this.prisma.clinic.findFirst({
+        where: {
+          isActive: true,
+          state: company.state,
+        },
+        orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+      });
+      if (sameState) {
+        return sameState;
+      }
+    }
+
+    return this.prisma.clinic.findFirst({
+      where: { isActive: true },
+      orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  private distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const a =
+      Math.sin((toRadians(lat2) - toRadians(lat1)) / 2) ** 2 +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin((toRadians(lng2) - toRadians(lng1)) / 2) ** 2;
+    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   async preview(token: string) {

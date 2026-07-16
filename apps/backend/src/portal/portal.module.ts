@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { getJwtSecret } from '../auth/jwt-secret';
+import { getJwtSecret, getPortalJwtExpiresIn } from '../auth/jwt-secret';
 import { PortalController } from './portal.controller';
 import { PortalService } from './portal.service';
 import { PortalSessionGuard } from './portal-session.guard';
@@ -13,7 +13,7 @@ import { PresenceModule } from '../presence/presence.module';
   imports: [
     JwtModule.register({
       secret: getJwtSecret(),
-      signOptions: { expiresIn: '4h' },
+      signOptions: { expiresIn: getPortalJwtExpiresIn() as any },
     }),
     QueueModule,
     CompanyModule,

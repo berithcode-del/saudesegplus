@@ -7,7 +7,7 @@ import PatientQueueTable from '../../components/consultorio/PatientQueueTable';
 import QuickActionsClinic from '../../components/consultorio/QuickActionsClinic';
 import DailyFlowChart from '../../components/consultorio/DailyFlowChart';
 import ScheduleCalendar from '../../components/dashboard/ScheduleCalendar';
-import { apiGetEvents, apiFetch } from '../../lib/api';
+import { apiGetEvents, apiFetch, apiListSolicitacoes } from '../../lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -49,11 +49,10 @@ export default function ConsultorioDashboard() {
         setClinicName(currentClinicName);
 
         const [solRes, eventsData] = await Promise.all([
-          fetch(`${BACKEND_URL}/api/solicitacoes`),
+          apiListSolicitacoes(),
           apiGetEvents('clinic', currentClinicId),
         ]);
-        const result = await solRes.json();
-        const apiData = result.data?.data || result.data || [];
+        const apiData = solRes.data?.data || solRes.data || [];
         const data = Array.isArray(apiData) ? apiData : [];
         setSolicitacoes(data);
         if (eventsData) setEvents(eventsData);

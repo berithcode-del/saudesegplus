@@ -1,14 +1,11 @@
 import {
+  ConflictException,
   Injectable,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PaymentFlow, PaymentStatus } from '@prisma/client';
-import { PrismaService } from '../prisma.service';
-import { CompanyGateway } from '../company/company.gateway';
-import { QueueService } from '../queue/queue.service';
-import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ExamsService {
@@ -103,16 +100,27 @@ export class ExamsService {
       });
     }
 
-    const result = await this.prisma.examResult.create({
-      data: {
-        requestId: examRequestId,
-        typeId: examTypeRecord.id,
-        valueJson: JSON.stringify(valueJson),
-        attachmentUrl: attachmentUrl || null,
-        collectedById: operator.id,
-        source: 'manual',
-      },
-    });
+    let result;
+    try {
+      result = await this.prisma.examResult.create({
+        data: {
+          requestId: examRequestId,
+          typeId: examTypeRecord.id,
+          valueJson: JSON.stringify(valueJson),
+          attachmentUrl: attachmentUrl || null,
+          collectedById: operator.id,
+          source: 'manual',
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Este exame ja foi registrado para a solicitacao.');
+      }
+      throw error;
+    }
 
     await this.prisma.examRequest.update({
       where: { id: examRequestId },

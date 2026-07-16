@@ -269,6 +269,8 @@ model ExamResult {
   collectedBy   Operator    @relation(fields: [collectedById], references: [id])
   request       ExamRequest @relation(fields: [requestId], references: [id])
   type          ExamType    @relation(fields: [typeId], references: [id])
+
+  @@unique([requestId, typeId])
 }
 
 model QueueEntry {
