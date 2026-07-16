@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PaymentFlow, PaymentStatus } from '@prisma/client';
+import { PrismaService } from '../prisma.service';
+import { CompanyGateway } from '../company/company.gateway';
+import { QueueService } from '../queue/queue.service';
+import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ExamsService {
