@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Request } from '@nestjs/common';
 import { ExamsService } from './exams.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -29,16 +29,40 @@ export class ExamsController {
 
   @Post()
   @Roles('ADMIN', 'CLINIC', 'OPERATOR')
-  async create(@Body() body: {
-    examRequestId: string;
-    examType?: string;
-    valueJson?: Record<string, any>;
-    attachmentUrl?: string;
-    results?: Array<{ examType: string; valueJson: Record<string, any>; attachmentUrl?: string }>;
-  }) {
-    const items = body.results ?? [{ examType: body.examType!, valueJson: body.valueJson!, attachmentUrl: body.attachmentUrl }];
+  async create(
+    @Body()
+    body: {
+      examRequestId: string;
+      examType?: string;
+      valueJson?: Record<string, any>;
+      attachmentUrl?: string;
+      operatorId?: string;
+      results?: Array<{
+        examType: string;
+        valueJson: Record<string, any>;
+        attachmentUrl?: string;
+      }>;
+    },
+    @Request() req: { user: { role: string; profileId?: string | null } },
+  ) {
+    const items = body.results ?? [
+      {
+        examType: body.examType!,
+        valueJson: body.valueJson!,
+        attachmentUrl: body.attachmentUrl,
+      },
+    ];
     const created = await Promise.all(
-      items.map(item => this.examsService.createExam(body.examRequestId, item.examType, item.valueJson, item.attachmentUrl))
+      items.map((item) =>
+        this.examsService.createExam(
+          body.examRequestId,
+          item.examType,
+          item.valueJson,
+          item.attachmentUrl,
+          req.user,
+          body.operatorId,
+        ),
+      ),
     );
     return { success: true, data: created };
   }
@@ -52,15 +76,19 @@ export class ExamsController {
 
   @Post('create-patient')
   @Roles('ADMIN', 'CLINIC', 'OPERATOR')
-  async createPatient(@Body() body: {
-    name: string;
-    cpf: string;
-    phone?: string;
-    functionCboCode?: string;
-    examPurpose: string;
-    clinicId?: string;
-    inviteId?: string;
-  }) {
+  async createPatient(
+    @Body()
+    body: {
+      name: string;
+      cpf: string;
+      phone?: string;
+      functionCboCode?: string;
+      examPurpose: string;
+      clinicId?: string;
+      inviteId?: string;
+      paymentId: string;
+    },
+  ) {
     const result = await this.examsService.createPatient(body);
     return { success: true, data: result };
   }
