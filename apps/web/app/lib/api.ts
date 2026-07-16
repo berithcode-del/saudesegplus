@@ -115,6 +115,55 @@ export async function apiGetRequiredExams(cboCode: string) {
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
+export interface PaymentQuoteItem {
+  code: string;
+  name: string;
+  category: string;
+  amount: number;
+}
+
+export interface PaymentQuote {
+  cboCode?: string;
+  examPurpose?: string;
+  items: PaymentQuoteItem[];
+  total: number;
+}
+
+export async function apiQuotePayment(payload: {
+  cboCode?: string;
+  examPurpose?: string;
+  specialClearances?: string[];
+}) {
+  return apiFetch('/api/financial/quotes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiCreatePayment(payload: {
+  flow: 'COMPANY_INVITE' | 'CLINIC_WALK_IN';
+  companyId?: string;
+  clinicId?: string;
+  method?: string;
+  cboCode?: string;
+  examPurpose?: string;
+  specialClearances?: string[];
+  checkoutPayload?: Record<string, unknown>;
+  externalId?: string;
+}) {
+  return apiFetch('/api/financial/payments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiConfirmPayment(id: string, method = 'SIMULADO') {
+  return apiFetch(`/api/financial/payments/${id}/confirm`, {
+    method: 'PATCH',
+    body: JSON.stringify({ method }),
+  });
+}
+
 export async function apiGetDocumentos(companyId: string) {
   return apiFetch(`/api/upload/documents/${companyId}`);
 }
