@@ -12,6 +12,10 @@ import { apiGetDocumentos, apiUploadDocumento, apiGetCompanyStatusCheck } from '
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
+function resolveFileUrl(fileUrl: string) {
+  return /^https?:\/\//i.test(fileUrl) ? fileUrl : `${BACKEND_URL}${fileUrl}`;
+}
+
 interface CompanyDocument {
   id: string;
   companyId: string;
@@ -366,7 +370,7 @@ export default function DocumentosPage() {
                   <td>{formatDate(doc.uploadedAt)}</td>
                   <td>
                     <a
-                      href={`${BACKEND_URL}${doc.fileUrl}`}
+                      href={resolveFileUrl(doc.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-ghost"

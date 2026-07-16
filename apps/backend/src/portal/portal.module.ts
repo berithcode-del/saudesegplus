@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma.service';
 import { QueueModule } from '../queue/queue.module';
 import { CompanyModule } from '../company/company.module';
 import { PresenceModule } from '../presence/presence.module';
+import { ConfigModule } from '@nestjs/config';
+import { SupabaseStorageService } from '../upload/supabase-storage.service';
 
 @Module({
   imports: [
@@ -18,9 +20,10 @@ import { PresenceModule } from '../presence/presence.module';
     QueueModule,
     CompanyModule,
     PresenceModule,
+    ConfigModule,
   ],
   controllers: [PortalController],
-  providers: [PortalService, PortalSessionGuard, PrismaService],
+  providers: [PortalService, PortalSessionGuard, PrismaService, SupabaseStorageService],
   exports: [PortalSessionGuard, JwtModule],
 })
 export class PortalModule {}
