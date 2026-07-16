@@ -36,6 +36,7 @@ interface Solicitacao {
   status: string;
   patient: { name: string; cpf: string; functionCboCode: string };
   clinic?: { name: string } | null;
+  results?: Array<{ id: string; type?: { name: string } | null; valueJson?: { nome_exame?: string } }>;
 }
 
 export default function ExamPage() {
@@ -47,7 +48,7 @@ export default function ExamPage() {
   const [error, setError] = useState('');
   const [examType, setExamType] = useState('audiometria');
   const [isFormValid, setIsFormValid] = useState(false);
-  const [examsSaved, setExamsSaved] = useState(false);
+  const [savedExamCount, setSavedExamCount] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [observacao, setObservacao] = useState('');
   const [nomeOutroExame, setNomeOutroExame] = useState('');
@@ -57,13 +58,23 @@ export default function ExamPage() {
   useEffect(() => {
     const fetchSolicitacao = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/solicitacoes/${params.id}`);
+        const token = getAuthToken();
+        const res = await fetch(`${BACKEND_URL}/api/solicitacoes/${params.id}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
         const result = await res.json();
         if (result.data) {
           setSolicitacao(result.data);
+          setSavedExamCount(result.data.results?.length ?? 0);
           
           if (result.data.patient?.functionCboCode) {
-            const reqRes = await fetch(`${BACKEND_URL}/api/exams/required?cboCode=${result.data.patient.functionCboCode}`);
+            const reqRes = await fetch(`${BACKEND_URL}/api/exams/required?cboCode=${result.data.patient.functionCboCode}`, {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            });
             const reqData = await reqRes.json();
             if (reqData.success && reqData.data?.requiredExams) {
               setRequiredExams(reqData.data.requiredExams);
@@ -125,7 +136,10 @@ export default function ExamPage() {
 
       const res = await fetch(`${BACKEND_URL}/api/exams`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+        },
         body: JSON.stringify({
           examRequestId: params.id,
           examType: examType,
@@ -135,7 +149,7 @@ export default function ExamPage() {
       });
       const result = await res.json();
       if (res.ok && result.success) {
-        setExamsSaved(true);
+        setSavedExamCount(count => count + 1);
         setFile(null);
         setObservacao('');
         setNomeOutroExame('');
@@ -155,6 +169,9 @@ export default function ExamPage() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/exams/${params.id}/send-to-queue`, {
         method: 'POST',
+        headers: {
+          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+        },
       });
       const result = await res.json();
       if (result.success) {
@@ -293,17 +310,32 @@ export default function ExamPage() {
           />
         </div>
 
+        {savedExamCount > 0 && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px 14px',
+            borderRadius: '12px',
+            background: 'rgba(34,197,94,0.08)',
+            border: '1px solid rgba(34,197,94,0.2)',
+            color: '#15803d',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}>
+            {savedExamCount} exame{savedExamCount > 1 ? 's' : ''} anexado{savedExamCount > 1 ? 's' : ''}. Você pode anexar outro exame ou enviar para a fila médica.
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
           <button
             className="btn btn-primary"
-            disabled={!isFormValid || saving || examsSaved}
+            disabled={!isFormValid || saving}
             onClick={handleSaveExams}
           >
             {saving ? 'Salvando...' : 'Salvar Exames'}
           </button>
           <button
             className="btn btn-success"
-            disabled={!examsSaved || saving}
+            disabled={savedExamCount === 0 || saving}
             onClick={handleSendToQueue}
           >
             {saving ? 'Enviando...' : (<><PaperAirplaneIcon className="icon" /> Enviar para Fila Médica</>)}

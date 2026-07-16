@@ -16,6 +16,9 @@ interface Solicitacao {
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   AGUARDANDO_COLETA: { label: 'Aguardando Coleta', color: '#f59e0b' },
+  DOCUMENTOS_PENDENTES: { label: 'Documentos Pendentes', color: '#f59e0b' },
+  QUESTIONARIO_PENDENTE: { label: 'Questionário Pendente', color: '#f59e0b' },
+  AGUARDANDO_EXAMES: { label: 'Aguardando Exames', color: '#f59e0b' },
   EM_COLETA: { label: 'Em Coleta', color: '#3b82f6' },
   NA_FILA_MEDICA: { label: 'Na Fila Médica', color: '#8b5cf6' },
   EM_ATENDIMENTO_MEDICO: { label: 'Em Atendimento', color: '#ec4899' },
@@ -76,7 +79,7 @@ export default function PacientesPage() {
 
       <div className="card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {['', 'AGUARDANDO_COLETA', 'EM_COLETA', 'NA_FILA_MEDICA', 'EM_ATENDIMENTO_MEDICO', 'CONCLUIDO'].map((status) => (
+          {['', 'AGUARDANDO_COLETA', 'AGUARDANDO_EXAMES', 'EM_COLETA', 'NA_FILA_MEDICA', 'EM_ATENDIMENTO_MEDICO', 'CONCLUIDO'].map((status) => (
             <button
               key={status}
               className={`btn ${filter === status ? 'btn-primary' : 'btn-ghost'}`}
@@ -117,13 +120,13 @@ export default function PacientesPage() {
                   </td>
                   <td>{getStatusBadge(sol.status)}</td>
                   <td>
-                    {(sol.status === 'AGUARDANDO_COLETA' || sol.status === 'EM_COLETA') && (
+                    {(['AGUARDANDO_COLETA', 'AGUARDANDO_EXAMES', 'EM_COLETA'].includes(sol.status)) && (
                       <Link
                         href={`/consultorio/exames/${sol.id}`}
                         className="btn btn-primary"
                         style={{ padding: '6px 14px', fontSize: '12px', textDecoration: 'none' }}
                       >
-                        Registrar Exames
+                        {sol.status === 'AGUARDANDO_EXAMES' ? 'Inserir Exames' : 'Registrar Exames'}
                       </Link>
                     )}
                   </td>
