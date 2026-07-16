@@ -43,7 +43,7 @@ export default function ConsultorioDashboard() {
         }
 
         const currentClinicId = clinicProfile?.id ?? operatorProfile.clinicId;
-        const currentClinicName = clinicProfile?.name ?? 'ClÃ­nica';
+        const currentClinicName = clinicProfile?.name ?? operatorProfile?.clinic?.name ?? 'Clínica';
 
         setClinicId(currentClinicId);
         setClinicName(currentClinicName);

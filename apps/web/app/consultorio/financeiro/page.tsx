@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   CurrencyDollarIcon, ArrowTrendingUpIcon, CheckCircleIcon, ClockIcon, CalendarIcon,
 } from '@heroicons/react/24/outline';
+import { apiFetch } from '../../lib/api';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
 const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -15,6 +15,7 @@ export default function ConsultorioFinanceiroPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOperator, setIsOperator] = useState(false);
 
   // Pega o clinicId do localStorage (salvo no login do operador)
   const clinicId = typeof window !== 'undefined' ? localStorage.getItem('clinicId') : null;
@@ -24,14 +25,30 @@ export default function ConsultorioFinanceiroPage() {
     try {
       const params = new URLSearchParams({ month: String(month), year: String(year), category: 'TAXA_CLINICA' });
       if (clinicId) params.set('clinicId', clinicId);
-      const r = await fetch(`${BACKEND_URL}/api/financial/transactions?${params}`);
-      const j = await r.json();
+      const j = await apiFetch(`/api/financial/transactions?${params}`) as any;
       setTransactions(Array.isArray(j.data) ? j.data : []);
     } catch { setTransactions([]); }
     finally { setLoading(false); }
   }, [month, year, clinicId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    apiFetch('/api/auth/me')
+      .then((result: any) => setIsOperator((result?.role ?? result?.user?.role) === 'OPERATOR'))
+      .catch(() => setIsOperator(false));
+  }, []);
+
+  if (isOperator) {
+    return (
+      <div className="card" style={{ padding: '24px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Acesso restrito</h2>
+        <p style={{ color: 'var(--text-secondary)' }}>
+          O financeiro da clínica fica disponível apenas para o administrador da clínica.
+        </p>
+      </div>
+    );
+  }
 
   const total = transactions.reduce((sum, t) => sum + t.amount, 0);
   const recebido = transactions.filter(t => t.status === 'PAGO').reduce((sum, t) => sum + t.amount, 0);
