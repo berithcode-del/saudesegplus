@@ -16,6 +16,7 @@ import {
   UpdateAdminClinicDto,
   UpdateAdminCompanyDto,
   UpdateAdminDoctorDto,
+  SetMatrizClinicDto,
 } from './dto/update-admin-profiles.dto';
 import { CompanyStatus } from '@prisma/client';
 
@@ -81,6 +82,14 @@ export class AdminController {
   @Delete('clinics/:id')
   async deleteClinic(@Param('id') id: string) {
     return this.adminService.deleteClinic(id);
+  }
+
+  @Patch('clinics/:id/matriz')
+  async setClinicAsMatriz(
+    @Param('id') id: string,
+    @Body() body: SetMatrizClinicDto,
+  ) {
+    return this.adminService.setClinicAsMatriz(id, body.setAsMatriz);
   }
 
   // ─── Doctors ─────────────────────────────────────────────────────────────

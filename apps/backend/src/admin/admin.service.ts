@@ -11,6 +11,7 @@ import {
   UpdateAdminClinicDto,
   UpdateAdminCompanyDto,
   UpdateAdminDoctorDto,
+  SetMatrizClinicDto,
 } from './dto/update-admin-profiles.dto';
 
 @Injectable()
@@ -260,6 +261,34 @@ export class AdminService {
     return { success: true };
   }
 
+  async setClinicAsMatriz(id: string, setAsMatriz: boolean) {
+    const clinic = await this.prisma.clinic.findUnique({ where: { id } });
+    if (!clinic) throw new NotFoundException('Clínica não encontrada');
+
+    if (setAsMatriz) {
+      // Se está definindo como matriz, desmarcar qualquer outra clínica que seja matriz no mesmo estado
+      await this.prisma.clinic.updateMany({
+        where: {
+          isMatriz: true,
+          state: clinic.state,
+          NOT: { id },
+        },
+        data: { isMatriz: false },
+      });
+    }
+
+    return this.prisma.clinic.update({
+      where: { id },
+      data: { isMatriz: setAsMatriz },
+      include: {
+        companies: true,
+        operators: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
+      },
+    });
+  }
+
   // ─── Doctors ─────────────────────────────────────────────────────────────
 
   private slugifyName(name: string): string {
@@ -355,7 +384,9 @@ export class AdminService {
     const { accessEmail, ...profileData } = data;
     const doctorData: Prisma.DoctorUpdateInput = {
       ...profileData,
-      ...(profileData.gender !== undefined ? { gender: this.normalizeGender(profileData.gender) } : {}),
+      ...(profileData.gender !== undefined
+        ? { gender: this.normalizeGender(profileData.gender) }
+        : {}),
       ...(profileData.crmNumber
         ? { crmNumber: profileData.crmNumber.trim() }
         : {}),
@@ -457,65 +488,66 @@ export class AdminService {
   // ─── Document Approval ─────────────────────────────────────────────────────
 
   async approveCompanyDocumentation(companyId: string, approvedBy: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        status: true,
-        pcmsoValidUntil: true,
-        ppraValidUntil: true,
-        razaoSocial: true,
-      },
-    });
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          status: true,
+          pcmsoValidUntil: true,
+          ppraValidUntil: true,
+          razaoSocial: true,
+        },
+      });
 
-    if (!company) {
-      throw new NotFoundException('Empresa não encontrada');
+      if (!company) {
+        throw new NotFoundException('Empresa não encontrada');
+      }
+
+      const now = new Date();
+      const pcmsoValid =
+        company.pcmsoValidUntil && company.pcmsoValidUntil > now;
+      const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
+
+      if (!pcmsoValid || !ppraValid) {
+        throw new BadRequestException(
+          `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`,
+        );
+      }
+
+      await this.prisma.company.update({
+        where: { id: companyId },
+        data: {
+          status: 'LIBERADA',
+          updatedAt: now,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Empresa ${company.razaoSocial} aprovada e liberada para operação.`,
+        companyId: company.id,
+        approvedAt: now,
+        approvedBy,
+      };
     }
 
-    const now = new Date();
-    const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
-    const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
-
-    if (!pcmsoValid || !ppraValid) {
-      throw new BadRequestException(
-        `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`,
-      );
-    }
-
-    await this.prisma.company.update({
-      where: { id: companyId },
-      data: {
-        status: 'LIBERADA',
-        updatedAt: now,
-      },
-    });
-
-    return {
-      success: true,
-      message: `Empresa ${company.razaoSocial} aprovada e liberada para operação.`,
-      companyId: company.id,
-      approvedAt: now,
-      approvedBy,
-    };
-  }
-
-  async getCompaniesPendingApproval() {
-    return this.prisma.company.findMany({
-      where: {
-        status: { in: ['CADASTRO_INCOMPLETO', 'EM_ANALISE'] },
-      },
-      include: {
-        documents: {
-          where: {
-            type: { in: ['PCMSO', 'PPRA'] },
+    async getCompaniesPendingApproval() {
+      return this.prisma.company.findMany({
+        where: {
+          status: { in: ['CADASTRO_INCOMPLETO', 'EM_ANALISE'] },
+        },
+        include: {
+          documents: {
+            where: {
+              type: { in: ['PCMSO', 'PPRA'] },
+            },
+            orderBy: { uploadedAt: 'desc' },
           },
-          orderBy: { uploadedAt: 'desc' },
+          admins: {
+            include: { user: { select: { id: true, email: true, role: true } } },
+          },
         },
-        admins: {
-          include: { user: { select: { id: true, email: true, role: true } } },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+        orderBy: { updatedAt: 'desc' },
+      });
+    }
   }
-}

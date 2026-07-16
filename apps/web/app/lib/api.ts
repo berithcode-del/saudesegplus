@@ -187,6 +187,13 @@ export async function apiAdminCreateClinic(data: Record<string, unknown>) {
   });
 }
 
+export async function apiAdminSetClinicMatriz(id: string, setAsMatriz: boolean) {
+  return apiFetch(`/api/admin/clinics/${id}/matriz`, {
+    method: 'PATCH',
+    body: JSON.stringify({ setAsMatriz }),
+  });
+}
+
 export async function apiAdminListDoctors() {
   const r = await apiFetch('/api/admin/doctors');
   const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];

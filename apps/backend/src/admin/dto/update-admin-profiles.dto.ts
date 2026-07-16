@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsBoolean,
   ValidateIf,
 } from 'class-validator';
 
@@ -63,4 +64,9 @@ export class UpdateAdminClinicDto {
   @ValidateIf((_o, value) => value !== '')
   @IsEmail()
   accessEmail?: string;
+}
+
+export class SetMatrizClinicDto {
+  @IsBoolean()
+  setAsMatriz: boolean;
 }

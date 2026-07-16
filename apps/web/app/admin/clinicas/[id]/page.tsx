@@ -21,6 +21,7 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [settingMatriz, setSettingMatriz] = useState(false);
 
   const fetchClinic = async () => {
     setLoading(true);
@@ -62,6 +63,22 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
     router.push('/admin/clinicas');
   };
 
+  const handleSetMatriz = async (setAsMatriz: boolean) => {
+    const message = setAsMatriz
+      ? `Tem certeza que deseja definir "${clinic?.name}" como Clínica Matriz? Isso removerá o status de Matriz de qualquer outra clínica no mesmo estado.`
+      : `Tem certeza que deseja remover o status de Clínica Matriz de "${clinic?.name}"?`;
+    if (!window.confirm(message)) return;
+    setSettingMatriz(true);
+    try {
+      await apiFetch(`/api/admin/clinics/${id}/matriz`, {
+        method: 'PATCH',
+        body: JSON.stringify({ setAsMatriz }),
+      });
+      fetchClinic();
+    } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao alterar status de Matriz.'); }
+    finally { setSettingMatriz(false); }
+  };
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>;
   if (!clinic) return <div style={{ padding: '40px', textAlign: 'center', color: '#dc2626' }}>Clínica não encontrada.</div>;
 
@@ -79,13 +96,24 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
               {[clinic.city, clinic.state].filter(Boolean).join(' · ')} · CNPJ: {clinic.cnpj}
             </p>
           </div>
-          <span style={{
-            marginLeft: 'auto', padding: '4px 14px', borderRadius: '20px', fontSize: 13, fontWeight: 600,
-            background: clinic.isActive ? '#dcfce7' : '#fee2e2',
-            color: clinic.isActive ? '#16a34a' : '#dc2626',
-          }}>
-            {clinic.isActive ? '● Ativa' : '● Inativa'}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            <span style={{
+              marginLeft: 'auto', padding: '4px 14px', borderRadius: '20px', fontSize: 13, fontWeight: 600,
+              background: clinic.isActive ? '#dcfce7' : '#fee2e2',
+              color: clinic.isActive ? '#16a34a' : '#dc2626',
+            }}>
+              {clinic.isActive ? '● Ativa' : '● Inativa'}
+            </span>
+            {clinic.isMatriz && (
+              <span style={{
+                padding: '4px 14px', borderRadius: '20px', fontSize: 13, fontWeight: 600,
+                background: '#fef3c7', color: '#92400e',
+                display: 'flex', alignItems: 'center', gap: '6px'
+              }}>
+                <BuildingStorefrontIcon style={{ width: 14, height: 14 }} /> Matriz
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -159,6 +187,47 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
             <div><span style={{ fontWeight: 600, color: '#6b7280', fontSize: 12, textTransform: 'uppercase' }}>Exames Realizados</span><p style={{ margin: '4px 0 0' }}>{clinic.examRequests?.length ?? 0}</p></div>
           </div>
         )}
+      </div>
+
+      {/* Matriz Toggle */}
+      <div className="card" style={{ marginBottom: 20, border: '1px solid #fcd34d', background: '#fffbeb' }}>
+        <h3 style={{ margin: '0 0 8px', color: '#92400e', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <BuildingStorefrontIcon style={{ width: 20, height: 20 }} /> Status de Clínica Matriz
+        </h3>
+        <p style={{ margin: '0 0 16px', fontSize: 14, color: '#6b7280' }}>
+          A Clínica Matriz é a clínica prioritária para receber pacientes quando não for encontrada uma clínica mais próxima por geolocalização.
+          Apenas uma clínica por estado pode ser Matriz.
+        </p>
+        {clinic.isMatriz ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#92400e', fontWeight: 600, fontSize: 14 }}>
+              🏢 Esta clínica está definida como <strong>Matriz</strong> para o estado de <strong>{clinic.state}</strong>.
+            </span>
+            <button
+              className="btn btn-ghost"
+              onClick={() => handleSetMatriz(false)}
+              disabled={settingMatriz}
+            >
+              {settingMatriz ? <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className="icon" style={{ animation: 'spin 1s linear infinite' }}>⟳</span> Removendo...</span> : 'Remover status de Matriz'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span style={{ color: '#6b7280', fontSize: 14 }}>
+              Esta clínica <strong>não</strong> é uma Matriz.
+            </span>
+            <button
+              className="btn btn-success"
+              onClick={() => handleSetMatriz(true)}
+              disabled={settingMatriz}
+            >
+              {settingMatriz ? <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className="icon" style={{ animation: 'spin 1s linear infinite' }}>⟳</span> Definindo...</span> : 'Definir como Matriz'}
+            </button>
+          </div>
+        )}
+        <style jsx>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
       </div>
 
       {/* Companies attached */}
