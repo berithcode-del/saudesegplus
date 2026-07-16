@@ -21,7 +21,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/clinic')
-@Roles('CLINIC')
+@Roles('CLINIC', 'OPERATOR')
 export class ClinicProfileController {
   constructor(private prisma: PrismaService) {}
 
@@ -53,6 +53,7 @@ export class ClinicProfileController {
 
   // GET /api/clinic/profile — Get own profile data
   @Get('profile')
+  @Roles('CLINIC', 'OPERATOR')
   async getProfile(@Request() req: any) {
     const userId = req.user.sub;
     const user = await this.prisma.userAccount.findUnique({
@@ -72,11 +73,14 @@ export class ClinicProfileController {
       state: clinic.state,
       phone: clinic.phone,
       contactEmail: clinic.contactEmail,
-      email: user!.email,
+      email: user!.clinicProfile ? user!.email : null,
+      operatorName: user!.operatorProfile?.name ?? null,
+      operatorEmail: user!.operatorProfile ? user!.email : null,
     };
   }
 
   @Patch('profile')
+  @Roles('CLINIC')
   async updateProfile(
     @Request() req: any,
     @Body() body: UpdateClinicProfileDto,
@@ -118,6 +122,7 @@ export class ClinicProfileController {
 
   // GET /api/clinic/operators
   @Get('operators')
+  @Roles('CLINIC')
   async listOperators(@Request() req: any) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
     if (!clinicId) return { success: true, data: [] };
@@ -135,6 +140,7 @@ export class ClinicProfileController {
 
   // POST /api/clinic/operators
   @Post('operators')
+  @Roles('CLINIC')
   async createOperator(@Request() req: any, @Body() body: { name?: string }) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
     if (!clinicId)
@@ -199,6 +205,7 @@ export class ClinicProfileController {
 
   // PATCH /api/clinic/operators/:id
   @Patch('operators/:id')
+  @Roles('CLINIC')
   async updateOperator(
     @Request() req: any,
     @Param('id') operatorId: string,
@@ -241,6 +248,7 @@ export class ClinicProfileController {
 
   // DELETE /api/clinic/operators/:id
   @Delete('operators/:id')
+  @Roles('CLINIC')
   async deleteOperator(@Request() req: any, @Param('id') operatorId: string) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
     if (!clinicId)

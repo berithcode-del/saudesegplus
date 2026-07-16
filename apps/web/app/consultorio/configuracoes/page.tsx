@@ -15,6 +15,8 @@ interface ClinicData {
   email: string;
   phone: string;
   contactEmail: string;
+  operatorName?: string;
+  operatorEmail?: string;
 }
 
 interface ApiOperator {
@@ -113,11 +115,14 @@ type TabType = 'perfil' | 'operadores' | 'seguranca';
 
 export default function ConsultorioConfiguracoesPage() {
   const [activeTab, setActiveTab] = useState<TabType>('perfil');
+  const [userRole, setUserRole] = useState<string | null>(null);
   const tabs = {
     perfil: { label: 'Perfil', description: 'Dados cadastrais da clínica' },
     operadores: { label: 'Operadores', description: 'Gestão de funcionários' },
     seguranca: { label: 'Segurança', description: 'Alterar senha' }
   };
+  const isOperator = userRole === 'OPERATOR';
+  const visibleTabs = (Object.keys(tabs) as Array<TabType>).filter((tab) => !isOperator || tab !== 'operadores');
 
   const [clinicData, setClinicData] = useState<ClinicData>({
     name: '',
@@ -127,7 +132,9 @@ export default function ConsultorioConfiguracoesPage() {
     state: '',
     email: '',
     phone: '',
-    contactEmail: ''
+    contactEmail: '',
+    operatorName: '',
+    operatorEmail: ''
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -198,8 +205,17 @@ export default function ConsultorioConfiguracoesPage() {
 
   useEffect(() => {
     setLoading(true);
-    apiFetch('/api/clinic/profile')
-      .then((result) => {
+    const loadInitialData = async () => {
+      try {
+        const [meResult, result] = await Promise.all([
+          apiFetch('/api/auth/me') as Promise<any>,
+          apiFetch('/api/clinic/profile') as Promise<any>,
+        ]);
+        const role = meResult?.role ?? meResult?.user?.role ?? null;
+        setUserRole(role);
+        if (role === 'OPERATOR' && activeTab === 'operadores') {
+          setActiveTab('perfil');
+        }
         if (result) {
           setClinicData({
             name: result.name ?? '',
@@ -210,13 +226,23 @@ export default function ConsultorioConfiguracoesPage() {
             email: result.email ?? '',
             phone: result.phone ?? '',
             contactEmail: result.contactEmail ?? '',
+            operatorName: result.operatorName ?? '',
+            operatorEmail: result.operatorEmail ?? '',
           });
         }
-      })
-      .catch(() => console.error('Erro ao carregar perfil da clínica'))
-      .finally(() => setLoading(false));
-    
-    loadOperators();
+        if (role !== 'OPERATOR') {
+          await loadOperators();
+        } else {
+          setLoadingOperators(false);
+        }
+      } catch {
+        console.error('Erro ao carregar perfil da clínica');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
   }, []);
 
   const handleSaveProfile = async () => {
@@ -285,7 +311,7 @@ export default function ConsultorioConfiguracoesPage() {
       <div className="page-header">
         <h2>Configurações da Clínica</h2>
         <div className="tabs-bar">
-          {(Object.keys(tabs) as Array<TabType>).map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab}
               className={`tab-item ${activeTab === tab ? 'active' : ''}`}
@@ -316,23 +342,23 @@ export default function ConsultorioConfiguracoesPage() {
             </div>
             <div className="form-group">
               <label className="form-label">Endereço</label>
-              <input type="text" className="form-input" value={clinicData.address} onChange={(e) => setClinicData({ ...clinicData, address: e.target.value })} maxLength={FIELD_LIMITS.ADDRESS} />
+              <input type="text" className="form-input" value={clinicData.address} onChange={(e) => setClinicData({ ...clinicData, address: e.target.value })} maxLength={FIELD_LIMITS.ADDRESS} disabled={isOperator} />
             </div>
             <div className="form-group">
               <label className="form-label">Telefone de Contato</label>
-              <input type="tel" className="form-input" value={clinicData.phone} onChange={(e) => setClinicData({ ...clinicData, phone: maskPhone(e.target.value) })} placeholder="(00) 00000-0000" maxLength={FIELD_LIMITS.PHONE} />
+              <input type="tel" className="form-input" value={clinicData.phone} onChange={(e) => setClinicData({ ...clinicData, phone: maskPhone(e.target.value) })} placeholder="(00) 00000-0000" maxLength={FIELD_LIMITS.PHONE} disabled={isOperator} />
             </div>
             <div className="form-group">
               <label className="form-label">E-mail de Contato</label>
-              <input type="email" className="form-input" value={clinicData.contactEmail} onChange={(e) => setClinicData({ ...clinicData, contactEmail: e.target.value })} placeholder="contato@clinica.com.br" maxLength={FIELD_LIMITS.EMAIL} />
+              <input type="email" className="form-input" value={clinicData.contactEmail} onChange={(e) => setClinicData({ ...clinicData, contactEmail: e.target.value })} placeholder="contato@clinica.com.br" maxLength={FIELD_LIMITS.EMAIL} disabled={isOperator} />
             </div>
             <div className="form-group">
               <label className="form-label">Cidade</label>
-              <input type="text" className="form-input" value={clinicData.city} onChange={(e) => setClinicData({ ...clinicData, city: e.target.value })} maxLength={FIELD_LIMITS.CITY} />
+              <input type="text" className="form-input" value={clinicData.city} onChange={(e) => setClinicData({ ...clinicData, city: e.target.value })} maxLength={FIELD_LIMITS.CITY} disabled={isOperator} />
             </div>
             <div className="form-group">
               <label className="form-label">Estado</label>
-              <select className="form-select" value={clinicData.state} onChange={(e) => setClinicData({ ...clinicData, state: e.target.value })}>
+              <select className="form-select" value={clinicData.state} onChange={(e) => setClinicData({ ...clinicData, state: e.target.value })} disabled={isOperator}>
                 <option value="">Selecione</option>
                 {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'].map((u) => (
                   <option key={u} value={u}>{u}</option>
@@ -340,10 +366,18 @@ export default function ConsultorioConfiguracoesPage() {
               </select>
             </div>
           </div>
+          {isOperator && (
+            <div style={{ marginTop: '20px', padding: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', background: '#f9fafb' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#1e1b4b', marginBottom: '8px' }}>Seu acesso operacional</h4>
+              <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>
+                {clinicData.operatorName || 'Operador'} · {clinicData.operatorEmail || 'E-mail nao informado'}
+              </p>
+            </div>
+          )}
           <div style={{ marginTop: '20px', padding: '12px 14px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#3730a3', fontSize: '13px', lineHeight: 1.5 }}>
             Para alterar nome cadastral, CNPJ ou e-mail de acesso, entre em contato com o administrador da plataforma.
           </div>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+          <div style={{ display: isOperator ? 'none' : 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
             {saved && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#22c55e', fontSize: '13px', alignSelf: 'center' }}>
                 <CheckCircleIcon className="icon icon-sm" /> Salvo com sucesso!
