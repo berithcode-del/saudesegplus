@@ -30,13 +30,16 @@ const DEFAULT_EXAM_OPTIONS = [
   'psicossocial',
 ];
 
+const formatExamName = (code: string) =>
+  EXAM_LABELS[code] || code.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
 interface Solicitacao {
   id: string;
   examPurpose: string;
   status: string;
   patient: { name: string; cpf: string; functionCboCode: string };
   clinic?: { name: string } | null;
-  results?: Array<{ id: string; type?: { name: string } | null; valueJson?: { nome_exame?: string } }>;
+  results?: Array<{ id: string; type?: { name: string } | null; valueJson?: { nome_exame?: string }; attachmentUrl?: string | null }>;
 }
 
 export default function ExamPage() {
@@ -50,6 +53,9 @@ export default function ExamPage() {
   const [isFormValid, setIsFormValid] = useState(false);
   const [savedExamCount, setSavedExamCount] = useState(0);
   const [file, setFile] = useState<File | null>(null);
+  const [filesByExam, setFilesByExam] = useState<Record<string, File | null>>({});
+  const [observationsByExam, setObservationsByExam] = useState<Record<string, string>>({});
+  const [savingExam, setSavingExam] = useState<string | null>(null);
   const [observacao, setObservacao] = useState('');
   const [nomeOutroExame, setNomeOutroExame] = useState('');
 
@@ -95,26 +101,34 @@ export default function ExamPage() {
     fetchSolicitacao();
   }, [params.id]);
 
-  const handleSaveExams = async () => {
+  const saveExamAttachment = async (
+    examCode: string,
+    examFile: File | null,
+    observation: string,
+    customExamName = '',
+  ) => {
     setSaving(true);
+    setSavingExam(examCode);
     setError('');
     try {
       let attachmentUrl = undefined;
 
-      if (!file) {
+      if (!examFile) {
         setError('Nenhum arquivo selecionado');
         setSaving(false);
+        setSavingExam(null);
         return;
       }
 
-      if (examType === 'outros' && !nomeOutroExame.trim()) {
+      if (examCode === 'outros' && !customExamName.trim()) {
         setError('Por favor, informe o nome do exame.');
         setSaving(false);
+        setSavingExam(null);
         return;
       }
 
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', examFile);
       
       const uploadRes = await fetch(`${BACKEND_URL}/api/upload/exam-file`, {
               method: 'POST',
@@ -132,7 +146,7 @@ export default function ExamPage() {
       }
 
       attachmentUrl = uploadData.fileUrl;
-      const finalExamName = examType === 'outros' ? nomeOutroExame : formatExamName(examType);
+      const finalExamName = examCode === 'outros' ? customExamName : formatExamName(examCode);
 
       const res = await fetch(`${BACKEND_URL}/api/exams`, {
         method: 'POST',
@@ -142,15 +156,24 @@ export default function ExamPage() {
         },
         body: JSON.stringify({
           examRequestId: params.id,
-          examType: examType,
-          valueJson: { nome_exame: finalExamName, observacao },
+          examType: examCode,
+          valueJson: { nome_exame: finalExamName, observacao: observation },
           attachmentUrl,
         }),
       });
       const result = await res.json();
       if (res.ok && result.success) {
         setSavedExamCount(count => count + 1);
+        setSolicitacao(prev => prev ? {
+          ...prev,
+          results: [
+            ...(prev.results ?? []),
+            { id: result.data?.[0]?.id ?? `${examCode}-${Date.now()}`, type: { name: examCode }, valueJson: { nome_exame: finalExamName }, attachmentUrl },
+          ],
+        } : prev);
         setFile(null);
+        setFilesByExam(prev => ({ ...prev, [examCode]: null }));
+        setObservationsByExam(prev => ({ ...prev, [examCode]: '' }));
         setObservacao('');
         setNomeOutroExame('');
         setIsFormValid(false);
@@ -161,7 +184,12 @@ export default function ExamPage() {
       setError('Erro ao conectar com o servidor');
     } finally {
       setSaving(false);
+      setSavingExam(null);
     }
+  };
+
+  const handleSaveExams = async () => {
+    await saveExamAttachment(examType, file, observacao, nomeOutroExame);
   };
 
   const handleSendToQueue = async () => {
@@ -202,8 +230,10 @@ export default function ExamPage() {
     );
   }
 
-  const formatExamName = (code: string) =>
-    EXAM_LABELS[code] || code.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const savedExamTypes = new Set((solicitacao?.results ?? []).map(result => result.type?.name).filter(Boolean));
+  const allRequiredExamsSaved = requiredExams.length > 0
+    ? requiredExams.every(exam => savedExamTypes.has(exam))
+    : savedExamCount > 0;
 
   return (
     <div>
@@ -235,6 +265,80 @@ export default function ExamPage() {
       )}
 
       <div className="card">
+        <div style={{ marginBottom: '18px' }}>
+          <h3 style={{ marginBottom: '6px' }}>Anexar exames</h3>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
+            Anexe cada resultado no card correspondente para evitar troca de arquivos.
+          </p>
+        </div>
+
+        {requiredExams.length > 0 && (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {requiredExams.map((exam, index) => {
+              const isSaved = savedExamTypes.has(exam);
+              return (
+                <div key={exam} style={{
+                  padding: '16px',
+                  borderRadius: '16px',
+                  border: `1px solid ${isSaved ? 'rgba(34,197,94,0.35)' : '#e5e7eb'}`,
+                  background: isSaved ? 'rgba(34,197,94,0.06)' : '#fff',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: 800, textTransform: 'uppercase' }}>
+                        Exame {index + 1}
+                      </div>
+                      <div style={{ fontSize: '16px', color: '#1e1b4b', fontWeight: 800 }}>
+                        {formatExamName(exam)}
+                      </div>
+                    </div>
+                    <span className="badge" style={{
+                      background: isSaved ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+                      color: isSaved ? '#15803d' : '#b45309',
+                      border: `1px solid ${isSaved ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.25)'}`,
+                    }}>
+                      {isSaved ? 'Anexado' : 'Pendente'}
+                    </span>
+                  </div>
+
+                  <label className="form-label">Observação (Opcional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ex: Paciente relatou dificuldade durante o exame"
+                    value={observationsByExam[exam] ?? ''}
+                    onChange={event => setObservationsByExam(prev => ({ ...prev, [exam]: event.target.value }))}
+                    disabled={isSaved}
+                    style={{ marginBottom: '12px' }}
+                  />
+
+                  <label className="form-label">Arquivo do Exame (PDF ou Imagem) <span style={{ color: '#e53e3e' }}>*</span></label>
+                  <input
+                    type="file"
+                    className="form-input"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    disabled={isSaved}
+                    onChange={(event) => {
+                      setFilesByExam(prev => ({ ...prev, [exam]: event.target.files?.[0] ?? null }));
+                    }}
+                    style={{ marginBottom: '12px' }}
+                  />
+
+                  <button
+                    className="btn btn-primary"
+                    disabled={isSaved || !filesByExam[exam] || saving}
+                    onClick={() => saveExamAttachment(exam, filesByExam[exam] ?? null, observationsByExam[exam] ?? '')}
+                  >
+                    {savingExam === exam ? 'Salvando...' : isSaved ? 'Exame anexado' : 'Salvar este exame'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {requiredExams.length === 0 && (
+          <>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3>Registrar Exames</h3>
           <select
@@ -335,12 +439,25 @@ export default function ExamPage() {
           </button>
           <button
             className="btn btn-success"
-            disabled={savedExamCount === 0 || saving}
+            disabled={!allRequiredExamsSaved || saving}
             onClick={handleSendToQueue}
           >
             {saving ? 'Enviando...' : (<><PaperAirplaneIcon className="icon" /> Enviar para Fila Médica</>)}
           </button>
         </div>
+          </>
+        )}
+
+        {requiredExams.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginTop: '18px', flexWrap: 'wrap' }}>
+            <span style={{ color: allRequiredExamsSaved ? '#15803d' : '#6b7280', fontSize: '14px', fontWeight: 700 }}>
+              {savedExamCount} de {requiredExams.length} exame{requiredExams.length > 1 ? 's' : ''} obrigatório{requiredExams.length > 1 ? 's' : ''} anexado{savedExamCount > 1 ? 's' : ''}
+            </span>
+            <button className="btn btn-success" disabled={!allRequiredExamsSaved || saving} onClick={handleSendToQueue}>
+              {saving ? 'Enviando...' : (<><PaperAirplaneIcon className="icon" /> Enviar para Fila Médica</>)}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

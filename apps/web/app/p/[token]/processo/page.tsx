@@ -34,6 +34,7 @@ interface ProcessoData {
   timeline?: Array<{ eventType?: string; descricao?: string; ocorridoEm?: string; occurredAt?: string }>;
   teleconsulta?: { disponivel: boolean; linkSala: string | null };
   progresso?: Array<{ label: string; concluido: boolean; ativo: boolean }>;
+  examesSolicitados?: string[];
 }
 
 const acaoConfig: Record<string, { label: string; Icon: typeof ArrowRightIcon }> = {
@@ -44,11 +45,18 @@ const acaoConfig: Record<string, { label: string; Icon: typeof ArrowRightIcon }>
   BAIXAR_ASO: { label: 'Baixar ASO', Icon: DocumentTextIcon },
 };
 
-const mockRequiredExams = [
-  { name: 'Afericao de pressao arterial', prep: 'Evite cafe, cigarro e exercicio intenso 30 minutos antes.' },
-  { name: 'Glicemia capilar', prep: 'Leve informacoes sobre jejum se a clinica tiver orientado.' },
-  { name: 'Acuidade visual', prep: 'Leve seus oculos ou lentes, caso use no dia a dia.' },
-];
+const EXAM_GUIDANCE: Record<string, { name: string; prep: string }> = {
+  audiometria: { name: 'Audiometria', prep: 'Evite exposicao a ruido intenso antes do exame e leve protetor auditivo, se usar.' },
+  acuidade_visual: { name: 'Acuidade visual', prep: 'Leve seus oculos ou lentes, caso use no dia a dia.' },
+  espirometria: { name: 'Espirometria', prep: 'Evite fumar e usar broncodilatador antes do exame, se a clinica orientar.' },
+  eletrocardiograma: { name: 'Eletrocardiograma (ECG)', prep: 'Use roupa confortavel e evite cremes na regiao do torax.' },
+  eletroencefalograma: { name: 'Eletroencefalograma (EEG)', prep: 'Vá com o cabelo limpo e seco, sem gel, creme ou oleo.' },
+  exames_laboratoriais: { name: 'Exames laboratoriais', prep: 'Confirme com a clinica se ha necessidade de jejum.' },
+  radiografia_torax: { name: 'Radiografia de torax', prep: 'Evite acessorios metalicos e informe se houver suspeita de gravidez.' },
+  psicossocial: { name: 'Avaliacao psicossocial', prep: 'Reserve um tempo tranquilo para responder as perguntas com atencao.' },
+  pa: { name: 'Afericao de pressao arterial', prep: 'Evite cafe, cigarro e exercicio intenso 30 minutos antes.' },
+  glicemia: { name: 'Glicemia capilar', prep: 'Leve informacoes sobre jejum se a clinica tiver orientado.' },
+};
 
 function formatCountdown(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -57,7 +65,14 @@ function formatCountdown(ms: number) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-function ExamGuidanceScreen({ clinic }: { clinic?: ProcessoData['clinica'] }) {
+function ExamGuidanceScreen({ clinic, exams }: { clinic?: ProcessoData['clinica']; exams: string[] }) {
+  const requestedExams = exams.length > 0
+    ? exams.map(code => EXAM_GUIDANCE[code] ?? {
+      name: code.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
+      prep: 'Siga as orientacoes da clinica credenciada para este exame.',
+    })
+    : [{ name: 'Exames ocupacionais', prep: 'A clinica informara os exames necessarios para sua funcao.' }];
+
   return (
     <div style={{
       background: 'white',
@@ -122,7 +137,7 @@ function ExamGuidanceScreen({ clinic }: { clinic?: ProcessoData['clinica'] }) {
             Exames solicitados
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
-            {mockRequiredExams.map((exam, index) => (
+            {requestedExams.map((exam, index) => (
               <div key={exam.name} style={{
                 display: 'grid',
                 gridTemplateColumns: '32px 1fr',
@@ -586,7 +601,7 @@ export default function ProcessoPage({ params }: { params: Promise<{ token: stri
         </div>
       </div>
 
-      {isWaitingForExams && <ExamGuidanceScreen clinic={data?.clinica} />}
+      {isWaitingForExams && <ExamGuidanceScreen clinic={data?.clinica} exams={data?.examesSolicitados ?? []} />}
 
       {/* Sala de Espera / Teleconsulta */}
       {isWaitingForDoctor && <WaitingRoom status={data?.status ?? ''} teleconsultaUrl={teleconsultaUrl} doctorViewing={doctorViewing} />}

@@ -263,6 +263,12 @@ export class PortalService {
       occurredAt: e.occurredAt,
       metadata: e.metadata ? JSON.parse(e.metadata) : null,
     }));
+    const occupationalRisk = request.patient.functionCboCode
+      ? await this.prisma.occupationalRisk.findUnique({
+          where: { cboCode: request.patient.functionCboCode },
+          select: { requiredExams: true },
+        })
+      : null;
 
     return {
       id: request.id,
@@ -289,6 +295,7 @@ export class PortalService {
         validUntil: aso?.validUntil ?? null,
       },
       timeline,
+      examesSolicitados: occupationalRisk?.requiredExams ?? [],
       progresso: this.calcularProgresso(effectiveStatus, !!questionario, documentos),
     };
   }
