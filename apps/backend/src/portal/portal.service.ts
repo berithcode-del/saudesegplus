@@ -317,6 +317,14 @@ export class PortalService {
       return { tipo: 'RESPONDER_QUESTIONARIO', titulo: 'Responder Questionário', descricao: 'Preencha o questionário de saúde', cta: 'Responder', ctaUrl: '/portal/questionario', endereco: null };
     }
 
+    if (status === 'QUESTIONARIO_PENDENTE' && !extras.requiredDocsOk) {
+      return { tipo: 'ENVIAR_DOCUMENTOS', titulo: 'Enviar Documentos', descricao: 'Envie RG e foto para dar continuidade', cta: 'Enviar Documentos', ctaUrl: '/portal/documentos', endereco: null };
+    }
+
+    if (status === 'QUESTIONARIO_PENDENTE' && !extras.hasAnamnese) {
+      return { tipo: 'RESPONDER_QUESTIONARIO', titulo: 'Responder Questionário', descricao: 'Preencha o questionário de saúde', cta: 'Responder', ctaUrl: '/portal/questionario', endereco: null };
+    }
+
     if (status === 'AGUARDANDO_EXAMES') {
       return { tipo: 'COMPARECER_CLINICA', titulo: 'Comparecer à Clínica', descricao: 'Dirija-se à clínica para realização dos exames', cta: 'Ver Endereço', ctaUrl: '/portal/clinica', endereco: extras.clinicAddress };
     }
