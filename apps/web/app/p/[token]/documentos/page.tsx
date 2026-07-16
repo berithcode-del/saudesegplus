@@ -17,12 +17,19 @@ interface DocumentoStatus {
   tipo: string;
   enviado: boolean;
   nomeArquivo?: string;
+  fileUrl?: string | null;
 }
 
 const documentosConfig: { tipo: string; label: string; Icon: typeof DocumentTextIcon }[] = [
   { tipo: 'rg', label: 'RG / Documento de Identidade', Icon: DocumentTextIcon },
   { tipo: 'foto', label: 'Selfie', Icon: PhotoIcon },
 ];
+
+const normalizeDocumentos = (items: DocumentoStatus[] = []) =>
+  documentosConfig.map(({ tipo }) => {
+    const item = items.find(documento => documento.tipo === tipo);
+    return item ?? { tipo, enviado: false, fileUrl: null };
+  });
 
 export default function DocumentosPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = React.use(params);
@@ -46,8 +53,10 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
           headers: { Authorization: `Bearer ${portalToken}` },
         });
         const json = await res.json();
-        setDocumentos(json.data ?? []);
+        const data = Array.isArray(json) ? json : json.data;
+        setDocumentos(normalizeDocumentos(data ?? []));
       } catch {
+        setDocumentos(normalizeDocumentos());
         setError('Erro ao carregar documentos.');
       } finally {
         setLoading(false);
@@ -78,7 +87,9 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
         body: formData,
       });
       const uploadData = await res.json();
-      if (!res.ok || !uploadData.success) throw new Error('Erro ao fazer upload do arquivo.');
+      if (!res.ok || !uploadData.success) {
+        throw new Error(uploadData.message ?? uploadData.error ?? 'Erro ao fazer upload do arquivo.');
+      }
 
       // Segundo passo: registrar no processo
       const resRegistro = await fetch(`${BACKEND_URL}/api/portal/documentos`, {
@@ -90,10 +101,19 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
         body: JSON.stringify({ tipo, fileUrl: uploadData.fileUrl }),
       });
 
-      if (!resRegistro.ok) throw new Error('Erro ao registrar documento no sistema.');
+      const registroData = await resRegistro.json().catch(() => null);
+      if (!resRegistro.ok) {
+        const message = Array.isArray(registroData?.message)
+          ? registroData.message.join(', ')
+          : registroData?.message;
+        throw new Error(message ?? 'Erro ao registrar documento no sistema.');
+      }
 
       setDocumentos(prev =>
-        prev.map(d => d.tipo === tipo ? { ...d, enviado: true, nomeArquivo: file.name } : d)
+        normalizeDocumentos(prev).map(d => d.tipo === tipo
+          ? { ...d, enviado: true, nomeArquivo: file.name, fileUrl: uploadData.fileUrl }
+          : d,
+        )
       );
 
       if (fileRefs.current[tipo]) {

@@ -58,6 +58,14 @@ export class PortalController {
   }
 
   @Public()
+  @Get('documentos')
+  @UseGuards(PortalSessionGuard)
+  async getStatusDocumentos(@Req() req: Request) {
+    const user = (req as any).user as PortalUser;
+    return this.portalService.getStatusDocumentos(user.patientId, user.processId);
+  }
+
+  @Public()
   @Post('documentos')
   @UseGuards(PortalSessionGuard)
   async enviarDocumento(@Req() req: Request, @Body() dto: EnviarDocumentoDto) {

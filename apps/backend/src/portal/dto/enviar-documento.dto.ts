@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsUrl, MaxLength } from 'class-validator';
 
 export class EnviarDocumentoDto {
   @IsNotEmpty()
@@ -6,7 +6,7 @@ export class EnviarDocumentoDto {
   tipo: string;
 
   @IsNotEmpty()
-  @MaxLength(200)
-  @Matches(/^\/uploads\/files\/[0-9a-f-]{36}\.(pdf|jpg|png)$/i)
+  @MaxLength(1000)
+  @IsUrl({ require_protocol: true })
   fileUrl: string;
 }
