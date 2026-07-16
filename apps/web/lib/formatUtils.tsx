@@ -166,10 +166,14 @@ export function isValidCNPJ(cnpj: string | undefined): boolean {
 
   const calc = (len: number): number => {
     const weights = len === 12
-      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] as const
+      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] as const;
     let sum = 0;
-    for (let i = 0; i < len; i++) sum += Number(clean[i]) * weights[i];
+    for (let i = 0; i < len; i++) {
+      const digit = Number(clean[i]);
+      const weight = weights[i];
+      sum += digit * (weight ?? 0);
+    }
     const rev = sum % 11;
     return rev < 2 ? 0 : 11 - rev;
   };
