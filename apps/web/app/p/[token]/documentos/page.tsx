@@ -31,6 +31,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, string>>({});
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -57,7 +58,10 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
 
   const handleUpload = async (tipo: string) => {
     const file = fileRefs.current[tipo]?.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setError('Escolha um arquivo antes de enviar.');
+      return;
+    }
 
     setUploading(tipo);
     setError('');
@@ -95,6 +99,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
       if (fileRefs.current[tipo]) {
         fileRefs.current[tipo]!.value = '';
       }
+      setSelectedFiles(prev => ({ ...prev, [tipo]: '' }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao enviar arquivo.');
     } finally {
@@ -138,6 +143,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
               padding: '18px 20px',
               boxShadow: '0 2px 12px rgba(31,38,135,0.08)',
               border: `1px solid ${enviado ? 'rgba(34,197,94,0.3)' : '#e5e7eb'}`,
+              overflow: 'hidden',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                 <div style={{
@@ -151,7 +157,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
                     <Icon style={{ width: '22px', height: '22px', color: '#4f46e5' }} />
                   )}
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e1b4b' }}>{label}</div>
                   {enviado && doc?.nomeArquivo && (
                     <div style={{ fontSize: '12px', color: '#22c55e' }}>
@@ -167,21 +173,43 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
               </div>
 
               {!enviado && (
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
                     ref={(el) => { fileRefs.current[tipo] = el; }}
                     type="file"
                     accept={tipo === 'foto' ? 'image/*' : '.pdf,.png,.jpg,.jpeg'}
                     capture={tipo === 'foto' ? 'user' : undefined}
-                    style={{
-                      flex: 1, padding: '8px', fontSize: '13px',
-                      background: '#f4f5fb', borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
+                    onChange={(event) => {
+                      const fileName = event.target.files?.[0]?.name ?? '';
+                      setSelectedFiles(prev => ({ ...prev, [tipo]: fileName }));
                     }}
+                    style={{ display: 'none' }}
                   />
                   <button
+                    type="button"
+                    onClick={() => fileRefs.current[tipo]?.click()}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      background: '#f4f5fb',
+                      color: '#1e1b4b',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      textAlign: 'left',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {selectedFiles[tipo] || (tipo === 'foto' ? 'Tirar ou escolher selfie' : 'Escolher arquivo')}
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn-primary"
-                    style={{ padding: '8px 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                    style={{ width: '100%', padding: '12px 16px', fontSize: '13px', justifyContent: 'center' }}
                     onClick={() => handleUpload(tipo)}
                     disabled={uploading === tipo}
                   >
@@ -196,6 +224,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
 
       <div style={{ display: 'flex', gap: '12px' }}>
         <button
+          type="button"
           className="btn btn-ghost"
           onClick={() => router.push(`/p/${token}/processo`)}
         >
@@ -203,6 +232,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
           Voltar
         </button>
         <button
+          type="button"
           className="btn btn-primary"
           style={{ flex: 1, justifyContent: 'center' }}
           disabled={!allOk}
