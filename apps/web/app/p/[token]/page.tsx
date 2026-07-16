@@ -3,16 +3,9 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
-
-function maskCpf(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  return digits
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
-}
 
 export default function ValidarIdentidadePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = React.use(params);
@@ -157,13 +150,14 @@ export default function ValidarIdentidadePage({ params }: { params: Promise<{ to
                 CPF
               </label>
               <input
-                id="cpf"
-                className="form-input"
-                placeholder="000.000.000-00"
-                value={cpf}
-                onChange={(e) => setCpf(maskCpf(e.target.value))}
-                required
-              />
+                              id="cpf"
+                              className="form-input"
+                              placeholder="000.000.000-00"
+                              value={cpf}
+                              onChange={(e) => setCpf(maskCPF(e.target.value))}
+                              maxLength={FIELD_LIMITS.CPF}
+                              required
+                            />
             </div>
 
             <div style={{ marginBottom: '24px' }}>

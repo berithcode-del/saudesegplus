@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGetExamTypes, apiGetRequiredExams, apiFetch } from '../../lib/api';
+import { maskCPF, maskPhone, FIELD_LIMITS } from '../../../lib/formatUtils';
 import {
   CheckCircleIcon,
   ArrowLeftIcon,
@@ -118,7 +119,7 @@ export default function CheckInPage() {
         body: JSON.stringify({
           name: patient.name,
           cpf: patient.cpf.replace(/\D/g, ''),
-          phone: patient.phone,
+          phone: patient.phone.replace(/\D/g, ''),
           functionCboCode: patient.functionCboCode,
           examPurpose: patient.examPurpose,
           inviteId,
@@ -235,7 +236,7 @@ export default function CheckInPage() {
             <div className="form-group">
               <label className="form-label" htmlFor="patient-cpf">CPF *</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input id="patient-cpf" className="form-input" placeholder="000.000.000-00" value={patient.cpf} onChange={e => handlePatientChange('cpf', e.target.value)} style={{ marginBottom: 0 }} />
+                <input id="patient-cpf" className="form-input" placeholder="000.000.000-00" value={patient.cpf} onChange={e => handlePatientChange('cpf', maskCPF(e.target.value))} maxLength={FIELD_LIMITS.CPF} style={{ marginBottom: 0 }} />
                 <button type="button" className="btn btn-secondary" onClick={handleSearchInvite} disabled={searchLoading || !patient.cpf}>
                   {searchLoading ? '...' : 'Buscar Convite'}
                 </button>
@@ -243,7 +244,7 @@ export default function CheckInPage() {
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="patient-phone">Telefone</label>
-              <input id="patient-phone" className="form-input" placeholder="(11) 99999-9999" value={patient.phone} onChange={e => handlePatientChange('phone', e.target.value)} />
+              <input id="patient-phone" className="form-input" placeholder="(11) 99999-9999" value={patient.phone} onChange={e => handlePatientChange('phone', maskPhone(e.target.value))} maxLength={FIELD_LIMITS.PHONE} />
             </div>
             <div className="form-group">
               <label className="form-label" htmlFor="patient-birth">Data de Nascimento</label>
