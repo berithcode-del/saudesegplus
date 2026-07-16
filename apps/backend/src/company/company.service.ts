@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -12,6 +8,8 @@ import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PaymentFlow, PaymentStatus, Prisma } from '@prisma/client';
+import { SupabaseStorageService } from '../upload/supabase-storage.service';
+import { basename } from 'path';
 
 @Injectable()
 export class CompanyService {
@@ -19,6 +17,7 @@ export class CompanyService {
     private prisma: PrismaService,
     private companyGateway: CompanyGateway,
     private mailService: MailService,
+    private storage: SupabaseStorageService,
   ) {}
 
   async createCompany(dto: CreateCompanyDto) {
@@ -373,6 +372,15 @@ export class CompanyService {
         },
       };
     });
+  }
+
+  async getAsoPdf(companyId: string, asoId: string) {
+    const aso = await this.prisma.asoDocument.findFirst({
+      where: { id: asoId, request: { patient: { companies: { some: { companyId, endDate: null } } } } },
+    });
+    if (!aso?.pdfUrl) throw new NotFoundException('ASO nao encontrado');
+    const fileName = basename(aso.pdfUrl);
+    return { buffer: await this.storage.downloadAsoFile(fileName), fileName };
   }
 
   async cancelInvite(inviteId: string) {

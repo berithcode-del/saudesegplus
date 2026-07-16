@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Query, Request } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, Request, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ExamRequestService } from './exam-request.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 
@@ -33,6 +34,14 @@ export class ExamRequestController {
   ) {
     const data = await this.examRequestService.findOne(id, req.user);
     return { success: true, data };
+  }
+
+  @Get('results/:resultId/attachment')
+  async getAttachment(@Param('resultId') resultId: string, @Request() req: { user: { role: string; profileId?: string | null } }, @Res() response: Response) {
+    const file = await this.examRequestService.getResultAttachment(resultId, req.user);
+    response.setHeader('Content-Type', file.fileName.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+    response.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+    response.send(file.buffer);
   }
 
   @Patch(':id')

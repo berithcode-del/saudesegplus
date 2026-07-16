@@ -189,4 +189,13 @@ export class CompanyController {
     res.setHeader('Content-Disposition', `attachment; filename="relatorio-${id}.csv"`);
     res.send('\uFEFF' + csv);
   }
+
+  @Get(':id/asos/:asoId/file')
+  @UseGuards(CompanyScopeGuard)
+  async getAsoFile(@Param('id') companyId: string, @Param('asoId') asoId: string, @Res() response: Response) {
+    const file = await this.companyService.getAsoPdf(companyId, asoId);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+    response.send(file.buffer);
+  }
 }

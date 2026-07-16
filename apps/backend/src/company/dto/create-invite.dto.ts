@@ -68,6 +68,7 @@ export class CreateInviteDto {
   @IsUUID()
   clinicId?: string;
 
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   paymentId: string;
 }

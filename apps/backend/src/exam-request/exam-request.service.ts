@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { paginate, PaginatedResult } from '../common/pagination';
 import { PresenceService } from '../presence/presence.service';
+import { SupabaseStorageService } from '../upload/supabase-storage.service';
+import { basename } from 'path';
 
 @Injectable()
 export class ExamRequestService {
@@ -10,6 +12,7 @@ export class ExamRequestService {
     private readonly prisma: PrismaService,
     private readonly companyGateway: CompanyGateway,
     private readonly presenceService: PresenceService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   /**
@@ -119,6 +122,17 @@ export class ExamRequestService {
     }
 
     if (!allowed) throw new ForbiddenException('Acesso negado a esta solicitacao');
+  }
+
+  async getResultAttachment(resultId: string, user: { role: string; profileId?: string | null }) {
+    const result = await this.prisma.examResult.findUnique({ where: { id: resultId } });
+    if (!result?.attachmentUrl) throw new NotFoundException('Anexo nao encontrado');
+    await this.assertAccess(result.requestId, user);
+    const fileName = basename(result.attachmentUrl);
+    if (!/^[0-9a-f-]{36}\.(pdf|jpg|jpeg|png)$/i.test(fileName)) {
+      throw new NotFoundException('Anexo nao encontrado');
+    }
+    return { buffer: await this.storage.downloadFile('uploads', fileName), fileName };
   }
 
   /**
