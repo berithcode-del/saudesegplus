@@ -6,8 +6,8 @@ import {
   CheckCircleIcon, PlusIcon, ChevronDownIcon, ChevronUpIcon,
   CalendarIcon, Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
+import { apiFetch } from '../../lib/api';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
 const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -36,21 +36,19 @@ export default function AdminFinanceiroPage() {
   const [saving, setSaving] = useState(false);
 
   const loadSummary = useCallback(async () => {
-    const r = await fetch(`${BACKEND_URL}/api/financial/summary?month=${month}&year=${year}`);
-    const j = await r.json();
+    const j = await apiFetch(`/api/financial/summary?month=${month}&year=${year}`) as any;
     setSummary(j.data);
   }, [month, year]);
 
   const loadTransactions = useCallback(async () => {
-    const r = await fetch(`${BACKEND_URL}/api/financial/transactions?month=${month}&year=${year}`);
-    const j = await r.json();
+    const j = await apiFetch(`/api/financial/transactions?month=${month}&year=${year}`) as any;
     setTransactions(Array.isArray(j.data) ? j.data : []);
   }, [month, year]);
 
   const loadConfigs = useCallback(async () => {
     const [pr, cf] = await Promise.all([
-      fetch(`${BACKEND_URL}/api/financial/service-prices`).then(r => r.json()),
-      fetch(`${BACKEND_URL}/api/financial/config`).then(r => r.json()),
+      apiFetch('/api/financial/service-prices') as Promise<any>,
+      apiFetch('/api/financial/config') as Promise<any>,
     ]);
     setServicePrices(Array.isArray(pr.data) ? pr.data : []);
     if (cf.data) {
@@ -66,7 +64,7 @@ export default function AdminFinanceiroPage() {
 
   const handleSaveConfig = async () => {
     setSaving(true);
-    await fetch(`${BACKEND_URL}/api/financial/config`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ defaultClinicFeePercent: Number(configForm.defaultClinicFeePercent), defaultDoctorFeePercent: Number(configForm.defaultDoctorFeePercent), defaultPlatformFeePercent: Number(configForm.defaultPlatformFeePercent) }) });
+    await apiFetch('/api/financial/config', { method: 'PATCH', body: JSON.stringify({ defaultClinicFeePercent: Number(configForm.defaultClinicFeePercent), defaultDoctorFeePercent: Number(configForm.defaultDoctorFeePercent), defaultPlatformFeePercent: Number(configForm.defaultPlatformFeePercent) }) });
     await loadConfigs();
     setSaving(false);
     alert('Configurações salvas!');
@@ -77,9 +75,9 @@ export default function AdminFinanceiroPage() {
     setSaving(true);
     const payload = { name: priceForm.name, description: priceForm.description, basePrice: Number(priceForm.basePrice), clinicFeePercent: Number(priceForm.clinicFeePercent), doctorFeePercent: Number(priceForm.doctorFeePercent), platformFeePercent: Number(priceForm.platformFeePercent) };
     if (editingPrice) {
-      await fetch(`${BACKEND_URL}/api/financial/service-prices/${editingPrice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      await apiFetch(`/api/financial/service-prices/${editingPrice.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
     } else {
-      await fetch(`${BACKEND_URL}/api/financial/service-prices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      await apiFetch('/api/financial/service-prices', { method: 'POST', body: JSON.stringify(payload) });
     }
     await loadConfigs();
     setShowPriceModal(false);
@@ -89,7 +87,7 @@ export default function AdminFinanceiroPage() {
   };
 
   const handleMarkAsPaid = async (id: string) => {
-    await fetch(`${BACKEND_URL}/api/financial/transactions/${id}/pay`, { method: 'PATCH' });
+    await apiFetch(`/api/financial/transactions/${id}/pay`, { method: 'PATCH' });
     await loadTransactions();
     await loadSummary();
   };
@@ -97,7 +95,7 @@ export default function AdminFinanceiroPage() {
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await fetch(`${BACKEND_URL}/api/financial/transactions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'DESPESA', category: 'CUSTO_OPERACIONAL', description: expenseForm.description, amount: Number(expenseForm.amount), method: expenseForm.method, notes: expenseForm.notes }) });
+    await apiFetch('/api/financial/transactions', { method: 'POST', body: JSON.stringify({ type: 'DESPESA', category: 'CUSTO_OPERACIONAL', description: expenseForm.description, amount: Number(expenseForm.amount), method: expenseForm.method, notes: expenseForm.notes }) });
     await Promise.all([loadTransactions(), loadSummary()]);
     setShowExpenseModal(false);
     setExpenseForm({ description: '', amount: '', notes: '', method: 'PIX' });
