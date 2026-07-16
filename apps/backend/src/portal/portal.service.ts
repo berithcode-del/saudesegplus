@@ -21,6 +21,7 @@ export class PortalService {
   ) {}
 
   async auth(token: string, cpf: string, birthDate: string) {
+    const normalizedBirthDate = this.normalizeBirthDate(birthDate);
     const invite = await this.prisma.examInvite.findUnique({
       where: { token },
       include: {
@@ -40,7 +41,7 @@ export class PortalService {
 
     if (invite.expectedBirthDate) {
       const storedDateStr = invite.expectedBirthDate.toISOString().slice(0, 10);
-      if (storedDateStr !== birthDate) {
+      if (storedDateStr !== normalizedBirthDate) {
         throw new UnauthorizedException('Dados não conferem ou link expirado.');
       }
     }
@@ -71,7 +72,7 @@ export class PortalService {
           userId: userAccount.id,
           cpf: normalizeCpf(invite.expectedCpf ?? cpf),
           name: invite.collaboratorName ?? 'Paciente',
-          birthDate: invite.expectedBirthDate ?? new Date(birthDate),
+          birthDate: invite.expectedBirthDate ?? new Date(normalizedBirthDate),
           phone: '',
           functionCboCode: invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
         },
@@ -161,6 +162,13 @@ export class PortalService {
       companyName: invite.company?.nomeFantasia ?? invite.company?.name ?? '',
       examPurpose: invite.examType,
     };
+  }
+
+  private normalizeBirthDate(value: string) {
+    const trimmed = value.trim();
+    const brDate = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brDate) return `${brDate[3]}-${brDate[2]}-${brDate[1]}`;
+    return trimmed;
   }
 
   async getProcesso(patientId: string, processId: string) {

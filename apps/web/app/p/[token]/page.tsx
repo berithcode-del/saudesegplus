@@ -7,6 +7,20 @@ import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
+const normalizeBirthDate = (value: string) => {
+  const trimmed = value.trim();
+  const brDate = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brDate) return `${brDate[3]}-${brDate[2]}-${brDate[1]}`;
+  return trimmed;
+};
+
+const maskBirthDate = (value: string) => {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
 export default function ValidarIdentidadePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = React.use(params);
   const router = useRouter();
@@ -47,7 +61,7 @@ export default function ValidarIdentidadePage({ params }: { params: Promise<{ to
         body: JSON.stringify({
           token: token,
           cpf: cpf.replace(/\D/g, ''),
-          birthDate,
+          birthDate: normalizeBirthDate(birthDate),
         }),
       });
       const data = await res.json();
@@ -170,10 +184,14 @@ export default function ValidarIdentidadePage({ params }: { params: Promise<{ to
               </label>
               <input
                 id="birthDate"
-                type="date"
+                type="text"
+                inputMode="numeric"
+                pattern="\d{2}/\d{2}/\d{4}"
                 className="form-input"
+                placeholder="DD/MM/AAAA"
                 value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
+                onChange={(e) => setBirthDate(maskBirthDate(e.target.value))}
+                maxLength={10}
                 required
               />
             </div>

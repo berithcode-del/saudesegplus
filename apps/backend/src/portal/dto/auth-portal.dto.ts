@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsDateString, IsNotEmpty, IsUUID, Matches } from 'class-validator';
+import { IsNotEmpty, IsUUID, Matches } from 'class-validator';
 
 export class AuthPortalDto {
   @IsUUID()
@@ -10,6 +10,6 @@ export class AuthPortalDto {
   @Matches(/^\d{11}$/)
   cpf: string;
 
-  @IsDateString()
+  @Matches(/^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})$/)
   birthDate: string;
 }

@@ -21,7 +21,7 @@ interface DocumentoStatus {
 
 const documentosConfig: { tipo: string; label: string; Icon: typeof DocumentTextIcon }[] = [
   { tipo: 'rg', label: 'RG / Documento de Identidade', Icon: DocumentTextIcon },
-  { tipo: 'foto', label: 'Foto 3x4', Icon: PhotoIcon },
+  { tipo: 'foto', label: 'Selfie', Icon: PhotoIcon },
 ];
 
 export default function DocumentosPage({ params }: { params: Promise<{ token: string }> }) {
@@ -172,6 +172,7 @@ export default function DocumentosPage({ params }: { params: Promise<{ token: st
                     ref={(el) => { fileRefs.current[tipo] = el; }}
                     type="file"
                     accept={tipo === 'foto' ? 'image/*' : '.pdf,.png,.jpg,.jpeg'}
+                    capture={tipo === 'foto' ? 'user' : undefined}
                     style={{
                       flex: 1, padding: '8px', fontSize: '13px',
                       background: '#f4f5fb', borderRadius: '8px',
