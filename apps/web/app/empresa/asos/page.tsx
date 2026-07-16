@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowPathIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
-import { apiListCompanyAsos } from '../../lib/api';
+import { ArrowPathIcon, DocumentArrowDownIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { apiListCompanyAsos, getAuthToken } from '../../lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -61,6 +61,13 @@ export default function EmpresaAsosPage() {
   const [companyId, setCompanyId] = useState('');
   const [asos, setAsos] = useState<CompanyAso[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewer, setViewer] = useState<{ url: string; aso: CompanyAso } | null>(null);
+
+  const openAso = async (aso: CompanyAso) => {
+    const response = await fetch(`${BACKEND_URL}/api/company/${companyId}/asos/${aso.id}/file`, { headers: { Authorization: `Bearer ${getAuthToken()}` } });
+    if (!response.ok) return;
+    setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
+  };
 
   useEffect(() => {
     setCompanyId(getStoredCompanyId());
@@ -172,9 +179,9 @@ export default function EmpresaAsosPage() {
                     <td>{aso.doctor.name}</td>
                     <td>
                       {aso.pdfUrl ? (
-                        <a className="btn btn-secondary" href={resolveFileUrl(aso.pdfUrl)} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', minHeight: 'unset' }}>
-                          <DocumentArrowDownIcon className="icon-sm" /> Abrir
-                        </a>
+                        <button className="btn btn-secondary" onClick={() => void openAso(aso)} style={{ padding: '6px 10px', minHeight: 'unset' }}>
+                          <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                        </button>
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>Sem PDF</span>
                       )}
@@ -186,6 +193,7 @@ export default function EmpresaAsosPage() {
           </table>
         )}
       </div>
+      {viewer && <div className="modal-overlay" onClick={() => { URL.revokeObjectURL(viewer.url); setViewer(null); }}><div className="modal-content" style={{ width: 'min(1100px, 94vw)', height: '88vh', borderRadius: '16px', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}><div className="modal-header"><div><h3>ASO de {viewer.aso.collaborator.name}</h3><p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>Emitido em {formatDate(viewer.aso.issuedAt)} · Válido até {formatDate(viewer.aso.validUntil)}</p></div><button className="modal-close" onClick={() => { URL.revokeObjectURL(viewer.url); setViewer(null); }}><XMarkIcon className="icon" /></button></div><iframe src={viewer.url} title="Visualização do ASO" style={{ width: '100%', height: 'calc(100% - 80px)', border: 'none' }} /></div></div>}
     </>
   );
 }
