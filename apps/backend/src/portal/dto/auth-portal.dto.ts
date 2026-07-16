@@ -10,6 +10,6 @@ export class AuthPortalDto {
   @Matches(/^\d{11}$/)
   cpf: string;
 
-  @Matches(/^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})$/)
+  @Matches(/^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}|\d{8})$/)
   birthDate: string;
 }

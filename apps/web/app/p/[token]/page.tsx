@@ -3,14 +3,18 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
-import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
+import { maskCPF, FIELD_LIMITS, onlyDigits } from '../../../lib/formatUtils';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
 const normalizeBirthDate = (value: string) => {
   const trimmed = value.trim();
-  const brDate = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (brDate) return `${brDate[3]}-${brDate[2]}-${brDate[1]}`;
+  const digits = onlyDigits(trimmed);
+  if (/^\d{8}$/.test(digits)) {
+    return `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+  }
+  const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
   return trimmed;
 };
 
@@ -60,7 +64,7 @@ export default function ValidarIdentidadePage({ params }: { params: Promise<{ to
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: token,
-          cpf: cpf.replace(/\D/g, ''),
+          cpf: onlyDigits(cpf),
           birthDate: normalizeBirthDate(birthDate),
         }),
       });
@@ -72,7 +76,7 @@ export default function ValidarIdentidadePage({ params }: { params: Promise<{ to
       const examPurpose = data.examPurpose || data.data?.examPurpose || '';
 
       if (!res.ok || !sessionToken) {
-        if (res.status === 401 || data?.expirado) {
+        if (data?.expirado) {
           throw new Error('Este link não está mais disponível. Entre em contato com a empresa.');
         }
         throw new Error('CPF ou data de nascimento não conferem.');

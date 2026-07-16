@@ -166,8 +166,12 @@ export class PortalService {
 
   private normalizeBirthDate(value: string) {
     const trimmed = value.trim();
-    const brDate = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (brDate) return `${brDate[3]}-${brDate[2]}-${brDate[1]}`;
+    const digits = trimmed.replace(/\D/g, '');
+    if (/^\d{8}$/.test(digits)) {
+      return `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+    }
+    const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
     return trimmed;
   }
 
