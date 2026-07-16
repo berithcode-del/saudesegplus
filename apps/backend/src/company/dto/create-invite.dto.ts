@@ -44,7 +44,13 @@ export class CreateInviteDto {
   roleFunctionCboCode?: string;
 
   @IsString()
-  @IsIn(['admissional', 'periodico', 'demissional', 'mudanca_funcao', 'retorno'])
+  @IsIn([
+    'admissional',
+    'periodico',
+    'demissional',
+    'mudanca_funcao',
+    'retorno',
+  ])
   examType: string;
 
   @IsOptional()
@@ -53,12 +59,15 @@ export class CreateInviteDto {
   collaboratorName?: string;
 
   @IsOptional()
-    @IsInt()
-    @Min(1)
-    @Max(30)
-    expiresInDays?: number;
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  expiresInDays?: number;
 
-    @IsOptional()
-    @IsUUID()
-    clinicId?: string;
-  }
+  @IsOptional()
+  @IsUUID()
+  clinicId?: string;
+
+  @IsUUID()
+  paymentId: string;
+}

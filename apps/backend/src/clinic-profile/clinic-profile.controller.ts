@@ -145,6 +145,11 @@ export class ClinicProfileController {
     });
     if (!clinic) throw new NotFoundException('Clínica não encontrada');
 
+    const operatorName = body.name?.trim();
+    if (!operatorName) {
+      throw new BadRequestException('Nome do operador e obrigatorio');
+    }
+
     const clinicSlug = clinic.name
       .toLowerCase()
       .normalize('NFD')
@@ -174,7 +179,7 @@ export class ClinicProfileController {
         passwordHash,
         role: 'OPERATOR',
         operatorProfile: {
-          create: { clinicId },
+          create: { clinicId, name: operatorName },
         },
       },
       include: { operatorProfile: true },
@@ -184,6 +189,7 @@ export class ClinicProfileController {
       success: true,
       data: {
         id: user.operatorProfile?.id,
+        name: user.operatorProfile?.name,
         email: user.email,
         tempPassword: password,
       },
