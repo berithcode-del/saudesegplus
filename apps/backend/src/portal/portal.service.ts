@@ -40,8 +40,7 @@ export class PortalService {
     }
 
     if (invite.expectedBirthDate) {
-      const storedDateStr = invite.expectedBirthDate.toISOString().slice(0, 10);
-      if (storedDateStr !== normalizedBirthDate) {
+      if (!this.birthDatesMatch(invite.expectedBirthDate, normalizedBirthDate)) {
         throw new UnauthorizedException('Dados não conferem ou link expirado.');
       }
     }
@@ -168,11 +167,42 @@ export class PortalService {
     const trimmed = value.trim();
     const digits = trimmed.replace(/\D/g, '');
     if (/^\d{8}$/.test(digits)) {
+      const yearFirst = Number(digits.slice(0, 4));
+      if (yearFirst >= 1900 && yearFirst <= 2100) {
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+      }
       return `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
     }
     const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
     return trimmed;
+  }
+
+  private birthDatesMatch(storedDate: Date, submittedDate: string) {
+    return this.birthDateCandidates(storedDate).has(submittedDate);
+  }
+
+  private birthDateCandidates(date: Date) {
+    const candidates = new Set<string>();
+    candidates.add(date.toISOString().slice(0, 10));
+    candidates.add(this.formatDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate()));
+
+    const saoPauloParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = saoPauloParts.find((part) => part.type === 'year')?.value;
+    const month = saoPauloParts.find((part) => part.type === 'month')?.value;
+    const day = saoPauloParts.find((part) => part.type === 'day')?.value;
+    if (year && month && day) candidates.add(`${year}-${month}-${day}`);
+
+    return candidates;
+  }
+
+  private formatDateParts(year: number, month: number, day: number) {
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
   async getProcesso(patientId: string, processId: string) {

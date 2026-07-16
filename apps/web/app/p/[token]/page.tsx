@@ -11,6 +11,10 @@ const normalizeBirthDate = (value: string) => {
   const trimmed = value.trim();
   const digits = onlyDigits(trimmed);
   if (/^\d{8}$/.test(digits)) {
+    const yearFirst = Number(digits.slice(0, 4));
+    if (yearFirst >= 1900 && yearFirst <= 2100) {
+      return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+    }
     return `${digits.slice(4)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
   }
   const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
