@@ -91,11 +91,27 @@ export default function ConsultaPage() {
   const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [expandedExamId, setExpandedExamId] = useState<string | null>(null);
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
   const [patientOnline, setPatientOnline] = useState(false);
   const [roomError, setRoomError] = useState("");
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [signaturePin, setSignaturePin] = useState("");
   const [signatureError, setSignatureError] = useState("");
+
+  const openExamAttachment = async (resultId: string) => {
+    if (expandedExamId === resultId) {
+      setExpandedExamId(null);
+      return;
+    }
+    setExpandedExamId(resultId);
+    if (attachmentUrls[resultId]) return;
+    const response = await fetch(`${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`, {
+      headers: { Authorization: `Bearer ${getAuthToken()}` },
+    });
+    if (!response.ok) throw new Error("Nao foi possivel carregar o anexo");
+    const objectUrl = URL.createObjectURL(await response.blob());
+    setAttachmentUrls((current) => ({ ...current, [resultId]: objectUrl }));
+  };
 
   useEffect(() => {
     setDoctorId(getProfileIdFromToken() ?? "");
@@ -643,9 +659,7 @@ export default function ConsultaPage() {
                       const isImage = exam.attachmentUrl.match(
                         /\.(jpeg|jpg|gif|png)$/i,
                       );
-                      const fullUrl = exam.attachmentUrl.startsWith("http")
-                        ? exam.attachmentUrl
-                        : `${BACKEND_URL}${exam.attachmentUrl}`;
+                      const fullUrl = attachmentUrls[exam.id];
                       return (
                         <div
                           key={exam.id}
@@ -662,9 +676,7 @@ export default function ConsultaPage() {
                               alignItems: "center",
                               cursor: "pointer",
                             }}
-                            onClick={() =>
-                              setExpandedExamId(isExpanded ? null : exam.id)
-                            }
+                            onClick={() => void openExamAttachment(exam.id)}
                           >
                             <div
                               style={{
@@ -691,7 +703,7 @@ export default function ConsultaPage() {
                             </span>
                           </div>
 
-                          {isExpanded && (
+                          {isExpanded && fullUrl && (
                             <div
                               style={{
                                 marginTop: "16px",
@@ -717,20 +729,6 @@ export default function ConsultaPage() {
                                   title="PDF do Exame"
                                 />
                               )}
-                              <a
-                                href={fullUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-outline"
-                                style={{
-                                  marginTop: "12px",
-                                  width: "100%",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <LinkIcon className="icon icon-sm" /> Abrir em
-                                nova aba
-                              </a>
                             </div>
                           )}
                         </div>

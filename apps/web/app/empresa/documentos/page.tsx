@@ -8,13 +8,9 @@ import {
   ClockIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { apiGetDocumentos, apiUploadDocumento, apiGetCompanyStatusCheck } from '../../lib/api';
+import { apiGetDocumentos, apiUploadDocumento, apiGetCompanyStatusCheck, getAuthToken } from '../../lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
-
-function resolveFileUrl(fileUrl: string) {
-  return /^https?:\/\//i.test(fileUrl) ? fileUrl : `${BACKEND_URL}${fileUrl}`;
-}
 
 interface CompanyDocument {
   id: string;
@@ -47,6 +43,30 @@ export default function DocumentosPage() {
   const [validUntil, setValidUntil] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [sessionError, setSessionError] = useState('');
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerDocument, setViewerDocument] = useState<CompanyDocument | null>(null);
+
+  const openDocument = async (document: CompanyDocument) => {
+    if (!companyId) return;
+    try {
+      const fileName = document.fileUrl.split('/').pop();
+      const response = await fetch(
+        `${BACKEND_URL}/api/upload/documents/${companyId}/file/${encodeURIComponent(fileName ?? '')}`,
+        { headers: { Authorization: `Bearer ${getAuthToken()}` } },
+      );
+      if (!response.ok) throw new Error('Nao foi possivel carregar o documento');
+      setViewerDocument(document);
+      setViewerUrl(URL.createObjectURL(await response.blob()));
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'Erro ao abrir documento');
+    }
+  };
+
+  const closeViewer = () => {
+    if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+    setViewerUrl(null);
+    setViewerDocument(null);
+  };
 
   const fetchDocs = useCallback(async (cid: string) => {
     try {
@@ -369,16 +389,15 @@ export default function DocumentosPage() {
                   <td>{doc.originalName}</td>
                   <td>{formatDate(doc.uploadedAt)}</td>
                   <td>
-                    <a
-                      href={resolveFileUrl(doc.fileUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => void openDocument(doc)}
                       className="btn btn-ghost"
-                      style={{ padding: '6px 12px', fontSize: '12px', textDecoration: 'none' }}
+                      style={{ padding: '6px 12px', fontSize: '12px' }}
                     >
                       <DocumentTextIcon className="icon icon-sm" />
                       Visualizar
-                    </a>
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -386,6 +405,25 @@ export default function DocumentosPage() {
           </table>
         )}
       </div>
+      {viewerUrl && viewerDocument && (
+        <div className="modal-overlay" onClick={closeViewer}>
+          <div className="modal-content" style={{ width: 'min(1100px, 94vw)', height: '88vh', display: 'flex', flexDirection: 'column', borderRadius: '16px', overflow: 'hidden' }} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header" style={{ alignItems: 'flex-start', borderBottom: '1px solid #e5e7eb' }}>
+              <div>
+                <h3 style={{ marginBottom: '4px' }}>{viewerDocument.originalName}</h3>
+                <p style={{ margin: 0, color: '#6b7280', fontSize: '13px' }}>
+                  {viewerDocument.type} · Enviado em {formatDate(viewerDocument.uploadedAt)}
+                  {viewerDocument.validUntil ? ` · Válido até ${formatDate(viewerDocument.validUntil)}` : ''}
+                </p>
+              </div>
+              <button type="button" className="modal-close" onClick={closeViewer} aria-label="Fechar visualizacao">
+                <XMarkIcon className="icon" />
+              </button>
+            </div>
+            <iframe src={viewerUrl} title={viewerDocument.originalName} style={{ width: '100%', flex: 1, border: 'none' }} />
+          </div>
+        </div>
+      )}
     </>
   );
 }
