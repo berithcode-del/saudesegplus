@@ -2,6 +2,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/app/lib/api';
+import { maskPhone, maskCNPJ, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../../lib/formatUtils';
 import {
   ArrowLeftIcon,
   BuildingStorefrontIcon,
@@ -11,7 +12,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
-const STATES = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
 
 export default function AdminClinicaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -48,9 +49,13 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
     setSaving(true);
     try {
       await apiFetch(`/api/admin/clinics/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(form),
-      });
+              method: 'PATCH',
+              body: JSON.stringify({
+                ...form,
+                cnpj: form.cnpj.replace(/\D/g, ''),
+                phone: form.phone.replace(/\D/g, ''),
+              }),
+            });
       setEditing(false);
       fetchClinic();
     } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
@@ -141,38 +146,38 @@ export default function AdminClinicaDetailPage({ params }: { params: Promise<{ i
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label">Nome *</label>
-              <input className="form-input" value={form.name} onChange={e => setForm((p: any) => ({ ...p, name: e.target.value }))} />
+              <input className="form-input" value={form.name} onChange={e => setForm((p: any) => ({ ...p, name: e.target.value }))} maxLength={FIELD_LIMITS.NAME} />
             </div>
             <div className="form-group">
               <label className="form-label">CNPJ</label>
-              <input className="form-input" value={form.cnpj} onChange={e => setForm((p: any) => ({ ...p, cnpj: e.target.value }))} />
+              <input className="form-input" value={form.cnpj} onChange={e => setForm((p: any) => ({ ...p, cnpj: maskCNPJ(e.target.value) }))} placeholder="00.000.000/0000-00" />
             </div>
             <div className="form-group">
               <label className="form-label">Endereço</label>
-              <input className="form-input" value={form.address} onChange={e => setForm((p: any) => ({ ...p, address: e.target.value }))} />
+              <input className="form-input" value={form.address} onChange={e => setForm((p: any) => ({ ...p, address: e.target.value }))} maxLength={FIELD_LIMITS.ADDRESS} />
             </div>
             <div className="form-group">
               <label className="form-label">Cidade</label>
-              <input className="form-input" value={form.city} onChange={e => setForm((p: any) => ({ ...p, city: e.target.value }))} />
+              <input className="form-input" value={form.city} onChange={e => setForm((p: any) => ({ ...p, city: e.target.value }))} maxLength={FIELD_LIMITS.CITY} />
             </div>
             <div className="form-group">
               <label className="form-label">Estado</label>
               <select className="form-select" value={form.state} onChange={e => setForm((p: any) => ({ ...p, state: e.target.value }))}>
-                <option value="">Selecione</option>
-                {STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+                              <option value="">Selecione</option>
+                              {BR_STATE_OPTIONS}
+                            </select>
             </div>
             <div className="form-group">
               <label className="form-label">Telefone</label>
-              <input className="form-input" value={form.phone} onChange={e => setForm((p: any) => ({ ...p, phone: e.target.value }))} />
+              <input className="form-input" value={form.phone} onChange={e => setForm((p: any) => ({ ...p, phone: maskPhone(e.target.value) }))} placeholder="(00) 00000-0000" maxLength={FIELD_LIMITS.PHONE} />
             </div>
             <div className="form-group">
               <label className="form-label">E-mail de Contato</label>
-              <input type="email" className="form-input" value={form.contactEmail} onChange={e => setForm((p: any) => ({ ...p, contactEmail: e.target.value }))} />
+              <input type="email" className="form-input" value={form.contactEmail} onChange={e => setForm((p: any) => ({ ...p, contactEmail: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
             </div>
             <div className="form-group">
               <label className="form-label">E-mail de Acesso</label>
-              <input type="email" className="form-input" value={form.accessEmail} onChange={e => setForm((p: any) => ({ ...p, accessEmail: e.target.value }))} />
+              <input type="email" className="form-input" value={form.accessEmail} onChange={e => setForm((p: any) => ({ ...p, accessEmail: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
             </div>
           </div>
         ) : (

@@ -9,6 +9,7 @@ import {
   DocumentTextIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
+import { maskCNPJ, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') ||
@@ -101,7 +102,7 @@ export default function EmpresaLoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cnpj,
+          cnpj: cnpj.replace(/\D/g, ''),
           razaoSocial,
           contactEmail: email,
           password,
@@ -797,11 +798,11 @@ export default function EmpresaLoginPage() {
                             type="text"
                             required
                             className="input-field"
-                            placeholder="CNPJ"
+                            placeholder="00.000.000/0000-00"
                             value={cnpj}
-                            onChange={(e) => setCnpj(e.target.value.replace(/\D/g, '').slice(0, 14))}
+                            onChange={(e) => setCnpj(maskCNPJ(e.target.value))}
                             inputMode="numeric"
-                            maxLength={14}
+                            maxLength={FIELD_LIMITS.CNPJ}
                           />
                           <DocumentTextIcon className="input-icon" />
                         </div>
@@ -813,7 +814,7 @@ export default function EmpresaLoginPage() {
                             placeholder="Razão Social"
                             value={razaoSocial}
                             onChange={(e) => setRazaoSocial(e.target.value)}
-                            maxLength={150}
+                            maxLength={FIELD_LIMITS.RAZAO_SOCIAL}
                           />
                           <BuildingOfficeIcon className="input-icon" />
                         </div>

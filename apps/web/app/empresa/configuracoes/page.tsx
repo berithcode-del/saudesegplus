@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { apiFetch } from '../../lib/api';
 import FaqHelp from '../../../components/FaqHelp';
+import { maskPhone, maskCEP, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../lib/formatUtils';
 
 interface CompanyData {
   razaoSocial: string;
@@ -158,7 +159,7 @@ export default function ConfiguracoesPage() {
             cep: companyData.cep.replace(/\D/g, ''),
             city: companyData.city,
             state: companyData.state,
-            phone: companyData.phone,
+            phone: (companyData.phone ?? '').replace(/\D/g, ''),
             contactEmail: companyData.contactEmail,
             clinicId: clinicIdToSend,
           }),
@@ -214,11 +215,12 @@ export default function ConfiguracoesPage() {
           <div className="form-group">
             <label className="form-label">Nome Fantasia</label>
             <input
-              type="text"
-              className="form-input"
-              value={companyData.nomeFantasia}
-              onChange={(e) => setCompanyData({ ...companyData, nomeFantasia: e.target.value })}
-            />
+                          type="text"
+                          className="form-input"
+                          value={companyData.nomeFantasia}
+                          onChange={(e) => setCompanyData({ ...companyData, nomeFantasia: e.target.value })}
+                          maxLength={FIELD_LIMITS.NOME_FANTASIA}
+                        />
           </div>
           <div className="form-group">
             <label className="form-label">Razão Social</label>
@@ -241,91 +243,71 @@ export default function ConfiguracoesPage() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">CEP</label>
-            <input
-              type="text"
-              className="form-input"
-              value={companyData.cep}
-              onChange={(e) => setCompanyData({ ...companyData, cep: formatCEP(e.target.value) })}
-            />
-          </div>
+                      <label className="form-label">CEP</label>
+                      <input
+                                    type="text"
+                                    className="form-input"
+                                    value={companyData.cep}
+                                    onChange={(e) => setCompanyData({ ...companyData, cep: maskCEP(e.target.value) })}
+                                    placeholder="00000-000"
+                                    maxLength={FIELD_LIMITS.CEP}
+                                  />
+                    </div>
           <div className="form-group">
             <label className="form-label">Endereço</label>
             <input
-              type="text"
-              className="form-input"
-              value={companyData.address}
-              onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
-            />
+                          type="text"
+                          className="form-input"
+                          value={companyData.address}
+                          onChange={(e) => setCompanyData({ ...companyData, address: e.target.value })}
+                          maxLength={FIELD_LIMITS.ADDRESS}
+                        />
           </div>
           <div className="form-group">
             <label className="form-label">Telefone de Contato</label>
             <input
-              type="text"
-              className="form-input"
-              value={companyData.phone ?? ''}
-              onChange={(e) => setCompanyData({ ...companyData, phone: e.target.value })}
-              placeholder="(00) 0000-0000"
-            />
+                          type="tel"
+                          className="form-input"
+                          value={companyData.phone ?? ''}
+                          onChange={(e) => setCompanyData({ ...companyData, phone: maskPhone(e.target.value) })}
+                          placeholder="(00) 00000-0000"
+                          maxLength={FIELD_LIMITS.PHONE}
+                        />
           </div>
           <div className="form-group">
             <label className="form-label">E-mail de Contato</label>
             <input
-              type="email"
-              className="form-input"
-              value={companyData.contactEmail ?? ''}
-                onChange={(e) => setCompanyData({ ...companyData, contactEmail: e.target.value })}
-                placeholder="contato@empresa.com.br"
-              />
+                          type="email"
+                          className="form-input"
+                          value={companyData.contactEmail ?? ''}
+                            onChange={(e) => setCompanyData({ ...companyData, contactEmail: e.target.value })}
+                            placeholder="contato@empresa.com.br"
+                            maxLength={FIELD_LIMITS.EMAIL}
+                          />
             </div>
             <div className="form-group">
               <label className="form-label">Cidade</label>
             <input
-              type="text"
-              className="form-input"
-              value={companyData.city}
-              onChange={(e) => setCompanyData({ ...companyData, city: e.target.value })}
-            />
+                          type="text"
+                          className="form-input"
+                          value={companyData.city}
+                          onChange={(e) => setCompanyData({ ...companyData, city: e.target.value })}
+                          maxLength={FIELD_LIMITS.CITY}
+                        />
           </div>
           <div className="form-group">
                       <label className="form-label">Estado</label>
                       <select
-                        className="form-select"
-                        value={companyData.state}
-                        onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })}
-                      >
-                        <option value="">Selecione</option>
-                        <option value="AC">AC</option>
-                        <option value="AL">AL</option>
-                        <option value="AP">AP</option>
-                        <option value="AM">AM</option>
-                        <option value="BA">BA</option>
-                        <option value="CE">CE</option>
-                        <option value="DF">DF</option>
-                        <option value="ES">ES</option>
-                        <option value="GO">GO</option>
-                        <option value="MA">MA</option>
-                        <option value="MT">MT</option>
-                        <option value="MS">MS</option>
-                        <option value="MG">MG</option>
-                        <option value="PA">PA</option>
-                        <option value="PB">PB</option>
-                        <option value="PR">PR</option>
-                        <option value="PE">PE</option>
-                        <option value="PI">PI</option>
-                        <option value="RJ">RJ</option>
-                        <option value="RN">RN</option>
-                        <option value="RS">RS</option>
-                        <option value="RO">RO</option>
-                        <option value="RR">RR</option>
-                        <option value="SC">SC</option>
-                        <option value="SP">SP</option>
-                        <option value="SE">SE</option>
-                        <option value="TO">TO</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Clínica Atribuída</label>
+                                              className="form-select"
+                                              value={companyData.state}
+                                              onChange={(e) => setCompanyData({ ...companyData, state: e.target.value })}
+                                            >
+                                              <option value="">Selecione</option>
+                                              {BR_STATE_OPTIONS}
+                                            </select>
+                                                                </div>
+                                                                <div className="form-group">
+                                                                  <label className="form-label">Clínica Atribuída</label>
                       <select
                         className="form-select"
                         value={companyData.clinicId ?? ''}

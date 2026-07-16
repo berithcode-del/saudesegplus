@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowPathIcon, PlusIcon, XMarkIcon, ClipboardIcon, CheckIcon, BuildingStorefrontIcon } from '@heroicons/react/24/outline';
 import { apiAdminListClinics, apiAdminCreateClinic, apiAdminSetClinicMatriz } from '@/app/lib/api';
+import { maskCNPJ, maskPhone, FIELD_LIMITS, BR_STATES } from '../../../lib/formatUtils';
 
 interface Clinic {
   id: string;
@@ -167,15 +168,15 @@ export default function AdminClinicasPage() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Nome *</label>
-                  <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+                  <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required maxLength={FIELD_LIMITS.NAME} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">CNPJ *</label>
-                  <input className="form-input" value={form.cnpj} onChange={e => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0000-00" required />
+                  <input className="form-input" value={form.cnpj} onChange={e => setForm({ ...form, cnpj: maskCNPJ(e.target.value) })} placeholder="00.000.000/0000-00" required />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Cidade *</label>
-                  <input className="form-input" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} required />
+                  <input className="form-input" value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} required maxLength={FIELD_LIMITS.CITY} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Estado *</label>

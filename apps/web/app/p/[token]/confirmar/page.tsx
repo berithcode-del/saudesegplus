@@ -3,6 +3,7 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircleIcon, ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { maskPhone, FIELD_LIMITS } from '../../../../lib/formatUtils';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -66,7 +67,7 @@ export default function ConfirmarDadosPage({ params }: { params: Promise<{ token
             'Content-Type': 'application/json',
             Authorization: `Bearer ${portalToken}`,
           },
-          body: JSON.stringify({ phone: telefone, email }),
+          body: JSON.stringify({ phone: telefone.replace(/\D/g, ''), email }),
         });
         if (!res.ok) throw new Error('Erro ao confirmar dados.');
         setSuccess(true);
@@ -145,23 +146,25 @@ export default function ConfirmarDadosPage({ params }: { params: Promise<{ token
             <div style={{ marginBottom: '16px' }}>
               <label className="form-label" htmlFor="telefone">Telefone</label>
               <input
-                id="telefone"
-                className="form-input"
-                placeholder="(11) 99999-9999"
-                value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
-              />
+                              id="telefone"
+                              className="form-input"
+                              placeholder="(11) 99999-9999"
+                              value={telefone}
+                              onChange={(e) => setTelefone(maskPhone(e.target.value))}
+                              maxLength={FIELD_LIMITS.PHONE}
+                            />
             </div>
             <div style={{ marginBottom: '24px' }}>
               <label className="form-label" htmlFor="email">E-mail</label>
               <input
-                id="email"
-                type="email"
-                className="form-input"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+                              id="email"
+                              type="email"
+                              className="form-input"
+                              placeholder="seu@email.com"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              maxLength={FIELD_LIMITS.EMAIL}
+                            />
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>

@@ -9,6 +9,7 @@ import {
   HeartIcon,
   ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
+import { FIELD_LIMITS } from '../../../../lib/formatUtils';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -177,15 +178,15 @@ export default function QuestionarioPage({ params }: { params: Promise<{ token: 
           <div style={{ display: 'grid', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Tem alguma queixa de saude hoje?</label>
-              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Ex: dor, tontura, falta de ar, cansaco, ansiedade, nenhuma queixa..." value={form.queixas} onChange={e => update('queixas', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Ex: dor, tontura, falta de ar, cansaco, ansiedade, nenhuma queixa..." value={form.queixas} onChange={e => update('queixas', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
             <div className="form-group">
               <label className="form-label">Usa algum medicamento?</label>
-              <textarea className="form-input" style={{ minHeight: '86px', resize: 'vertical' }} placeholder="Informe nome, dose ou escreva nenhum." value={form.medicamentosEmUso} onChange={e => update('medicamentosEmUso', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '86px', resize: 'vertical' }} placeholder="Informe nome, dose ou escreva nenhum." value={form.medicamentosEmUso} onChange={e => update('medicamentosEmUso', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
             <div className="form-group">
               <label className="form-label">Tem alergias conhecidas?</label>
-              <textarea className="form-input" style={{ minHeight: '76px', resize: 'vertical' }} placeholder="Ex: medicamento, alimento, produto quimico, nenhuma." value={form.alergiasConhecidas} onChange={e => update('alergiasConhecidas', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '76px', resize: 'vertical' }} placeholder="Ex: medicamento, alimento, produto quimico, nenhuma." value={form.alergiasConhecidas} onChange={e => update('alergiasConhecidas', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
           </div>
         )}
@@ -194,15 +195,15 @@ export default function QuestionarioPage({ params }: { params: Promise<{ token: 
           <div style={{ display: 'grid', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Doencas previas ou atuais</label>
-              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Ex: hipertensao, diabetes, asma, depressao, epilepsia, nenhuma." value={form.doencasPrevias} onChange={e => update('doencasPrevias', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Ex: hipertensao, diabetes, asma, depressao, epilepsia, nenhuma." value={form.doencasPrevias} onChange={e => update('doencasPrevias', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
             <div className="form-group">
               <label className="form-label">Cirurgias, internacoes ou acidentes importantes</label>
-              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Descreva se houver. Se nao, deixe em branco ou escreva nenhum." value={form.cirurgiasPrevias} onChange={e => update('cirurgiasPrevias', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '96px', resize: 'vertical' }} placeholder="Descreva se houver. Se nao, deixe em branco ou escreva nenhum." value={form.cirurgiasPrevias} onChange={e => update('cirurgiasPrevias', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
             <div className="form-group">
               <label className="form-label">Observacoes ocupacionais</label>
-              <textarea className="form-input" style={{ minHeight: '86px', resize: 'vertical' }} placeholder="Ex: ja teve afastamento, acidente de trabalho, restricao anterior, nada a declarar." value={form.observacoes} onChange={e => update('observacoes', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '86px', resize: 'vertical' }} placeholder="Ex: ja teve afastamento, acidente de trabalho, restricao anterior, nada a declarar." value={form.observacoes} onChange={e => update('observacoes', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
           </div>
         )}
@@ -223,7 +224,7 @@ export default function QuestionarioPage({ params }: { params: Promise<{ token: 
                 ))}
               </div>
               {form.tabagismo !== 'nao' && (
-                <input className="form-input" style={{ marginTop: '10px' }} placeholder="Ha quanto tempo? Quantidade aproximada?" value={form.tabagismoDetalhe} onChange={e => update('tabagismoDetalhe', e.target.value)} />
+                <input className="form-input" style={{ marginTop: '10px' }} placeholder="Ha quanto tempo? Quantidade aproximada?" value={form.tabagismoDetalhe} onChange={e => update('tabagismoDetalhe', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
               )}
             </div>
 
@@ -241,7 +242,7 @@ export default function QuestionarioPage({ params }: { params: Promise<{ token: 
                 ))}
               </div>
               {form.alcool !== 'nao' && (
-                <input className="form-input" style={{ marginTop: '10px' }} placeholder="Frequencia aproximada" value={form.alcoolDetalhe} onChange={e => update('alcoolDetalhe', e.target.value)} />
+                <input className="form-input" style={{ marginTop: '10px' }} placeholder="Frequencia aproximada" value={form.alcoolDetalhe} onChange={e => update('alcoolDetalhe', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
               )}
             </div>
 
@@ -262,7 +263,7 @@ export default function QuestionarioPage({ params }: { params: Promise<{ token: 
 
             <div className="form-group">
               <label className="form-label">Sono e descanso</label>
-              <textarea className="form-input" style={{ minHeight: '76px', resize: 'vertical' }} placeholder="Ex: dorme bem, insonia, trabalho noturno, sonolencia durante o dia..." value={form.sono} onChange={e => update('sono', e.target.value)} />
+              <textarea className="form-input" style={{ minHeight: '76px', resize: 'vertical' }} placeholder="Ex: dorme bem, insonia, trabalho noturno, sonolencia durante o dia..." value={form.sono} onChange={e => update('sono', e.target.value)} maxLength={FIELD_LIMITS.QUESTIONARIO} />
             </div>
           </div>
         )}

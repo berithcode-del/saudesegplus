@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiListSolicitacoes, apiFetch, apiGetRequiredExams, apiCreateInvite, apiCancelInvite, apiListInvites } from '../../lib/api';
+import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
@@ -280,22 +281,22 @@ export default function EmpresaSolicitacoesPage() {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Nome do Colaborador *</label>
                   <input required className="form-input" value={inviteData.collaboratorName}
-                    onChange={e => setInviteData(p => ({ ...p, collaboratorName: e.target.value }))}
-                    placeholder="Nome completo" />
+                                      onChange={e => setInviteData(p => ({ ...p, collaboratorName: e.target.value }))}
+                                      placeholder="Nome completo" maxLength={FIELD_LIMITS.NAME} />
                 </div>
 
                 <div className="form-group">
                   <label>CPF</label>
                   <input className="form-input" value={inviteData.expectedCpf}
-                    onChange={e => setInviteData(p => ({ ...p, expectedCpf: e.target.value }))}
-                    placeholder="000.000.000-00" />
+                                      onChange={e => setInviteData(p => ({ ...p, expectedCpf: maskCPF(e.target.value) }))}
+                                      placeholder="000.000.000-00" maxLength={FIELD_LIMITS.CPF} />
                 </div>
 
                 <div className="form-group">
                   <label>E-mail</label>
                   <input type="email" className="form-input" value={inviteData.expectedEmail}
-                    onChange={e => setInviteData(p => ({ ...p, expectedEmail: e.target.value }))}
-                    placeholder="email@empresa.com" />
+                                      onChange={e => setInviteData(p => ({ ...p, expectedEmail: e.target.value }))}
+                                      placeholder="email@empresa.com" maxLength={FIELD_LIMITS.EMAIL} />
                 </div>
 
                 <div className="form-group">
