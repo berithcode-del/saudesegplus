@@ -1,7 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGetExamTypes, apiGetRequiredExams, apiFetch } from '../../lib/api';
+import {
+  apiGetExamTypes,
+  apiGetRequiredExams,
+  apiFetch,
+  apiQuotePayment,
+  apiCreatePayment,
+  apiConfirmPayment,
+  type PaymentQuote,
+} from '../../lib/api';
 import { maskCPF, maskPhone, FIELD_LIMITS } from '../../../lib/formatUtils';
 import {
   CheckCircleIcon,
@@ -10,6 +18,7 @@ import {
   ClockIcon,
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
+import PaymentReviewCard from '../../../components/ui/PaymentReviewCard';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -41,6 +50,7 @@ export default function CheckInPage() {
   const [examTypesLoading, setExamTypesLoading] = useState(true);
   const [requiredExams, setRequiredExams] = useState<string[]>([]);
   const [selectedExamTypes, setSelectedExamTypes] = useState<string[]>([]);
+  const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null);
 
   useEffect(() => {
     apiGetExamTypes()
@@ -109,13 +119,71 @@ export default function CheckInPage() {
     }
   };
 
+  const validateSelectedExamFields = () => {
+    for (const typeId of selectedExamTypes) {
+      const config = examTypes.find(e => e.id === typeId);
+      if (!config) continue;
+      const emptyFields = config.fields.filter(f => !exams[`${typeId}_${f.id}`]);
+      if (emptyFields.length > 0) {
+        throw new Error(`Preencha todos os campos do exame: ${config.label}`);
+      }
+    }
+  };
+
+  const handlePreparePaymentReview = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      validateSelectedExamFields();
+      const quoteResult = await apiQuotePayment({
+        cboCode: patient.functionCboCode,
+        examPurpose: patient.examPurpose,
+        specialClearances: selectedExamTypes,
+      }) as any;
+      const quote = quoteResult?.data ?? quoteResult;
+      if (!quote?.items?.length) {
+        throw new Error('Cotacao nao retornou itens para pagamento.');
+      }
+      setPaymentQuote(quote);
+      setStep('confirm');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao preparar pagamento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSendToQueue = async () => {
     setSaving(true);
     setError('');
     try {
-      const createRes = await fetch(`${BACKEND_URL}/api/exams/create-patient`, {
+      if (!paymentQuote) {
+        throw new Error('Revise o pagamento antes de enviar para a fila.');
+      }
+      validateSelectedExamFields();
+
+      const paymentResult = await apiCreatePayment({
+        flow: 'CLINIC_WALK_IN',
+        method: 'SIMULADO',
+        cboCode: patient.functionCboCode,
+        examPurpose: patient.examPurpose,
+        specialClearances: selectedExamTypes,
+        checkoutPayload: {
+          source: 'clinic-check-in',
+          patientName: patient.name,
+          patientCpf: patient.cpf,
+          quote: paymentQuote,
+        },
+      }) as any;
+      const paymentId = paymentResult?.data?.id ?? paymentResult?.id;
+      if (!paymentId) {
+        throw new Error('Pagamento criado sem identificador.');
+      }
+
+      await apiConfirmPayment(paymentId, 'SIMULADO');
+
+      const createResult = await apiFetch('/api/exams/create-patient', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: patient.name,
           cpf: patient.cpf.replace(/\D/g, ''),
@@ -123,9 +191,9 @@ export default function CheckInPage() {
           functionCboCode: patient.functionCboCode,
           examPurpose: patient.examPurpose,
           inviteId,
+          paymentId,
         }),
-      });
-      const createResult = await createRes.json();
+      }) as any;
       if (!createResult.success || !createResult.data?.examRequest?.id) {
         throw new Error(createResult.message ?? 'Erro ao criar paciente');
       }
@@ -158,10 +226,9 @@ export default function CheckInPage() {
         body: JSON.stringify({ examRequestId, results }),
       });
 
-      const queueRes = await fetch(`${BACKEND_URL}/api/exams/${examRequestId}/send-to-queue`, {
+      const queueResult = await apiFetch(`/api/exams/${examRequestId}/send-to-queue`, {
         method: 'POST',
-      });
-      const queueResult = await queueRes.json();
+      }) as any;
       if (!queueResult.success) {
         throw new Error('Erro ao enviar para fila');
       }
@@ -333,14 +400,13 @@ export default function CheckInPage() {
               </div>
             );
           })}
-
           <div style={{ display: 'flex', gap: '12px' }}>
             <button className="btn btn-ghost" onClick={() => setStep('patient')}>
               <ArrowLeftIcon className="icon icon-sm" />
               Voltar
             </button>
-            <button id="btn-next-confirm" className="btn btn-primary" onClick={() => setStep('confirm')}>
-              Próximo: Confirmar
+            <button id="btn-next-confirm" className="btn btn-primary" onClick={handlePreparePaymentReview} disabled={saving}>
+              {saving ? 'Gerando cotacao...' : 'Proximo: pagamento'}
               <ArrowRightIcon className="icon icon-sm" />
             </button>
           </div>
@@ -381,7 +447,21 @@ export default function CheckInPage() {
               })}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          {paymentQuote && (
+            <PaymentReviewCard
+              subjectName={patient.name}
+              examPurpose={patient.examPurpose}
+              quote={paymentQuote}
+              loading={saving}
+              onBack={() => {
+                setPaymentQuote(null);
+                setStep('exams');
+              }}
+              onConfirm={handleSendToQueue}
+              confirmLabel="Confirmar pagamento e enviar para fila"
+            />
+          )}
+          <div style={{ display: 'none', gap: '12px' }}>
             <button className="btn btn-ghost" onClick={() => setStep('exams')}>
               <ArrowLeftIcon className="icon icon-sm" />
               Voltar

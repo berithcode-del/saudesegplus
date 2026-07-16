@@ -1,10 +1,22 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { apiListSolicitacoes, apiFetch, apiGetRequiredExams, apiCreateInvite, apiCancelInvite, apiListInvites } from '../../lib/api';
+import {
+  apiListSolicitacoes,
+  apiFetch,
+  apiGetRequiredExams,
+  apiCreateInvite,
+  apiCancelInvite,
+  apiListInvites,
+  apiQuotePayment,
+  apiCreatePayment,
+  apiConfirmPayment,
+  type PaymentQuote,
+} from '../../lib/api';
 import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 import { Pagination } from '../../../components/ui/Pagination';
 import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
+import PaymentReviewCard from '../../../components/ui/PaymentReviewCard';
 
 interface Solicitacao {
   id: string;
@@ -40,6 +52,7 @@ export default function EmpresaSolicitacoesPage() {
   const [creating, setCreating] = useState(false);
   const [requiredExams, setRequiredExams] = useState<string[]>([]);
   const [createError, setCreateError] = useState('');
+  const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null);
 
   // Busca o companyId do token ou localStorage
   useEffect(() => {
@@ -195,6 +208,83 @@ export default function EmpresaSolicitacoesPage() {
     }
   };
 
+  const handleReviewPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyId) { setCreateError('ID da empresa nao encontrado. Faca login novamente.'); return; }
+    setCreating(true);
+    setCreateError('');
+
+    try {
+      const result = await apiQuotePayment({
+        cboCode: inviteData.roleFunctionCboCode,
+        examPurpose: inviteData.examType,
+      }) as any;
+      const quote = result?.data ?? result;
+      if (!quote?.items?.length) {
+        throw new Error('Cotacao nao retornou itens para pagamento.');
+      }
+      setPaymentQuote(quote);
+    } catch (err: any) {
+      setCreateError(err.message || 'Erro ao gerar cotacao de pagamento. Tente novamente.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleConfirmPaymentAndCreateInvite = async () => {
+    if (!companyId) { setCreateError('ID da empresa nao encontrado. Faca login novamente.'); return; }
+    if (!paymentQuote) { setCreateError('Revise as informacoes de pagamento antes de criar o convite.'); return; }
+    setCreating(true);
+    setCreateError('');
+
+    try {
+      const paymentResult = await apiCreatePayment({
+        flow: 'COMPANY_INVITE',
+        companyId,
+        method: 'SIMULADO',
+        cboCode: inviteData.roleFunctionCboCode,
+        examPurpose: inviteData.examType,
+        checkoutPayload: {
+          source: 'company-invite-review',
+          collaboratorName: inviteData.collaboratorName,
+          expectedCpf: inviteData.expectedCpf,
+          expectedEmail: inviteData.expectedEmail,
+          quote: paymentQuote,
+        },
+      }) as any;
+      const paymentId = paymentResult?.data?.id ?? paymentResult?.id;
+      if (!paymentId) {
+        throw new Error('Pagamento criado sem identificador.');
+      }
+
+      await apiConfirmPayment(paymentId, 'SIMULADO');
+
+      const result = await apiCreateInvite(companyId, {
+        collaboratorName: inviteData.collaboratorName,
+        expectedCpf: inviteData.expectedCpf,
+        expectedEmail: inviteData.expectedEmail,
+        expectedBirthDate: inviteData.expectedBirthDate || undefined,
+        roleFunction: inviteData.roleFunction,
+        roleFunctionCboCode: inviteData.roleFunctionCboCode,
+        examType: inviteData.examType,
+        expiresInDays: Number(inviteData.expiresInDays),
+        paymentId,
+      }) as any;
+
+      const token = result?.data?.token ?? result?.token;
+      if (token) {
+        setInviteToken(token);
+      } else {
+        const msg = result?.data?.message ?? result?.message ?? '';
+        throw new Error(msg || 'Convite criado, mas token nao retornado. Verifique o status da empresa.');
+      }
+    } catch (err: any) {
+      setCreateError(err.message || 'Erro ao criar convite. Tente novamente.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleCancelInvite = async (id: string) => {
     if (!confirm('Deseja cancelar este convite?')) return;
     try {
@@ -217,6 +307,7 @@ export default function EmpresaSolicitacoesPage() {
     setCopied(false);
     setCreateError('');
     setRequiredExams([]);
+    setPaymentQuote(null);
     setInviteData({
       collaboratorName: '',
       expectedCpf: '',
@@ -269,9 +360,19 @@ export default function EmpresaSolicitacoesPage() {
                   Fechar
                 </button>
               </div>
+            ) : paymentQuote ? (
+              <PaymentReviewCard
+                subjectName={inviteData.collaboratorName}
+                examPurpose={inviteData.examType}
+                quote={paymentQuote}
+                loading={creating}
+                onBack={() => setPaymentQuote(null)}
+                onConfirm={handleConfirmPaymentAndCreateInvite}
+                confirmLabel="Confirmar pagamento e criar convite"
+              />
             ) : (
               /* Formulário */
-              <form onSubmit={handleCreateInvite} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <form onSubmit={handleReviewPayment} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 {createError && (
                   <div style={{ gridColumn: '1 / -1', background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '12px', borderRadius: '8px', fontSize: '14px' }}>
                     {createError}
@@ -349,7 +450,7 @@ export default function EmpresaSolicitacoesPage() {
 
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={creating}>
-                    {creating ? 'Criando...' : 'Criar Convite'}
+                    {creating ? 'Gerando cotacao...' : 'Revisar informacoes e pagamento'}
                   </button>
                 </div>
               </form>

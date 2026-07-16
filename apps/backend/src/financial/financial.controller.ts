@@ -163,7 +163,7 @@ export class FinancialController {
   }
 
   @Patch('payments/:id/confirm')
-  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
+  @Roles('ADMIN', 'COMPANY_ADMIN', 'CLINIC', 'OPERATOR')
   async confirmPayment(
     @Param('id') id: string,
     @Body() body: { method?: string },

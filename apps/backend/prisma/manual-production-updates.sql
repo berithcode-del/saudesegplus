@@ -49,6 +49,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ExamInvite_paymentId_key" ON "ExamInvite"("pa
 CREATE UNIQUE INDEX IF NOT EXISTS "ExamRequest_paymentId_key" ON "ExamRequest"("paymentId");
 CREATE UNIQUE INDEX IF NOT EXISTS "ExamResult_requestId_typeId_key" ON "ExamResult"("requestId", "typeId");
 
+INSERT INTO "ExamItemPrice" ("id", "code", "name", "category", "amount", "clinicFeePercent", "doctorFeePercent", "platformFeePercent", "isActive", "createdAt", "updatedAt")
+VALUES
+  (gen_random_uuid(), 'ASO', 'ASO ocupacional', 'ASO', 80.00, 30.0, 40.0, 30.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'audiometria', 'Audiometria', 'EXAM', 45.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'espirometria', 'Espirometria', 'EXAM', 55.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'acuidade_visual', 'Acuidade visual', 'EXAM', 35.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'eletrocardiograma', 'Eletrocardiograma', 'EXAM', 65.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'eletroencefalograma', 'Eletroencefalograma', 'EXAM', 90.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'radiografia_torax', 'Radiografia de torax', 'EXAM', 75.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'exames_laboratoriais', 'Exames laboratoriais', 'EXAM', 70.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'psicossocial', 'Avaliacao psicossocial', 'EXAM', 110.00, 30.0, 45.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'pa', 'Pressao arterial', 'EXAM', 15.00, 40.0, 35.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'peso_altura', 'Peso e altura', 'EXAM', 15.00, 40.0, 35.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'glicemia', 'Glicemia', 'EXAM', 25.00, 35.0, 40.0, 25.0, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT ("code") DO NOTHING;
+
 DO $$ BEGIN
   ALTER TABLE "Payment" ADD CONSTRAINT "Payment_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
