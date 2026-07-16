@@ -6,6 +6,10 @@ import { apiListCompanyAsos } from '../../lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
+function resolveFileUrl(fileUrl: string) {
+  return /^https?:\/\//i.test(fileUrl) ? fileUrl : `${BACKEND_URL}${fileUrl}`;
+}
+
 interface CompanyAso {
   id: string;
   requestId: string;
@@ -168,7 +172,7 @@ export default function EmpresaAsosPage() {
                     <td>{aso.doctor.name}</td>
                     <td>
                       {aso.pdfUrl ? (
-                        <a className="btn btn-secondary" href={`${BACKEND_URL}${aso.pdfUrl}`} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', minHeight: 'unset' }}>
+                        <a className="btn btn-secondary" href={resolveFileUrl(aso.pdfUrl)} target="_blank" rel="noreferrer" style={{ padding: '6px 10px', minHeight: 'unset' }}>
                           <DocumentArrowDownIcon className="icon-sm" /> Abrir
                         </a>
                       ) : (

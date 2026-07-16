@@ -3,13 +3,13 @@ import { JwtService } from '@nestjs/jwt';
 import { getJwtSecret, getPortalJwtExpiresIn } from '../auth/jwt-secret';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { readFile } from 'fs/promises';
-import { basename, join } from 'path';
+import { basename } from 'path';
 import { InviteStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { QuestionarioDto } from './dto/questionario.dto';
 import { QueueService } from '../queue/queue.service';
 import { CompanyGateway } from '../company/company.gateway';
+import { SupabaseStorageService } from '../upload/supabase-storage.service';
 @Injectable()
 export class PortalService {
   constructor(
@@ -17,6 +17,7 @@ export class PortalService {
     private readonly jwtService: JwtService,
     private readonly queueService: QueueService,
     private readonly companyGateway: CompanyGateway,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   async auth(token: string, cpf: string, birthDate: string) {
@@ -553,14 +554,10 @@ export class PortalService {
       throw new NotFoundException('ASO nao encontrado');
     }
 
-    try {
-      return {
-        buffer: await readFile(join(process.cwd(), 'uploads', 'aso', fileName)),
-        fileName,
-      };
-    } catch {
-      throw new NotFoundException('ASO nao encontrado');
-    }
+    return {
+      buffer: await this.storage.downloadAsoFile(fileName),
+      fileName,
+    };
   }
 
   private async findBestClinicForInvite(companyId: string, preferredClinicId: string | null) {
