@@ -507,27 +507,29 @@ export default function EmpresaSolicitacoesPage() {
                 </tr>
               </thead>
               <tbody>
-                {solicitacoes.map(sol => (
-                  <tr key={sol.id}>
-                    <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
-                    <td>{sol.patient?.cpf ?? '—'}</td>
-                    <td className="capitalize">{sol.examPurpose}</td>
-                    <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
-                    <td><span className="badge badge-done">{sol.status}</span></td>
-                    <td>
-                                          {sol.asoDocuments?.[0]?.pdfUrl ? (
-                                            <button
-                                              className="btn btn-secondary"
-                                              style={{ padding: '6px 10px', minHeight: 'unset' }}
-                                              onClick={() => openAsoPdf(companyId, sol.asoDocuments![0].id!)}
-                                            >
-                                              <DocumentArrowDownIcon className="icon-sm" /> Visualizar
-                                            </button>
-                                          ) : (
-                                            <span>{sol.asoDocuments?.[0]?.decision ?? '—'}</span>
-                                          )}
-                                        </td>
-                                        <td>
+                {solicitacoes.map(sol => {
+                                  const asoDoc = sol.asoDocuments?.[0];
+                                  return (
+                                  <tr key={sol.id}>
+                                    <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
+                                    <td>{sol.patient?.cpf ?? '—'}</td>
+                                    <td className="capitalize">{sol.examPurpose}</td>
+                                    <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
+                                    <td><span className="badge badge-done">{sol.status}</span></td>
+                                    <td>
+                                      {asoDoc?.pdfUrl ? (
+                                        <button
+                                          className="btn btn-secondary"
+                                          style={{ padding: '6px 10px', minHeight: 'unset' }}
+                                          onClick={() => openAsoPdf(companyId, asoDoc.id!)}
+                                        >
+                                          <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                        </button>
+                                      ) : (
+                                        <span>{asoDoc?.decision ?? '—'}</span>
+                                      )}
+                                    </td>
+                                    <td>
                                           {sol.token ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
