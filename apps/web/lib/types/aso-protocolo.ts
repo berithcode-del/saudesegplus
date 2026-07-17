@@ -45,6 +45,7 @@ export interface ProtocoloASO {
   documentos: DocumentoProtocolo[];
   historico: HistoricoProtocolo[];
   observacoes?: string;
+  pdfUrl?: string; // URL do PDF do ASO (primeiro documento do tipo ASO)
   empresa?: { id: string; nomeFantasia?: string; razaoSocial?: string; name?: string };
   clinica?: { id: string; name: string };
   paciente?: { id: string; name: string; cpf: string };
