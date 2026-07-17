@@ -224,7 +224,9 @@ export class PortalService {
       throw new NotFoundException('Processo não encontrado');
     }
 
-    const latestVideoSessionId = request.teleconsultations[0]?.videoSessionId ?? null;
+    const latestVideoSessionId = this.withEmbeddedJitsiConfig(
+      request.teleconsultations[0]?.videoSessionId ?? null,
+    );
     const effectiveStatus = latestVideoSessionId && request.status !== 'CONCLUIDO'
       ? 'EM_ATENDIMENTO_MEDICO'
       : request.status;
@@ -285,8 +287,8 @@ export class PortalService {
       documentos,
       questionario: { respondido: !!questionario },
       teleconsulta: {
-        disponivel: !!(teleconsulta?.videoSessionId),
-        linkSala: teleconsulta?.videoSessionId ?? null,
+        disponivel: !!latestVideoSessionId,
+        linkSala: latestVideoSessionId,
       },
       aso: {
         disponivel: !!aso?.pdfUrl,
@@ -694,6 +696,16 @@ export class PortalService {
         Math.cos(toRadians(lat2)) *
         Math.sin((toRadians(lng2) - toRadians(lng1)) / 2) ** 2;
     return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  private withEmbeddedJitsiConfig(url: string | null) {
+    if (!url) return null;
+    const [base, hash = ''] = url.split('#');
+    const params = new URLSearchParams(hash);
+    params.set('config.prejoinPageEnabled', 'false');
+    params.set('config.disableDeepLinking', 'true');
+    params.set('interfaceConfig.MOBILE_APP_PROMO', 'false');
+    return `${base}#${params.toString()}`;
   }
 
   async preview(token: string) {

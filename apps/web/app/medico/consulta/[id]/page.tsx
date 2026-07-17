@@ -16,7 +16,6 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   apiGetSolicitacao,
-  apiUpdateSolicitacao,
   apiCreateVideoRoom,
   apiFetch,
   getAuthToken,
@@ -297,18 +296,6 @@ export default function ConsultaPage() {
         body: JSON.stringify({ pin: signaturePin }),
       });
 
-      const laudoTexto =
-        decision === "APTO_COM_RESTRICAO"
-          ? `${decision}: ${restriction}`
-          : decision;
-      await apiUpdateSolicitacao(params.id, {
-        status: "CONCLUIDO",
-        laudoTexto,
-        decision,
-        restrictionNotes:
-          decision === "APTO_COM_RESTRICAO" ? restriction : undefined,
-      });
-
       const pdfData = await apiFetch("/api/aso/generate", {
         method: "POST",
         body: JSON.stringify({
@@ -320,6 +307,9 @@ export default function ConsultaPage() {
       });
       setSignatureUrl(signatureData.url);
       setPdfUrl(pdfData.pdfUrl);
+      setSolicitacao((current) =>
+        current ? { ...current, status: "CONCLUIDO" } : current,
+      );
       setSignaturePin("");
       setIsPinModalOpen(false);
     } catch (error) {

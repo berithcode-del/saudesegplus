@@ -363,9 +363,7 @@ function WaitingRoom({ status, teleconsultaUrl, doctorViewing }: { status: strin
             Sua teleconsulta está pronta. Entre agora para falar com o médico.
           </p>
           <a
-            href={teleconsultaUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#teleconsulta-embed"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '10px',
               background: 'white', color: '#059669',
@@ -376,12 +374,12 @@ function WaitingRoom({ status, teleconsultaUrl, doctorViewing }: { status: strin
             }}
           >
             <VideoCameraIcon style={{ width: '20px', height: '20px' }} />
-            Entrar na Teleconsulta
+            Abrir teleconsulta aqui
           </a>
         </div>
 
         {/* Iframe embutido */}
-        <div style={{
+        <div id="teleconsulta-embed" style={{
           background: 'white', borderRadius: '20px',
           border: '1px solid #e5e7eb', overflow: 'hidden',
           boxShadow: '0 2px 12px rgba(31,38,135,0.08)',

@@ -37,6 +37,16 @@ export class TeleconsultationController {
     });
 
     if (existingRoom) {
+      const videoSessionId = this.withEmbeddedJitsiConfig(existingRoom.videoSessionId);
+      const hostRoomUrl = this.withEmbeddedJitsiConfig(existingRoom.hostRoomUrl);
+      const roomForReturn =
+        videoSessionId !== existingRoom.videoSessionId || hostRoomUrl !== existingRoom.hostRoomUrl
+          ? await this.prisma.teleconsultation.update({
+              where: { id: existingRoom.id },
+              data: { videoSessionId, hostRoomUrl },
+            })
+          : existingRoom;
+
       if (examRequest.status !== 'EM_ATENDIMENTO_MEDICO') {
         await this.prisma.examRequest.update({
           where: { id: body.examRequestId },
@@ -64,13 +74,13 @@ export class TeleconsultationController {
         }
       }
 
-      this.emitTeleconsultationStarted(body.examRequestId, existingRoom);
-      return { success: true, data: existingRoom };
+      this.emitTeleconsultationStarted(body.examRequestId, roomForReturn);
+      return { success: true, data: roomForReturn };
     }
 
     const uniqueHash = Math.random().toString(36).substring(2, 10);
     const roomName = `SaudeSeg-Consulta-${body.examRequestId.slice(0, 8)}-${uniqueHash}`;
-    const videoSessionId = `https://meet.jit.si/${roomName}`;
+    const videoSessionId = this.withEmbeddedJitsiConfig(`https://meet.jit.si/${roomName}`);
     const hostRoomUrl = videoSessionId;
 
     const teleconsultation = await this.prisma.teleconsultation.create({
@@ -115,5 +125,15 @@ export class TeleconsultationController {
       hostRoomUrl: teleconsultation.hostRoomUrl,
       startedAt: teleconsultation.startedAt.toISOString(),
     });
+  }
+
+  private withEmbeddedJitsiConfig(url: string | null) {
+    if (!url) return null;
+    const [base, hash = ''] = url.split('#');
+    const params = new URLSearchParams(hash);
+    params.set('config.prejoinPageEnabled', 'false');
+    params.set('config.disableDeepLinking', 'true');
+    params.set('interfaceConfig.MOBILE_APP_PROMO', 'false');
+    return `${base}#${params.toString()}`;
   }
 }

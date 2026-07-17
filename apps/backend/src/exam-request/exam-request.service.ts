@@ -15,6 +15,15 @@ export class ExamRequestService {
     private readonly storage: SupabaseStorageService,
   ) {}
 
+  private parseResultValue(value: string | null | undefined) {
+    if (!value) return {};
+    try {
+      return JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+
   /**
    * Lista solicitações, com filtros opcionais — usada pelo
    * AppointmentsTable / ScheduleCalendar (F2-REQ-010) e pelo
@@ -78,7 +87,10 @@ export class ExamRequestService {
       },
     });
     if (!request) throw new NotFoundException('Solicitação não encontrada');
-    const results = request.results.map(r => ({ ...r, valueJson: JSON.parse(r.valueJson) }));
+    const results = request.results.map(r => ({
+      ...r,
+      valueJson: this.parseResultValue(r.valueJson),
+    }));
     return {
       ...request,
       results,
