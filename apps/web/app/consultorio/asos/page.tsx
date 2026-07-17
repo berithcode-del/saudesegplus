@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowPathIcon, DocumentArrowDownIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { apiListClinicAsos, getAuthToken } from '@/lib/api';
+import { apiListClinicAsos, getAuthToken } from '@/app/lib/api';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
