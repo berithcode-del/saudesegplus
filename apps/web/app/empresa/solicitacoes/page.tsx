@@ -507,55 +507,56 @@ export default function EmpresaSolicitacoesPage() {
                 </tr>
               </thead>
               <tbody>
-                {solicitacoes.map(sol => {
-                                  const asoDoc = sol.asoDocuments?.[0];
-                                  return (
-                                  <tr key={sol.id}>
-                                    <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
-                                    <td>{sol.patient?.cpf ?? '—'}</td>
-                                    <td className="capitalize">{sol.examPurpose}</td>
-                                    <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
-                                    <td><span className="badge badge-done">{sol.status}</span></td>
-                                    <td>
-                                      {asoDoc?.pdfUrl ? (
+                            {solicitacoes.map(sol => {
+                              const asoDoc = sol.asoDocuments?.[0];
+                              return (
+                                <tr key={sol.id}>
+                                  <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
+                                  <td>{sol.patient?.cpf ?? '—'}</td>
+                                  <td className="capitalize">{sol.examPurpose}</td>
+                                  <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
+                                  <td><span className="badge badge-done">{sol.status}</span></td>
+                                  <td>
+                                    {asoDoc?.pdfUrl ? (
+                                      <button
+                                        className="btn btn-secondary"
+                                        style={{ padding: '6px 10px', minHeight: 'unset' }}
+                                        onClick={() => openAsoPdf(companyId, asoDoc.id!)}
+                                      >
+                                        <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                      </button>
+                                    ) : (
+                                      <span>{asoDoc?.decision ?? '—'}</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {sol.token ? (
+                                      <div style={{ display: 'flex', gap: '8px' }}>
                                         <button
                                           className="btn btn-secondary"
-                                          style={{ padding: '6px 10px', minHeight: 'unset' }}
-                                          onClick={() => openAsoPdf(companyId, asoDoc.id!)}
+                                          style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px' }}
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(`${window.location.origin}/p/${sol.token}`);
+                                            alert('Link copiado!');
+                                          }}
                                         >
-                                          <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                          Copiar Link
                                         </button>
-                                      ) : (
-                                        <span>{asoDoc?.decision ?? '—'}</span>
-                                      )}
-                                    </td>
-                                    <td>
-                                          {sol.token ? (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px' }}
-                            onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}/p/${sol.token}`);
-                              alert('Link copiado!');
-                            }}
-                          >
-                            Copiar Link
-                          </button>
-                          <button
-                            className="btn btn-outline"
-                            style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px', color: '#dc2626', borderColor: '#fca5a5' }}
-                            onClick={() => handleCancelInvite(sol.id)}
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ color: '#9ca3af', fontSize: '13px' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                                        <button
+                                          className="btn btn-outline"
+                                          style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px', color: '#dc2626', borderColor: '#fca5a5' }}
+                                          onClick={() => handleCancelInvite(sol.id)}
+                                        >
+                                          Excluir
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span style={{ color: '#9ca3af', fontSize: '13px' }}>—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
               </tbody>
             </table>
             <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
