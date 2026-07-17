@@ -68,10 +68,10 @@ export default function EmpresaAsosPage() {
   const [viewer, setViewer] = useState<{ url: string; aso: CompanyAso } | null>(null);
 
   const openAso = async (aso: CompanyAso) => {
-    const response = await fetch(`${BACKEND_URL}/api/company/${companyId}/asos/${aso.id}/file`, { headers: { Authorization: `Bearer ${getAuthToken()}` } });
-    if (!response.ok) return;
-    setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
-  };
+      const response = await fetch(`${BACKEND_URL}/api/company/${companyId}/asos/${aso.id}/file`, { headers: { Authorization: `Bearer ${getAuthToken()}` } });
+      if (!response.ok) return;
+      setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
+    };
 
   useEffect(() => {
     setCompanyId(getStoredCompanyId());

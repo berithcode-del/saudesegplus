@@ -104,20 +104,20 @@ export default function ConsultaPage() {
   const [signatureError, setSignatureError] = useState("");
 
   const openExamAttachment = async (resultId: string) => {
-    setWorkspaceMode("exam");
-    setWorkspaceExamId(resultId);
-    setExpandedExamId(resultId);
-    if (attachmentUrls[resultId]) return;
-    const response = await fetch(
-      `${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`,
-      {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
-      },
-    );
-    if (!response.ok) throw new Error("Nao foi possivel carregar o anexo");
-    const objectUrl = URL.createObjectURL(await response.blob());
-    setAttachmentUrls((current) => ({ ...current, [resultId]: objectUrl }));
-  };
+      setWorkspaceMode("exam");
+      setWorkspaceExamId(resultId);
+      setExpandedExamId(resultId);
+      if (attachmentUrls[resultId]) return;
+      const response = await fetch(
+        `${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`,
+        {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        },
+      );
+      if (!response.ok) throw new Error("Nao foi possivel carregar o anexo");
+      const objectUrl = URL.createObjectURL(await response.blob());
+      setAttachmentUrls((current) => ({ ...current, [resultId]: objectUrl }));
+    };
 
   useEffect(() => {
     setDoctorId(getProfileIdFromToken() ?? "");

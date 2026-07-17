@@ -47,20 +47,20 @@ export default function DocumentosPage() {
   const [viewerDocument, setViewerDocument] = useState<CompanyDocument | null>(null);
 
   const openDocument = async (document: CompanyDocument) => {
-    if (!companyId) return;
-    try {
-      const fileName = document.fileUrl.split('/').pop();
-      const response = await fetch(
-        `${BACKEND_URL}/api/upload/documents/${companyId}/file/${encodeURIComponent(fileName ?? '')}`,
-        { headers: { Authorization: `Bearer ${getAuthToken()}` } },
-      );
-      if (!response.ok) throw new Error('Nao foi possivel carregar o documento');
-      setViewerDocument(document);
-      setViewerUrl(URL.createObjectURL(await response.blob()));
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : 'Erro ao abrir documento');
-    }
-  };
+      if (!companyId) return;
+      try {
+        const fileName = document.fileUrl.split('/').pop();
+        const response = await fetch(
+          `${BACKEND_URL}/api/upload/documents/${companyId}/file/${encodeURIComponent(fileName ?? '')}`,
+          { headers: { Authorization: `Bearer ${getAuthToken()}` } },
+        );
+        if (!response.ok) throw new Error('Nao foi possivel carregar o documento');
+        setViewerDocument(document);
+        setViewerUrl(URL.createObjectURL(await response.blob()));
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : 'Erro ao abrir documento');
+      }
+    };
 
   const closeViewer = () => {
     if (viewerUrl) URL.revokeObjectURL(viewerUrl);

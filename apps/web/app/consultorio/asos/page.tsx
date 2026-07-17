@@ -68,12 +68,12 @@ export default function ConsultorioAsosPage() {
   const router = useRouter();
 
   const openAso = async (aso: ClinicAso) => {
-    const response = await fetch(`${BACKEND_URL}/api/clinic/asos/${aso.id}/file`, {
-      headers: { Authorization: `Bearer ${getAuthToken()}` },
-    });
-    if (!response.ok) return;
-    setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
-  };
+      const response = await fetch(`${BACKEND_URL}/api/clinic/asos/${aso.id}/file`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!response.ok) return;
+      setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
+    };
 
   useEffect(() => {
     setClinicId(getStoredClinicId());

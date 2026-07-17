@@ -68,10 +68,10 @@ export default function ExamPage() {
       try {
         const token = getAuthToken();
         const res = await fetch(`${BACKEND_URL}/api/solicitacoes/${params.id}`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
+                  headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                });
         const result = await res.json();
         if (result.data) {
           setSolicitacao(result.data);
@@ -133,12 +133,12 @@ export default function ExamPage() {
       formData.append('file', examFile);
       
       const uploadRes = await fetch(`${BACKEND_URL}/api/upload/exam-file`, {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${getAuthToken()}`,
-              },
-              body: formData,
-            });
+                    method: 'POST',
+                    headers: {
+                      Authorization: `Bearer ${getAuthToken()}`,
+                    },
+                    body: formData,
+                  });
       const uploadData = await uploadRes.json();
       
       if (!uploadData.success || !uploadData.fileUrl) {
@@ -151,11 +151,11 @@ export default function ExamPage() {
       const finalExamName = examCode === 'outros' ? customExamName : formatExamName(examCode);
 
       const res = await fetch(`${BACKEND_URL}/api/exams`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+              },
         body: JSON.stringify({
           examRequestId: params.id,
           examType: examCode,
@@ -198,11 +198,11 @@ export default function ExamPage() {
     setSaving(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/exams/${params.id}/send-to-queue`, {
-        method: 'POST',
-        headers: {
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
-      });
+              method: 'POST',
+              headers: {
+                ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+              },
+            });
       const result = await res.json();
       if (result.success) {
         router.push('/consultorio');
