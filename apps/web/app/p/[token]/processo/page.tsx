@@ -528,18 +528,28 @@ export default function ProcessoPage({ params }: { params: Promise<{ token: stri
   }, []);
 
   const handleCta = () => {
-    if (!data?.proximaAcao) return;
-    const tipo = data.proximaAcao.tipo;
-    const map: Record<string, string> = {
-      CONFIRMAR_DADOS: `/p/${token}/confirmar`,
-      ENVIAR_DOCUMENTOS: `/p/${token}/documentos`,
-      RESPONDER_QUESTIONARIO: `/p/${token}/questionario`,
-      ENTRAR_TELECONSULTA: `/p/${token}/teleconsulta`,
-      BAIXAR_ASO: `/p/${token}/aso`,
+      if (!data?.proximaAcao) return;
+      const tipo = data.proximaAcao.tipo;
+      const map: Record<string, string> = {
+        CONFIRMAR_DADOS: `/p/${token}/confirmar`,
+        ENVIAR_DOCUMENTOS: `/p/${token}/documentos`,
+        RESPONDER_QUESTIONARIO: `/p/${token}/questionario`,
+        ENTRAR_TELECONSULTA: `/p/${token}/teleconsulta`,
+        BAIXAR_ASO: `/p/${token}/aso`,
+      };
+      const path = map[tipo];
+
+      // BLOQUEAR navegação se questionário pendente mas status exige questionário
+      const status = data.status;
+      const hasAnamnese = data.questionario?.respondido;
+    
+      if (status === 'QUESTIONARIO_PENDENTE' && !hasAnamnese && tipo !== 'RESPONDER_QUESTIONARIO') {
+        alert('Complete o questionário de saúde antes de prosseguir.');
+        return;
+      }
+    
+      if (path) router.push(path);
     };
-    const path = map[tipo];
-    if (path) router.push(path);
-  };
 
   const progresso = data?.progresso ?? [];
   const firstIncompleteIndex = progresso.findIndex(p => !p.concluido);
