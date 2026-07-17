@@ -17,6 +17,7 @@
     "@heroicons/react": "^2.2.0",
     "@repo/api-client": "*",
     "@repo/ui": "*",
+    "antd": "^6.5.1",
     "next": "16.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

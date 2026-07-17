@@ -15,11 +15,13 @@ import {
   MagnifyingGlassIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { message } from 'antd';
-
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
-const statusColors: Record<StatusProtocolo, { bg: string; color: string }> = {
+// Simple toast replacement for antd message
+const toast = {
+  success: (msg: string) => alert(`✅ ${msg}`),
+  error: (msg: string) => alert(`❌ ${msg}`),
+};
   AGUARDANDO_COLETA: { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
   EM_COLETA: { bg: 'rgba(168, 85, 247, 0.12)', color: '#a855f7' },
   NA_FILA_MEDICA: { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c' },
@@ -82,7 +84,7 @@ export default function ProtocoloDetailPage() {
         documentos: res.documentos || [],
       });
     } catch (err) {
-      message.error('Erro ao carregar protocolo');
+      toast.error('Erro ao carregar protocolo');
       router.back();
     } finally {
       setLoading(false);
@@ -96,9 +98,9 @@ export default function ProtocoloDetailPage() {
       const res = await asoProtocoloApi.update(id, form);
       setProtocolo(res);
       setEditing(false);
-      message.success('Protocolo atualizado com sucesso');
+      toast.success('Protocolo atualizado com sucesso');
     } catch (err) {
-      message.error('Erro ao atualizar protocolo');
+      toast.error('Erro ao atualizar protocolo');
     } finally {
       setSaving(false);
     }
@@ -108,10 +110,10 @@ export default function ProtocoloDetailPage() {
     if (!window.confirm('Tem certeza que deseja cancelar este protocolo?')) return;
     try {
       await asoProtocoloApi.delete(id);
-      message.success('Protocolo cancelado');
+      toast.success('Protocolo cancelado');
       router.push('/aso/protocolos');
     } catch (err) {
-      message.error('Erro ao cancelar protocolo');
+      toast.error('Erro ao cancelar protocolo');
     }
   };
 
