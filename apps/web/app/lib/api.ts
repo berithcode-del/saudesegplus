@@ -180,6 +180,10 @@ export async function apiListCompanyAsos(companyId: string) {
   return apiFetch(`/api/company/${companyId}/asos`);
 }
 
+export async function apiListClinicAsos() {
+  return apiFetch(`/api/clinic/asos`);
+}
+
 export async function apiCreateVideoRoom(examRequestId: string, doctorId?: string) {
   return apiFetch('/api/teleconsultation/create-room', {
     method: 'POST',

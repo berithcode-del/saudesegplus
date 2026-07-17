@@ -9,6 +9,7 @@ import {
   ArrowRightOnRectangleIcon,
   CurrencyDollarIcon,
   Cog6ToothIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
 import ChatWidget from '../../components/ChatWidget';
 import { apiFetch } from '../lib/api';
@@ -17,6 +18,7 @@ const navItems = [
   { href: '/consultorio', icon: BuildingOfficeIcon },
   { href: '/consultorio/pacientes', icon: UserGroupIcon },
   { href: '/consultorio/check-in', icon: PlusIcon },
+  { href: '/consultorio/asos', icon: DocumentTextIcon },
   { href: '/consultorio/financeiro', icon: CurrencyDollarIcon },
   { href: '/consultorio/configuracoes', icon: Cog6ToothIcon },
 ];

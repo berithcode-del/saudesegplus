@@ -13,36 +13,41 @@ describe('ExamRequestService access control', () => {
   };
 
   function serviceWith(found: unknown = request) {
-    const prisma = {
-      examRequest: { findUnique: jest.fn().mockResolvedValue(found) },
-      operator: { findUnique: jest.fn() },
-    };
-    return new ExamRequestService(prisma as never, {} as never, {} as never);
-  }
+      const prisma = {
+        examRequest: { findUnique: jest.fn().mockResolvedValue(found) },
+        operator: { findUnique: jest.fn() },
+      };
+      return new ExamRequestService(
+        prisma as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+    }
 
   it('allows a company to read its own request but blocks another company', async () => {
-    const service = serviceWith();
-    await expect(service.assertAccess('request-a', {
-      role: 'COMPANY_ADMIN',
-      profileId: 'company-a',
-    })).resolves.toBeUndefined();
+      const service = serviceWith();
+      await expect(service.assertAccess('request-a', {
+        role: 'COMPANY_ADMIN',
+        profileId: 'company-a',
+      }, false)).resolves.toBeUndefined();
 
-    await expect(service.assertAccess('request-a', {
-      role: 'COMPANY_ADMIN',
-      profileId: 'company-b',
-    })).rejects.toBeInstanceOf(ForbiddenException);
-  });
+      await expect(service.assertAccess('request-a', {
+        role: 'COMPANY_ADMIN',
+        profileId: 'company-b',
+      }, false)).rejects.toBeInstanceOf(ForbiddenException);
+    });
 
-  it('allows only the assigned doctor to access a request', async () => {
-    const service = serviceWith();
-    await expect(service.assertAccess('request-a', {
-      role: 'DOCTOR',
-      profileId: 'doctor-a',
-    })).resolves.toBeUndefined();
+    it('allows only the assigned doctor to access a request', async () => {
+      const service = serviceWith();
+      await expect(service.assertAccess('request-a', {
+        role: 'DOCTOR',
+        profileId: 'doctor-a',
+      }, false)).resolves.toBeUndefined();
 
-    await expect(service.assertAccess('request-a', {
-      role: 'DOCTOR',
-      profileId: 'doctor-b',
-    })).rejects.toBeInstanceOf(ForbiddenException);
-  });
+      await expect(service.assertAccess('request-a', {
+        role: 'DOCTOR',
+        profileId: 'doctor-b',
+      }, false)).rejects.toBeInstanceOf(ForbiddenException);
+    });
 });

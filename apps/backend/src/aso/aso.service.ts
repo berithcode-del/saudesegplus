@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { MailService } from '../mail/mail.service';
 import { FinancialService } from '../financial/financial.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import * as fs from 'fs';
@@ -20,7 +19,6 @@ export class AsoService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
     private readonly financialService: FinancialService,
     private readonly storage: SupabaseStorageService,
   ) {}
@@ -380,24 +378,6 @@ export class AsoService {
         `Erro ao gerar transações financeiras para ASO ${examRequestId}`,
         error,
       );
-    }
-
-    const patientUser = await this.prisma.userAccount.findUnique({
-      where: { id: request.patient.userId },
-    });
-    if (patientUser?.email && !patientUser.email.endsWith('@walkin.temp')) {
-      try {
-        await this.mailService.sendAsoReady(
-          patientUser.email,
-          request.patient.name,
-          fileUrl,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Falha ao enviar ASO para ${patientUser.email}`,
-          error,
-        );
-      }
     }
 
     this.logger.log(`ASO PDF gerado: ${pdfPath}`);

@@ -317,6 +317,7 @@ export class CompanyService {
     const now = new Date();
     const asos = await this.prisma.asoDocument.findMany({
       where: {
+        pdfUrl: { not: null },
         validUntil: { gte: now },
         request: {
           patient: {
@@ -375,8 +376,23 @@ export class CompanyService {
   }
 
   async getAsoPdf(companyId: string, asoId: string) {
+    const now = new Date();
     const aso = await this.prisma.asoDocument.findFirst({
-      where: { id: asoId, request: { patient: { companies: { some: { companyId, endDate: null } } } } },
+      where: {
+        id: asoId,
+        pdfUrl: { not: null },
+        validUntil: { gte: now },
+        request: {
+          patient: {
+            companies: {
+              some: {
+                companyId,
+                OR: [{ endDate: null }, { endDate: { gte: now } }],
+              },
+            },
+          },
+        },
+      },
     });
     if (!aso?.pdfUrl) throw new NotFoundException('ASO nao encontrado');
     const fileName = basename(aso.pdfUrl);
