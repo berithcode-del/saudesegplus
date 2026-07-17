@@ -61,6 +61,7 @@ function expirationTone(days: number) {
 }
 
 export default function EmpresaAsosPage() {
+  const router = useRouter();
   const [companyId, setCompanyId] = useState('');
   const [asos, setAsos] = useState<CompanyAso[]>([]);
   const [loading, setLoading] = useState(true);
