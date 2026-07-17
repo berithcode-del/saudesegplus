@@ -35,6 +35,7 @@ interface ProcessoData {
   teleconsulta?: { disponivel: boolean; linkSala: string | null };
   progresso?: Array<{ label: string; concluido: boolean; ativo: boolean }>;
   examesSolicitados?: string[];
+  questionario?: { respondido: boolean };
 }
 
 const acaoConfig: Record<string, { label: string; Icon: typeof ArrowRightIcon }> = {
