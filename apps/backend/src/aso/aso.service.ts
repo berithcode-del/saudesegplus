@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { MailService } from '../mail/mail.service';
 import { FinancialService } from '../financial/financial.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 @Injectable()
@@ -34,11 +36,31 @@ export class AsoService {
 
   private escapeHtml(value: string) {
     return value
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/\"/g, '"')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  private resolveTemplatePath() {
+    const candidates = [
+      path.resolve(process.cwd(), 'libs', 'pdf-template-aso.html'),
+      path.resolve(process.cwd(), '..', '..', 'libs', 'pdf-template-aso.html'),
+      path.resolve(__dirname, '..', '..', 'libs', 'pdf-template-aso.html'),
+      path.resolve(__dirname, '..', '..', '..', 'libs', 'pdf-template-aso.html'),
+      path.resolve(__dirname, '..', '..', '..', '..', '..', 'libs', 'pdf-template-aso.html'),
+    ];
+    const templatePath = candidates.find((candidate) => fs.existsSync(candidate));
+    if (!templatePath) {
+      this.logger.error(
+        `Template do ASO nao encontrado. Caminhos testados: ${candidates.join(' | ')}`,
+      );
+      throw new InternalServerErrorException(
+        'Template do ASO nao encontrado no servidor',
+      );
+    }
+    return templatePath;
   }
 
   private formatExamPurpose(value: string) {
@@ -170,15 +192,7 @@ export class AsoService {
       ]),
     );
 
-    const templatePath = path.join(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      '..',
-      'libs',
-      'pdf-template-aso.html',
-    );
+    const templatePath = this.resolveTemplatePath();
     let html = fs.readFileSync(templatePath, 'utf8');
     html = html.replace(/<!--[\s\S]*?-->/g, '');
     html = html.replace(
@@ -190,15 +204,7 @@ export class AsoService {
       html = html.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), value);
     });
 
-    const pdfDir = path.join(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      '..',
-      'uploads',
-      'aso',
-    );
+    const pdfDir = path.join(os.tmpdir(), 'saudesegplus', 'aso');
     if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
     const pdfPath = path.join(pdfDir, `aso-${asoDoc.id}.pdf`);
 
