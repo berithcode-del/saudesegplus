@@ -138,6 +138,25 @@ export class AsoProtocoloService {
     return processo;
   }
 
+  async findByIdFull(id: string) {
+    const processo = await this.prisma.processoASO.findUnique({
+      where: { id },
+      include: {
+        empresa: true,
+        clinica: true,
+        paciente: true,
+        medico: true,
+        examRequest: true,
+      },
+    });
+
+    if (!processo) {
+      throw new NotFoundException(`Processo ${id} não encontrado`);
+    }
+
+    return processo;
+  }
+
   async update(id: string, dto: UpdateProtocoloDto, userId: string) {
     const processo = await this.findById(id);
     const updates: any = {};
@@ -198,6 +217,79 @@ export class AsoProtocoloService {
     });
   }
 
+  // Admin: force update any field including protocolo number
+  async adminUpdate(id: string, dto: UpdateProtocoloDto & { numeroProtocolo?: string }, userId: string) {
+    const processo = await this.findById(id);
+    const updates: any = {};
+    const historico = this.registrarHistorico(processo, 'admin_atualizacao', null, null, userId);
+
+    if (dto.numeroProtocolo && dto.numeroProtocolo !== processo.numeroProtocolo) {
+      updates.numeroProtocolo = dto.numeroProtocolo;
+      historico.push({
+        acao: 'numero_protocolo',
+        de: processo.numeroProtocolo,
+        para: dto.numeroProtocolo,
+        userId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (dto.status && dto.status !== processo.status) {
+      updates.status = dto.status;
+      historico.push({
+        acao: 'status',
+        de: processo.status,
+        para: dto.status,
+        userId,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (dto.status === StatusProtocolo.CONCLUIDO) {
+        updates.dataConclusao = new Date();
+      }
+    }
+
+    if (dto.medicoId) {
+      updates.medicoId = dto.medicoId;
+      historico.push({
+        acao: 'medico',
+        de: processo.medicoId,
+        para: dto.medicoId,
+        userId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (dto.observacoes !== undefined) {
+      updates.observacoes = dto.observacoes;
+    }
+
+    if (dto.documentos) {
+      updates.documentos = dto.documentos;
+      historico.push({
+        acao: 'documentos',
+        de: processo.documentos,
+        para: dto.documentos,
+        userId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    updates.historico = historico;
+
+    return this.prisma.processoASO.update({
+      where: { id },
+      data: updates,
+      include: {
+        empresa: true,
+        clinica: true,
+        paciente: true,
+        medico: true,
+        examRequest: true,
+      },
+    });
+  }
+
   async delete(id: string, userId: string) {
     const processo = await this.findById(id);
 
@@ -206,6 +298,24 @@ export class AsoProtocoloService {
       status: StatusProtocolo.CANCELADO,
       observacoes: `Cancelado por ${userId}: ${processo.observacoes || ''}`,
     }, userId);
+  }
+
+  // Admin: hard delete with cascade
+  async adminDelete(id: string, userId: string) {
+    const processo = await this.findByIdFull(id);
+
+    // Delete related records first
+    await this.prisma.$transaction(async (tx) => {
+      // Delete exam request if linked
+      if (processo.examRequest) {
+        await tx.examRequest.delete({ where: { id: processo.examRequest.id } });
+      }
+
+      // Delete processo ASO
+      await tx.processoASO.delete({ where: { id } });
+    });
+
+    return { success: true, message: 'Protocolo e relações excluídos permanentemente' };
   }
 
   async getEstatisticas(empresaId?: string, clinicaId?: string) {

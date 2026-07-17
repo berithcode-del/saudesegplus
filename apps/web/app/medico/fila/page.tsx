@@ -16,6 +16,8 @@ interface QueueEntry {
     id: string;
     examPurpose: string;
     patient: { name: string; cpf: string; functionCboCode: string };
+    numeroProtocolo?: string;
+    processoAsoId?: string;
   };
 }
 
@@ -100,15 +102,16 @@ export default function MedicoFilaPage() {
         ) : (
           <table className="queue-table">
             <thead>
-              <tr>
-                <th>Paciente</th>
-                <th>Tipo de Exame</th>
-                <th>Localização</th>
-                <th>Tempo de Espera</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
+                          <tr>
+                            <th>Paciente</th>
+                            <th>Tipo de Exame</th>
+                            <th>Localização</th>
+                            <th>Tempo de Espera</th>
+                            <th>Status</th>
+                            <th>Protocolo</th>
+                            <th>Ações</th>
+                          </tr>
+                        </thead>
             <tbody>
               {queue.map((entry) => (
                 <tr key={entry.id}>
@@ -120,33 +123,45 @@ export default function MedicoFilaPage() {
                   <td>{entry.city ?? '—'} {entry.state ? `— ${entry.state}` : ''}</td>
                   <td>{getWaitTime(entry.enteredQueueAt)}</td>
                   <td>
-                    <span className={`badge ${entry.status === 'IN_PROGRESS' ? 'badge-in-progress' : 'badge-waiting'}`}>
-                      {entry.status === 'IN_PROGRESS' ? 'Em Atendimento' : 'Aguardando'}
-                    </span>
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      marginLeft: '8px', padding: '3px 8px', borderRadius: '999px',
-                      background: entry.isOnline ? 'rgba(34,197,94,0.08)' : 'rgba(156,163,175,0.12)',
-                      color: entry.isOnline ? '#16a34a' : 'var(--text-muted)',
-                      fontSize: '11px', fontWeight: 700,
-                    }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: entry.isOnline ? '#22c55e' : '#9ca3af' }} />
-                      {entry.isOnline ? 'Online' : 'Sem sinal'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn btn-primary"
-                      style={{ padding: '6px 14px', fontSize: '12px' }}
-                      disabled={entry.status === 'IN_PROGRESS' || accepting === entry.id}
-                      onClick={() => handleAccept(entry)}
-                    >
-                      {accepting === entry.id ? 'Abrindo...' : (<><HeartIcon className="icon icon-sm" /> Atender</>)}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                                      <span className={`badge ${entry.status === 'IN_PROGRESS' ? 'badge-in-progress' : 'badge-waiting'}`}>
+                                        {entry.status === 'IN_PROGRESS' ? 'Em Atendimento' : 'Aguardando'}
+                                      </span>
+                                      <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                        marginLeft: '8px', padding: '3px 8px', borderRadius: '999px',
+                                        background: entry.isOnline ? 'rgba(34,197,94,0.08)' : 'rgba(156,163,175,0.12)',
+                                        color: entry.isOnline ? '#16a34a' : 'var(--text-muted)',
+                                        fontSize: '11px', fontWeight: 700,
+                                      }}>
+                                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: entry.isOnline ? '#22c55e' : '#9ca3af' }} />
+                                        {entry.isOnline ? 'Online' : 'Sem sinal'}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      {entry.request.numeroProtocolo ? (
+                                        <a
+                                          href={`/admin/protocolos/${entry.request.processoAsoId}`}
+                                          style={{ color: '#4f46e5', textDecoration: 'underline', fontSize: '12px' }}
+                                        >
+                                          {entry.request.numeroProtocolo}
+                                        </a>
+                                      ) : (
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      <button
+                                        className="btn btn-primary"
+                                        style={{ padding: '6px 14px', fontSize: '12px' }}
+                                        disabled={entry.status === 'IN_PROGRESS' || accepting === entry.id}
+                                        onClick={() => handleAccept(entry)}
+                                      >
+                                        {accepting === entry.id ? 'Abrindo...' : (<><HeartIcon className="icon icon-sm" /> Atender</>)}
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
           </table>
         )}
       </div>

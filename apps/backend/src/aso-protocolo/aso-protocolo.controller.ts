@@ -76,4 +76,26 @@ export class AsoProtocoloController {
   async delete(@Param('id') id: string, @Request() req) {
     return this.service.delete(id, req.user.id);
   }
+
+  // Admin endpoints
+  @Get('admin/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Buscar protocolo completo (admin)' })
+  async adminFindById(@Param('id') id: string) {
+    return this.service.findByIdFull(id);
+  }
+
+  @Put('admin/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Atualizar protocolo (admin - força qualquer campo)' })
+  async adminUpdate(@Param('id') id: string, @Body() dto: UpdateProtocoloDto & { numeroProtocolo?: string }, @Request() req) {
+    return this.service.adminUpdate(id, dto, req.user.id);
+  }
+
+  @Delete('admin/:id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Excluir protocolo permanentemente com cascata (admin)' })
+  async adminDelete(@Param('id') id: string, @Request() req) {
+    return this.service.adminDelete(id, req.user.id);
+  }
 }

@@ -39,6 +39,8 @@ interface Solicitacao {
     signedAt?: string | null;
   }>;
   token?: string;
+  numeroProtocolo?: string | null;
+  processoAsoId?: string | null;
 }
 
 const BACKEND_URL =
@@ -495,28 +497,48 @@ export default function EmpresaSolicitacoesPage() {
         ) : (
           <>
             <table className="queue-table">
-              <thead>
-                <tr>
-                  <th>Paciente</th>
-                  <th>CPF</th>
-                  <th>Tipo</th>
-                  <th>Data</th>
-                  <th>Status</th>
-                  <th>ASO</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
+                          <thead>
+                            <tr>
+                              <th>Paciente</th>
+                              <th>CPF</th>
+                              <th>Tipo</th>
+                              <th>Data</th>
+                              <th>Status</th>
+                              <th>Protocolo</th>
+                              <th>ASO</th>
+                              <th>Ações</th>
+                            </tr>
+                          </thead>
               <tbody>
-                            {solicitacoes.map(sol => {
-                              const asoDoc = sol.asoDocuments?.[0];
-                              return (
-                                <tr key={sol.id}>
-                                  <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
-                                  <td>{sol.patient?.cpf ?? '—'}</td>
-                                  <td className="capitalize">{sol.examPurpose}</td>
-                                  <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
-                                  <td><span className="badge badge-done">{sol.status}</span></td>
-                                  <td>
+                                          {solicitacoes.map(sol => {
+                                            const asoDoc = sol.asoDocuments?.[0];
+                                            return (
+                                              <tr key={sol.id}>
+                                                <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
+                                                <td>{sol.patient?.cpf ?? '—'}</td>
+                                                <td className="capitalize">{sol.examPurpose}</td>
+                                                <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
+                                                <td><span className="badge badge-done">{sol.status}</span></td>
+                                                <td>
+                                                  {sol.numeroProtocolo ? (
+                                                    <a
+                                                      href={`/admin/protocolos/${sol.processoAsoId}`}
+                                                      style={{
+                                                        color: '#4f46e5',
+                                                        textDecoration: 'underline',
+                                                        fontWeight: 500,
+                                                        fontSize: '13px',
+                                                      }}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                    >
+                                                      {sol.numeroProtocolo}
+                                                    </a>
+                                                  ) : (
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                                                  )}
+                                                </td>
+                                                <td>
                                     {asoDoc?.pdfUrl ? (
                                       <button
                                         className="btn btn-secondary"

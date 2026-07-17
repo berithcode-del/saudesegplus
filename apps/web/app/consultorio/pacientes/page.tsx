@@ -12,6 +12,8 @@ interface Solicitacao {
   createdAt: string;
   patient: { name: string; cpf: string };
   clinic?: { name: string } | null;
+  numeroProtocolo?: string | null;
+  processoAsoId?: string | null;
 }
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -99,41 +101,61 @@ export default function PacientesPage() {
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhum paciente encontrado.</p>
         ) : (
           <table className="queue-table">
-            <thead>
-              <tr>
-                <th>Paciente</th>
-                <th>CPF</th>
-                <th>Tipo de Exame</th>
-                <th>Data</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {solicitacoes.map((sol) => (
-                <tr key={sol.id}>
-                  <td style={{ fontWeight: '600' }}>{sol.patient.name}</td>
-                  <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{sol.patient.cpf}</td>
-                  <td className="capitalize">{sol.examPurpose}</td>
-                  <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    {new Date(sol.createdAt).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td>{getStatusBadge(sol.status)}</td>
-                  <td>
-                    {(['AGUARDANDO_COLETA', 'AGUARDANDO_EXAMES', 'EM_COLETA'].includes(sol.status)) && (
-                      <Link
-                        href={`/consultorio/exames/${sol.id}`}
-                        className="btn btn-primary"
-                        style={{ padding: '6px 14px', fontSize: '12px', textDecoration: 'none' }}
-                      >
-                        {sol.status === 'AGUARDANDO_EXAMES' ? 'Inserir Exames' : 'Registrar Exames'}
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      <thead>
+                        <tr>
+                          <th>Paciente</th>
+                          <th>CPF</th>
+                          <th>Tipo de Exame</th>
+                          <th>Data</th>
+                          <th>Status</th>
+                          <th>Protocolo</th>
+                          <th>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {solicitacoes.map((sol) => (
+                          <tr key={sol.id}>
+                            <td style={{ fontWeight: '600' }}>{sol.patient.name}</td>
+                            <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{sol.patient.cpf}</td>
+                            <td className="capitalize">{sol.examPurpose}</td>
+                            <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                              {new Date(sol.createdAt).toLocaleDateString('pt-BR')}
+                            </td>
+                            <td>{getStatusBadge(sol.status)}</td>
+                            <td>
+                              {sol.numeroProtocolo ? (
+                                <a
+                                  href={`/admin/protocolos/${sol.processoAsoId}`}
+                                  style={{
+                                    color: '#4f46e5',
+                                    textDecoration: 'underline',
+                                    fontWeight: 500,
+                                    fontSize: '13px',
+                                  }}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {sol.numeroProtocolo}
+                                </a>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                              )}
+                            </td>
+                            <td>
+                              {(['AGUARDANDO_COLETA', 'AGUARDANDO_EXAMES', 'EM_COLETA'].includes(sol.status)) && (
+                                <Link
+                                  href={`/consultorio/exames/${sol.id}`}
+                                  className="btn btn-primary"
+                                  style={{ padding: '6px 14px', fontSize: '12px', textDecoration: 'none' }}
+                                >
+                                  {sol.status === 'AGUARDANDO_EXAMES' ? 'Inserir Exames' : 'Registrar Exames'}
+                                </Link>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
         )}
       </div>
     </>

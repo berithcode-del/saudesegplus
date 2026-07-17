@@ -65,4 +65,25 @@ export const asoProtocoloApi = {
     const res = await apiFetch(`/aso/protocolos/estatisticas?${params.toString()}`);
     return res;
   },
+
+  // Admin endpoints
+  async adminGetById(id: string): Promise<ProtocoloASO> {
+    const res = await apiFetch(`/aso/protocolos/admin/${id}`);
+    return res;
+  },
+
+  async adminUpdate(id: string, data: UpdateProtocoloDto & { numeroProtocolo?: string }): Promise<ProtocoloASO> {
+    const res = await apiFetch(`/aso/protocolos/admin/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res;
+  },
+
+  async adminDelete(id: string): Promise<{ success: boolean; message: string }> {
+    const res = await apiFetch(`/aso/protocolos/admin/${id}`, {
+      method: 'DELETE',
+    });
+    return res;
+  },
 };
