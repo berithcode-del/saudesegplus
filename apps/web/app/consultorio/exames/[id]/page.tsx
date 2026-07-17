@@ -37,6 +37,8 @@ interface Solicitacao {
   id: string;
   examPurpose: string;
   status: string;
+  numeroProtocolo?: string | null;
+  processoAsoId?: string | null;
   patient: { name: string; cpf: string; functionCboCode: string };
   clinic?: { name: string } | null;
   results?: Array<{ id: string; type?: { name: string } | null; valueJson?: { nome_exame?: string }; attachmentUrl?: string | null }>;
@@ -236,11 +238,24 @@ export default function ExamPage() {
     : savedExamCount > 0;
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Exames de {solicitacao?.patient.name}</h2>
-        <p>Tipo: <strong>{solicitacao?.examPurpose}</strong> | CPF: {solicitacao?.patient.cpf}</p>
-      </div>
+      <div>
+        <div className="page-header">
+          <h2>Exames de {solicitacao?.patient.name}</h2>
+          <p>
+            Tipo: <strong>{solicitacao?.examPurpose}</strong> | CPF: {solicitacao?.patient.cpf}
+            {solicitacao?.numeroProtocolo && (
+              <>
+                {' | '}
+                <strong>Protocolo:</strong>{' '}
+                <span
+                  style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                  onClick={() => router.push(`/aso/protocolos/${solicitacao.processoAsoId}`)}>
+                  {solicitacao.numeroProtocolo}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
 
       {error && (
         <div className="login-hint" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.25)', color: '#dc2626', marginBottom: '16px' }}>

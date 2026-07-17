@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowPathIcon, DocumentArrowDownIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { apiListCompanyAsos, getAuthToken } from '../../lib/api';
+import { useRouter } from 'next/navigation';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -13,6 +14,8 @@ function resolveFileUrl(fileUrl: string) {
 interface CompanyAso {
   id: string;
   requestId: string;
+  numeroProtocolo?: string | null;
+  processoAsoId?: string | null;
   collaborator: { id: string; name: string; cpf: string; functionCboCode?: string | null };
   examType: string;
   examPurpose: string;
@@ -151,46 +154,57 @@ export default function EmpresaAsosPage() {
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhum ASO vigente encontrado.</p>
         ) : (
           <table className="queue-table">
-            <thead>
-              <tr>
-                <th>Colaborador</th>
-                <th>CPF</th>
-                <th>Tipo</th>
-                <th>Emissao</th>
-                <th>Validade</th>
-                <th>Vencimento</th>
-                <th>Medico</th>
-                <th>ASO</th>
-              </tr>
-            </thead>
-            <tbody>
-              {asos.map((aso) => {
-                const tone = expirationTone(aso.daysUntilExpiration);
-                return (
-                  <tr key={aso.id}>
-                    <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{aso.collaborator.name}</td>
-                    <td>{aso.collaborator.cpf}</td>
-                    <td className="capitalize">{aso.examType}</td>
-                    <td>{formatDate(aso.issuedAt)}</td>
-                    <td>{formatDate(aso.validUntil)}</td>
-                    <td>
-                      <span className="badge" style={{ background: tone.background, color: tone.color }}>{tone.text}</span>
-                    </td>
-                    <td>{aso.doctor.name}</td>
-                    <td>
-                      {aso.pdfUrl ? (
-                        <button className="btn btn-secondary" onClick={() => void openAso(aso)} style={{ padding: '6px 10px', minHeight: 'unset' }}>
-                          <DocumentArrowDownIcon className="icon-sm" /> Visualizar
-                        </button>
-                      ) : (
-                        <span style={{ color: 'var(--text-muted)' }}>Sem PDF</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <thead>
+                        <tr>
+                          <th>Protocolo</th>
+                          <th>Colaborador</th>
+                          <th>CPF</th>
+                          <th>Tipo</th>
+                          <th>Emissão</th>
+                          <th>Validade</th>
+                          <th>Vencimento</th>
+                          <th>Médico</th>
+                          <th>ASO</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {asos.map((aso) => {
+                          const tone = expirationTone(aso.daysUntilExpiration);
+                          return (
+                            <tr key={aso.id}>
+                              <td style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '12px' }}>
+                                {aso.numeroProtocolo || aso.processoAsoId ? (
+                                  <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                                    onClick={() => router.push(`/aso/protocolos/${aso.processoAsoId}`)}>
+                                    {aso.numeroProtocolo || '—'}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{aso.collaborator.name}</td>
+                              <td>{aso.collaborator.cpf}</td>
+                              <td className="capitalize">{aso.examType}</td>
+                              <td>{formatDate(aso.issuedAt)}</td>
+                              <td>{formatDate(aso.validUntil)}</td>
+                              <td>
+                                <span className="badge" style={{ background: tone.background, color: tone.color }}>{tone.text}</span>
+                              </td>
+                              <td>{aso.doctor.name}</td>
+                              <td>
+                                {aso.pdfUrl ? (
+                                  <button className="btn btn-secondary" onClick={() => void openAso(aso)} style={{ padding: '6px 10px', minHeight: 'unset' }}>
+                                    <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                  </button>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>Sem PDF</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
         )}
       </div>
       {viewer && <div className="modal-overlay" onClick={() => { URL.revokeObjectURL(viewer.url); setViewer(null); }}><div className="modal-content" style={{ width: 'min(1100px, 94vw)', height: '88vh', borderRadius: '16px', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}><div className="modal-header"><div><h3>ASO de {viewer.aso.collaborator.name}</h3><p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>Emitido em {formatDate(viewer.aso.issuedAt)} · Válido até {formatDate(viewer.aso.validUntil)}</p></div><button className="modal-close" onClick={() => { URL.revokeObjectURL(viewer.url); setViewer(null); }}><XMarkIcon className="icon" /></button></div><iframe src={viewer.url} title="Visualização do ASO" style={{ width: '100%', height: 'calc(100% - 80px)', border: 'none' }} /></div></div>}
