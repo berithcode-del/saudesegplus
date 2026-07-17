@@ -22,6 +22,8 @@ const toast = {
   success: (msg: string) => alert(`✅ ${msg}`),
   error: (msg: string) => alert(`❌ ${msg}`),
 };
+
+const statusColors: Record<StatusProtocolo, { bg: string; color: string }> = {
   AGUARDANDO_COLETA: { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
   EM_COLETA: { bg: 'rgba(168, 85, 247, 0.12)', color: '#a855f7' },
   NA_FILA_MEDICA: { bg: 'rgba(249, 115, 22, 0.12)', color: '#ea580c' },
