@@ -120,13 +120,13 @@ export default function ProtocoloDetailPage() {
   };
 
   const openPDF = async (url: string) => {
-    if (!url) return;
-    const response = await fetch(`${BACKEND_URL}${url}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    });
-    if (!response.ok) return;
-    setViewer({ url: URL.createObjectURL(await response.blob()), protocolo: protocolo! });
-  };
+      if (!url) return;
+      const response = await fetch(`${BACKEND_URL}${url}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (!response.ok) return;
+      setViewer({ url: URL.createObjectURL(await response.blob()), protocolo: protocolo! });
+    };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>Carregando...</div>;
   if (!protocolo) return <div style={{ textAlign: 'center', padding: '40px' }}>Protocolo não encontrado</div>;

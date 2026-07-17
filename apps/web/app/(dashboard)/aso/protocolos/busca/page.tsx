@@ -67,13 +67,13 @@ export default function BuscaProtocoloPage() {
   };
 
   const openPDF = async (aso: ProtocoloASO) => {
-    if (!aso.pdfUrl) return;
-    const response = await fetch(`${BACKEND_URL}${aso.pdfUrl}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    });
-    if (!response.ok) return;
-    setViewer({ aso, url: URL.createObjectURL(await response.blob()) });
-  };
+      if (!aso.pdfUrl) return;
+      const response = await fetch(`${BACKEND_URL}${aso.pdfUrl}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (!response.ok) return;
+      setViewer({ protocolo: aso, url: URL.createObjectURL(await response.blob()) });
+    };
 
   if (!protocolo) {
     return (
