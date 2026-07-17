@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { FinancialService } from '../financial/financial.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
+import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -21,6 +22,7 @@ export class AsoService {
     private readonly prisma: PrismaService,
     private readonly financialService: FinancialService,
     private readonly storage: SupabaseStorageService,
+    private readonly asoProtocoloService: AsoProtocoloService,
   ) {}
 
   private async getPuppeteer() {
@@ -369,18 +371,37 @@ export class AsoService {
     this.logAsoStep(context, 'request_completed');
 
     try {
-      await this.financialService.generateExamTransactions(examRequestId);
-      this.logger.log(
-        `Transações financeiras geradas para ASO ${examRequestId}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Erro ao gerar transações financeiras para ASO ${examRequestId}`,
-        error,
-      );
-    }
+          await this.financialService.generateExamTransactions(examRequestId);
+          this.logger.log(
+            `Transações financeiras geradas para ASO ${examRequestId}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Erro ao gerar transações financeiras para ASO ${examRequestId}`,
+            error,
+          );
+        }
 
-    this.logger.log(`ASO PDF gerado: ${pdfPath}`);
-    return { pdfUrl: fileUrl, asoDocumentId: asoDoc.id };
-  }
-}
+        // Atualizar protocolo ASO se existir
+        const request = await this.prisma.examRequest.findUnique({
+          where: { id: examRequestId },
+          select: { processoAsoId: true },
+        });
+        if (request?.processoAsoId) {
+          await this.asoProtocoloService.update(
+            request.processoAsoId,
+            {
+              status: 'CONCLUIDO' as any,
+              medicoId: doctor.id,
+              documentos: [
+                { id: asoDoc.id, tipo: 'ASO', url: fileUrl, data: new Date().toISOString() },
+              ],
+            },
+            userId,
+          );
+        }
+
+        this.logger.log(`ASO PDF gerado: ${pdfPath}`);
+        return { pdfUrl: fileUrl, asoDocumentId: asoDoc.id };
+      }
+    }

@@ -8,6 +8,7 @@ import { QueueModule } from './queue/queue.module';
 import { ExamsModule } from './exams/exams.module';
 import { SignatureModule } from './signature/signature.module';
 import { AsoModule } from './aso/aso.module';
+import { AsoProtocoloModule } from './aso-protocolo/aso-protocolo.module';
 import { CompanyModule } from './company/company.module';
 import { ColaboradorModule } from './colaborador/colaborador.module';
 import { ExamRequestModule } from './exam-request/exam-request.module';
@@ -32,6 +33,7 @@ import { ClinicProfileModule } from './clinic-profile/clinic-profile.module';
     ExamsModule,
     SignatureModule,
     AsoModule,
+    AsoProtocoloModule,
     CompanyModule,
     ColaboradorModule,
     ExamRequestModule,

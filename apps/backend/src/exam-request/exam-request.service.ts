@@ -8,6 +8,8 @@ import { CompanyGateway } from '../company/company.gateway';
 import { paginate, PaginatedResult } from '../common/pagination';
 import { PresenceService } from '../presence/presence.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
+import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
+import { StatusProtocolo } from '@prisma/client';
 import { basename } from 'path';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class ExamRequestService {
     private readonly companyGateway: CompanyGateway,
     private readonly presenceService: PresenceService,
     private readonly storage: SupabaseStorageService,
+    private readonly asoProtoceloService: AsoProtoceloService,
   ) {}
 
   private parseResultValue(value: string | null | undefined) {
@@ -228,6 +231,25 @@ export class ExamRequestService {
         status: existing.invite.status,
         examStatus: body.status,
       });
+    }
+
+    // Sincronizar status com protocolo ASO se existir
+    if (existing.processoAsoId) {
+      const statusMap: Record<string, StatusProtocolo> = {
+        'AGUARDANDO_COLETA': StatusProtocolo.AGUARDANDO_COLETA,
+        'EM_COLETA': StatusProtocolo.EM_COLETA,
+        'NA_FILA_MEDICA': StatusProtocolo.NA_FILA_MEDICA,
+        'EM_ATENDIMENTO': StatusProtocolo.EM_ATENDIMENTO,
+        'CONCLUIDO': StatusProtocolo.CONCLUIDO,
+        'CANCELADO': StatusProtocolo.CANCELADO,
+      };
+      const protocoloStatus = statusMap[body.status];
+      if (protocoloStatus) {
+        await this.asoProtoceloService.update(existing.processoAsoId, {
+          status: protocoloStatus,
+          ...(protocoloStatus === StatusProtocolo.CONCLUIDO && { dataConclusao: new Date() }),
+        }, body.doctorId ?? 'system');
+      }
     }
 
     return updated;

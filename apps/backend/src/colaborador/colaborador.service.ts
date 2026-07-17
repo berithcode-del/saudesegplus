@@ -7,6 +7,8 @@ import { InviteStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
+import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
+import { TipoExame } from '@prisma/client';
 
 interface ValidateInviteAndRegisterArgs {
   token: string;
@@ -19,7 +21,19 @@ export class ColaboradorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyGateway: CompanyGateway,
+    private readonly asoProtoceloService: AsoProtoceloService,
   ) {}
+
+  private mapExamTypeToTipoExame(examType: string): TipoExame {
+    const map: Record<string, TipoExame> = {
+      admissional: TipoExame.ADMISSIONAL,
+      periodico: TipoExame.PERIODICO,
+      demissional: TipoExame.DEMISSIONAL,
+      mudanca_funcao: TipoExame.MUDANCA_FUNCAO,
+      retorno_trabalho: TipoExame.RETORNO_TRABALHO,
+    };
+    return map[examType.toLowerCase()] ?? TipoExame.ADMISSIONAL;
+  }
 
   async validateInviteAndRegister(args: ValidateInviteAndRegisterArgs) {
     const { token, name, password } = args;
@@ -114,7 +128,24 @@ export class ColaboradorService {
       },
     });
 
-    // 6. Atualizar status do convite
+    // 6. Criar Protocolo ASO automaticamente
+        const protocolo = await this.asoProtoceloService.create(
+          {
+            empresaId: invite.companyId,
+            clinicaId: invite.company.clinicId ?? examRequest.clinicId ?? '',
+            pacienteId: patient.id,
+            tipoExame: this.mapExamTypeToTipoExame(invite.examType),
+          },
+          user.id,
+        );
+
+    // 7. Vincular protocolo ao ExamRequest
+    await this.prisma.examRequest.update({
+      where: { id: examRequest.id },
+      data: { processoAsoId: protocolo.id },
+    });
+
+    // 8. Atualizar status do convite
     await this.prisma.examInvite.update({
       where: { id: invite.id },
       data: {
@@ -123,7 +154,7 @@ export class ColaboradorService {
       },
     });
 
-    // 7. Registrar evento na timeline (CADASTRO_CONCLUIDO — mesma
+    // 9. Registrar evento na timeline (CADASTRO_CONCLUIDO — mesma
     //    convenção usada pelo gerador de mock-data)
     const timelineEvent = await this.prisma.examTimelineEvent.create({
       data: {
@@ -133,9 +164,9 @@ export class ColaboradorService {
       },
     });
 
-    // 8. Notificar o painel da empresa em tempo real via WebSocket.
-    //    Antes, este service não emitia nada — a empresa só veria a
-    //    atualização após um refresh manual.
+    // 10. Notificar o painel da empresa em tempo real via WebSocket.
+    //     Antes, este service não emitia nada — a empresa só veria a
+    //     atualização após um refresh manual.
     this.companyGateway.emitTimelineUpdate(invite.companyId, {
       inviteId: invite.id,
       eventType: 'CADASTRO_CONCLUIDO',
@@ -155,6 +186,8 @@ export class ColaboradorService {
       companyId: invite.companyId,
       examRequestId: examRequest.id,
       examRequestStatus: examRequest.status,
+      protocoloId: protocolo.id,
+      numeroProtocolo: protocolo.numeroProtocolo,
     };
   }
 

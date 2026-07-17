@@ -343,36 +343,38 @@ export class CompanyService {
     });
 
     return asos.map((aso) => {
-      const validUntil = aso.validUntil as Date;
-      const signedAt = aso.signedAt ?? aso.request.createdAt;
-      const daysUntilExpiration = Math.ceil(
-        (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-      );
+          const validUntil = aso.validUntil as Date;
+          const signedAt = aso.signedAt ?? aso.request.createdAt;
+          const daysUntilExpiration = Math.ceil(
+            (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+          );
 
-      return {
-        id: aso.id,
-        requestId: aso.requestId,
-        collaborator: {
-          id: aso.request.patient.id,
-          name: aso.request.patient.name,
-          cpf: aso.request.patient.cpf,
-          functionCboCode: aso.request.patient.functionCboCode,
-        },
-        examType: aso.request.invite?.examType ?? aso.request.examPurpose,
-        examPurpose: aso.request.examPurpose,
-        issuedAt: signedAt.toISOString(),
-        validUntil: validUntil.toISOString(),
-        daysUntilExpiration,
-        decision: aso.decision,
-        restrictionNotes: aso.restrictionNotes,
-        pdfUrl: aso.pdfUrl,
-        doctor: {
-          id: aso.doctor.id,
-          name: aso.doctor.name,
-          crm: `${aso.doctor.crmNumber}/${aso.doctor.crmState}`,
-        },
-      };
-    });
+          return {
+            id: aso.id,
+            requestId: aso.requestId,
+            numeroProtocolo: aso.request.processoAso?.numeroProtocolo ?? null,
+            processoAsoId: aso.request.processoAsoId ?? null,
+            collaborator: {
+              id: aso.request.patient.id,
+              name: aso.request.patient.name,
+              cpf: aso.request.patient.cpf,
+              functionCboCode: aso.request.patient.functionCboCode,
+            },
+            examType: aso.request.invite?.examType ?? aso.request.examPurpose,
+            examPurpose: aso.request.examPurpose,
+            issuedAt: signedAt.toISOString(),
+            validUntil: validUntil.toISOString(),
+            daysUntilExpiration,
+            decision: aso.decision,
+            restrictionNotes: aso.restrictionNotes,
+            pdfUrl: aso.pdfUrl,
+            doctor: {
+              id: aso.doctor.id,
+              name: aso.doctor.name,
+              crm: `${aso.doctor.crmNumber}/${aso.doctor.crmState}`,
+            },
+          };
+        });
   }
 
   async getAsoPdf(companyId: string, asoId: string) {

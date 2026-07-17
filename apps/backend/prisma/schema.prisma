@@ -255,7 +255,10 @@ model ExamRequest {
   teleconsultations     Teleconsultation[]
   payment               Payment?               @relation(fields: [paymentId], references: [id])
   paymentId             String?                @unique
-}
+  /// Protocolo ASO associado (opcional para compatibilidade com dados legados)
+    processoAsoId         String?                @unique @map("processo_aso_id")
+    processoAso           ProcessoASO?           @relation("ProcessoASOExamRequest", fields: [processoAsoId], references: [id])
+  }
 
 model ExamResult {
   id            String      @id @default(uuid())
@@ -498,10 +501,57 @@ model SupportMessage {
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
-}
+  }
 
-enum Role {
-  ADMIN
+  /// Protocolo único que acompanha todo o processo de ASO — da abertura à emissão
+  model ProcessoASO {
+    id              String       @id @default(uuid())
+    numeroProtocolo String       @unique @map("numero_protocolo")
+    empresaId       String       @map("empresa_id")
+    clinicaId       String?      @map("clinica_id")
+    pacienteId      String       @map("paciente_id")
+    medicoId        String?      @map("medico_id")
+    examRequestId   String?      @unique @map("exam_request_id")
+    examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
+    status          StatusProtocolo @default(AGUARDANDO_COLETA)
+    tipoExame       TipoExame @map("tipo_exame")
+    dataAbertura    DateTime  @default(now()) @map("data_abertura")
+    dataConclusao   DateTime? @map("data_conclusao")
+    documentos      Json      @default("[]")
+    historico       Json      @default("[]")
+    observacoes     String?
+    createdAt       DateTime  @default(now()) @map("created_at")
+    updatedAt       DateTime  @updatedAt @map("updated_at")
+
+    @@index([empresaId])
+    @@index([clinicaId])
+    @@index([pacienteId])
+    @@index([medicoId])
+    @@index([status])
+    @@index([numeroProtocolo])
+    @@map("processos_aso")
+  }
+
+  enum StatusProtocolo {
+    AGUARDANDO_COLETA
+    EM_COLETA
+    NA_FILA_MEDICA
+    EM_ATENDIMENTO
+    DOCUMENTOS_PENDENTES
+    CONCLUIDO
+    CANCELADO
+  }
+
+  enum TipoExame {
+    ADMISSIONAL
+    PERIODICO
+    DEMISSIONAL
+    MUDANCA_FUNCAO
+    RETORNO_TRABALHO
+  }
+
+  /// Papel do usuário na plataforma
+  enum Role {
   OPERATOR
   DOCTOR
   PATIENT
