@@ -29,6 +29,10 @@ export class AsoController {
       body.decision,
       body.restrictionNotes,
     );
-    return { success: true, pdfUrl: result.pdfUrl };
+    return {
+      success: true,
+      pdfUrl: result.pdfUrl,
+      asoDocumentId: result.asoDocumentId,
+    };
   }
 }

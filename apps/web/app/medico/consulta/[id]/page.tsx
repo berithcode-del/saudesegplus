@@ -90,9 +90,13 @@ export default function ConsultaPage() {
   const [videoRoomUrl, setVideoRoomUrl] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [expandedExamId, setExpandedExamId] = useState<string | null>(null);
-  const [workspaceMode, setWorkspaceMode] = useState<"video" | "exam" | "anamnese" | "notas">("video");
+  const [workspaceMode, setWorkspaceMode] = useState<
+    "video" | "exam" | "anamnese" | "notas" | "aso"
+  >("video");
   const [workspaceExamId, setWorkspaceExamId] = useState<string | null>(null);
-  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>(
+    {},
+  );
   const [patientOnline, setPatientOnline] = useState(false);
   const [roomError, setRoomError] = useState("");
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -104,9 +108,12 @@ export default function ConsultaPage() {
     setWorkspaceExamId(resultId);
     setExpandedExamId(resultId);
     if (attachmentUrls[resultId]) return;
-    const response = await fetch(`${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`, {
-      headers: { Authorization: `Bearer ${getAuthToken()}` },
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/api/solicitacoes/results/${resultId}/attachment`,
+      {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      },
+    );
     if (!response.ok) throw new Error("Nao foi possivel carregar o anexo");
     const objectUrl = URL.createObjectURL(await response.blob());
     setAttachmentUrls((current) => ({ ...current, [resultId]: objectUrl }));
@@ -305,11 +312,35 @@ export default function ConsultaPage() {
             decision === "APTO_COM_RESTRICAO" ? restriction : undefined,
         }),
       });
+      if (!pdfData.pdfUrl) {
+        throw new Error("ASO gerado sem arquivo PDF. Tente novamente.");
+      }
+
+      const generatedAsoDocument = {
+        id: pdfData.asoDocumentId ?? signatureData.asoDocumentId,
+        decision,
+        restrictionNotes:
+          decision === "APTO_COM_RESTRICAO" ? restriction : undefined,
+        pdfUrl: pdfData.pdfUrl,
+        validUntil: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
+        createdAt: new Date().toISOString(),
+      };
       setSignatureUrl(signatureData.url);
       setPdfUrl(pdfData.pdfUrl);
-      setSolicitacao((current) =>
-        current ? { ...current, status: "CONCLUIDO" } : current,
-      );
+      setWorkspaceMode("aso");
+      setSolicitacao((current) => {
+        if (!current) return current;
+        const otherAsoDocuments = (current.asoDocuments ?? []).filter(
+          (document) => document.id !== generatedAsoDocument.id,
+        );
+        return {
+          ...current,
+          status: "CONCLUIDO",
+          asoDocuments: [generatedAsoDocument, ...otherAsoDocuments],
+        };
+      });
       setSignaturePin("");
       setIsPinModalOpen(false);
     } catch (error) {
@@ -350,6 +381,16 @@ export default function ConsultaPage() {
       bg: "rgba(229,62,62,0.15)",
     },
   ];
+  const asoDocuments = solicitacao?.asoDocuments ?? [];
+  const asoWithPdf = asoDocuments.find((document) => document.pdfUrl);
+  const displayedAsoDocument =
+    asoWithPdf ??
+    asoDocuments.find(
+      (document) => document.decision && document.decision !== "PENDENTE",
+    ) ??
+    asoDocuments[0];
+  const displayedAsoPdfUrl = asoWithPdf?.pdfUrl ?? pdfUrl;
+  const hasAsoPdfFile = !!displayedAsoPdfUrl;
 
   if (loading) {
     return (
@@ -368,9 +409,15 @@ export default function ConsultaPage() {
   }
 
   const patient = solicitacao.patient;
-  const workspaceExam = parsedExams?.find((exam) => exam.id === workspaceExamId);
-  const workspaceExamUrl = workspaceExamId ? attachmentUrls[workspaceExamId] : null;
-  const workspaceExamIsImage = !!workspaceExam?.attachmentUrl?.match(/\.(jpeg|jpg|gif|png)$/i);
+  const workspaceExam = parsedExams?.find(
+    (exam) => exam.id === workspaceExamId,
+  );
+  const workspaceExamUrl = workspaceExamId
+    ? attachmentUrls[workspaceExamId]
+    : null;
+  const workspaceExamIsImage = !!workspaceExam?.attachmentUrl?.match(
+    /\.(jpeg|jpg|gif|png)$/i,
+  );
 
   return (
     <div
@@ -395,68 +442,314 @@ export default function ConsultaPage() {
           }}
         >
           {workspaceMode === "exam" ? (
-            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-              <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--border-light)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div>
-                  <div style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase" }}>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                    }}
+                  >
                     Visualização de exame
                   </div>
-                  <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: 800 }}>
-                    {workspaceExam?.parsedValues["nome_exame"] || workspaceExam?.type?.name || "Exame anexado"}
+                  <div
+                    style={{
+                      fontSize: "16px",
+                      color: "var(--text-primary)",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {workspaceExam?.parsedValues["nome_exame"] ||
+                      workspaceExam?.type?.name ||
+                      "Exame anexado"}
                   </div>
                 </div>
-                <button className="btn btn-ghost" onClick={() => setWorkspaceMode("video")}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setWorkspaceMode("video")}
+                >
                   Voltar para vídeo
                 </button>
               </div>
-              <div style={{ flex: 1, minHeight: "620px", padding: "16px", background: "#f8fafc" }}>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: "620px",
+                  padding: "16px",
+                  background: "#f8fafc",
+                }}
+              >
                 {!workspaceExam ? (
-                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--text-muted)",
+                    }}
+                  >
                     Selecione um exame na lateral para visualizar.
                   </div>
                 ) : !workspaceExamUrl ? (
-                  <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--text-muted)",
+                    }}
+                  >
                     Carregando anexo do exame...
                   </div>
                 ) : workspaceExamIsImage ? (
-                  <img src={workspaceExamUrl} alt="Exame" style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: "12px", background: "white" }} />
+                  <img
+                    src={workspaceExamUrl}
+                    alt="Exame"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                      borderRadius: "12px",
+                      background: "white",
+                    }}
+                  />
                 ) : (
-                  <iframe src={workspaceExamUrl} style={{ width: "100%", height: "100%", minHeight: "620px", border: "none", borderRadius: "12px", background: "white" }} title="PDF do Exame" />
+                  <iframe
+                    src={workspaceExamUrl}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      minHeight: "620px",
+                      border: "none",
+                      borderRadius: "12px",
+                      background: "white",
+                    }}
+                    title="PDF do Exame"
+                  />
                 )}
               </div>
             </div>
           ) : workspaceMode === "anamnese" ? (
-            <div style={{ width: "100%", height: "100%", padding: "28px", overflowY: "auto" }}>
-              <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "18px", color: "var(--text-primary)" }}>
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                padding: "28px",
+                overflowY: "auto",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 800,
+                  marginBottom: "18px",
+                  color: "var(--text-primary)",
+                }}
+              >
                 Anamnese do paciente
               </h2>
-              <div style={{ display: "grid", gap: "14px", color: "var(--text-secondary)", lineHeight: 1.7 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gap: "14px",
+                  color: "var(--text-secondary)",
+                  lineHeight: 1.7,
+                }}
+              >
                 {anamnese ? (
                   <>
-                    {anamnese.queixas && <section className="card" style={{ boxShadow: "none" }}><strong>Queixas</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.queixas}</p></section>}
-                    {anamnese.historicoMedico && <section className="card" style={{ boxShadow: "none" }}><strong>Histórico médico</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.historicoMedico}</p></section>}
-                    {anamnese.historicoOcupacional && <section className="card" style={{ boxShadow: "none" }}><strong>Histórico ocupacional</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.historicoOcupacional}</p></section>}
-                    {anamnese.medicamentos && <section className="card" style={{ boxShadow: "none" }}><strong>Medicamentos</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.medicamentos}</p></section>}
-                    {anamnese.habitos && <section className="card" style={{ boxShadow: "none" }}><strong>Hábitos</strong><p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>{anamnese.habitos}</p></section>}
+                    {anamnese.queixas && (
+                      <section className="card" style={{ boxShadow: "none" }}>
+                        <strong>Queixas</strong>
+                        <p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>
+                          {anamnese.queixas}
+                        </p>
+                      </section>
+                    )}
+                    {anamnese.historicoMedico && (
+                      <section className="card" style={{ boxShadow: "none" }}>
+                        <strong>Histórico médico</strong>
+                        <p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>
+                          {anamnese.historicoMedico}
+                        </p>
+                      </section>
+                    )}
+                    {anamnese.historicoOcupacional && (
+                      <section className="card" style={{ boxShadow: "none" }}>
+                        <strong>Histórico ocupacional</strong>
+                        <p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>
+                          {anamnese.historicoOcupacional}
+                        </p>
+                      </section>
+                    )}
+                    {anamnese.medicamentos && (
+                      <section className="card" style={{ boxShadow: "none" }}>
+                        <strong>Medicamentos</strong>
+                        <p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>
+                          {anamnese.medicamentos}
+                        </p>
+                      </section>
+                    )}
+                    {anamnese.habitos && (
+                      <section className="card" style={{ boxShadow: "none" }}>
+                        <strong>Hábitos</strong>
+                        <p style={{ whiteSpace: "pre-line", marginTop: "8px" }}>
+                          {anamnese.habitos}
+                        </p>
+                      </section>
+                    )}
                   </>
                 ) : (
-                  <p style={{ color: "var(--text-muted)" }}>Nenhuma anamnese registrada para este paciente.</p>
+                  <p style={{ color: "var(--text-muted)" }}>
+                    Nenhuma anamnese registrada para este paciente.
+                  </p>
                 )}
               </div>
             </div>
           ) : workspaceMode === "notas" ? (
-            <div style={{ width: "100%", height: "100%", padding: "28px", display: "flex", flexDirection: "column" }}>
-              <h2 style={{ fontSize: "22px", fontWeight: 800, marginBottom: "18px", color: "var(--text-primary)" }}>
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                padding: "28px",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 800,
+                  marginBottom: "18px",
+                  color: "var(--text-primary)",
+                }}
+              >
                 Notas clínicas
               </h2>
               <textarea
                 id="clinical-notes-workspace"
                 className="form-input"
-                style={{ flex: 1, minHeight: "560px", resize: "vertical", fontSize: "15px", lineHeight: 1.6 }}
+                style={{
+                  flex: 1,
+                  minHeight: "560px",
+                  resize: "vertical",
+                  fontSize: "15px",
+                  lineHeight: 1.6,
+                }}
                 placeholder="Anotações clínicas (criptografadas em repouso)..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
+            </div>
+          ) : workspaceMode === "aso" ? (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--border-light)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ASO emitido
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "16px",
+                      color: "var(--text-primary)",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {displayedAsoDocument?.decision === "INAPTO"
+                      ? "Inapto"
+                      : displayedAsoDocument?.decision === "APTO_COM_RESTRICAO"
+                        ? "Apto com Restrição"
+                        : "Apto"}
+                  </div>
+                </div>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setWorkspaceMode("video")}
+                >
+                  Voltar para vídeo
+                </button>
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: "620px",
+                  padding: "16px",
+                  background: "#f8fafc",
+                }}
+              >
+                {displayedAsoPdfUrl ? (
+                  <iframe
+                    src={displayedAsoPdfUrl}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      minHeight: "620px",
+                      border: "none",
+                      borderRadius: "12px",
+                      background: "white",
+                    }}
+                    title="PDF do ASO"
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                      color: "var(--text-muted)",
+                      padding: "24px",
+                    }}
+                  >
+                    O arquivo PDF do ASO ainda não está disponível. Emita o ASO
+                    para visualizar o documento aqui.
+                  </div>
+                )}
+              </div>
             </div>
           ) : !videoRoomUrl ? (
             <div style={{ textAlign: "center" }}>
@@ -655,15 +948,38 @@ export default function ConsultaPage() {
         }}
       >
         <div className="card" style={{ padding: "0" }}>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border-light)" }}>
+          <div
+            style={{
+              padding: "14px 16px",
+              borderBottom: "1px solid var(--border-light)",
+            }}
+          >
             <button
-              className={workspaceMode === "video" ? "btn btn-primary" : "btn btn-ghost"}
+              className={
+                workspaceMode === "video" ? "btn btn-primary" : "btn btn-ghost"
+              }
               style={{ width: "100%", justifyContent: "center" }}
               onClick={() => setWorkspaceMode("video")}
             >
               <VideoCameraIcon className="icon icon-sm" />
               Área de vídeo
             </button>
+            {(displayedAsoDocument || displayedAsoPdfUrl) && (
+              <button
+                className={
+                  workspaceMode === "aso" ? "btn btn-primary" : "btn btn-ghost"
+                }
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  marginTop: "10px",
+                }}
+                onClick={() => setWorkspaceMode("aso")}
+              >
+                <DocumentTextIcon className="icon icon-sm" />
+                Visualizar ASO
+              </button>
+            )}
           </div>
           <div
             style={{
@@ -727,7 +1043,8 @@ export default function ConsultaPage() {
                 {parsedExams && parsedExams.length > 0 ? (
                   parsedExams.map((exam) => {
                     if (exam.attachmentUrl) {
-                      const isSelected = workspaceExamId === exam.id && workspaceMode === "exam";
+                      const isSelected =
+                        workspaceExamId === exam.id && workspaceMode === "exam";
                       return (
                         <div
                           key={exam.id}
@@ -972,8 +1289,8 @@ export default function ConsultaPage() {
 
           {(() => {
             const isConcluido = solicitacao?.status === "CONCLUIDO";
-            const asoExistente = solicitacao?.asoDocuments?.[0];
-            if (isConcluido && asoExistente) {
+            const asoExistente = displayedAsoDocument;
+            if (isConcluido && asoExistente && hasAsoPdfFile) {
               return (
                 <div
                   className="card"
@@ -1050,38 +1367,52 @@ export default function ConsultaPage() {
                       )}
                     </div>
                   </div>
-                  {asoExistente.pdfUrl && (
-                    <a
-                      href={asoExistente.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-primary"
-                      style={{
-                        width: "100%",
-                        justifyContent: "center",
-                        marginTop: "12px",
-                        textDecoration: "none",
-                      }}
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceMode("aso")}
+                    className="btn btn-primary"
+                    style={{
+                      width: "100%",
+                      justifyContent: "center",
+                      marginTop: "12px",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{ marginRight: "8px" }}
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        style={{ marginRight: "8px" }}
-                      >
-                        <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Baixar ASO
-                    </a>
-                  )}
+                      <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Visualizar ASO na plataforma
+                  </button>
                 </div>
               );
             }
             return (
               <>
+                {isConcluido && asoExistente && !hasAsoPdfFile && (
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: "12px",
+                      background: "rgba(245,166,35,0.12)",
+                      border: "1px solid rgba(245,166,35,0.3)",
+                      color: "#92400e",
+                      fontSize: "14px",
+                      lineHeight: 1.5,
+                      marginBottom: "16px",
+                    }}
+                  >
+                    A decisão foi registrada, mas o arquivo PDF do ASO ainda não
+                    está disponível. Selecione a decisão novamente e tente
+                    emitir o arquivo.
+                  </div>
+                )}
                 <div
                   style={{
                     display: "flex",
@@ -1150,7 +1481,7 @@ export default function ConsultaPage() {
                     !decision ||
                     signing ||
                     (decision === "APTO_COM_RESTRICAO" && !restriction) ||
-                    solicitacao?.status === "CONCLUIDO" ||
+                    hasAsoPdfFile ||
                     !videoRoomUrl
                   }
                 >
@@ -1171,16 +1502,15 @@ export default function ConsultaPage() {
 
                 {pdfUrl && (
                   <div style={{ marginTop: "16px", textAlign: "center" }}>
-                    <a
-                      href={pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceMode("aso")}
                       className="btn btn-success"
                       style={{ width: "100%", justifyContent: "center" }}
                     >
                       <DocumentTextIcon className="icon" />
-                      Baixar ASO Assinado
-                    </a>
+                      Visualizar ASO Assinado
+                    </button>
                   </div>
                 )}
 

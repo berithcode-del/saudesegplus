@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { paginate, PaginatedResult } from '../common/pagination';
@@ -36,7 +40,8 @@ export class ExamRequestService {
     limit: number = 20,
     user?: { role: string; profileId?: string | null },
   ): Promise<PaginatedResult<any>> {
-    const scopedCompanyId = user?.role === 'COMPANY_ADMIN' ? user.profileId : filters.companyId;
+    const scopedCompanyId =
+      user?.role === 'COMPANY_ADMIN' ? user.profileId : filters.companyId;
     const where: any = {
       status: filters.status,
       patient: scopedCompanyId
@@ -63,13 +68,16 @@ export class ExamRequestService {
         clinic: true,
         invite: true,
         results: { include: { type: true } },
-        asoDocuments: true,
+        asoDocuments: { orderBy: { signedAt: 'desc' } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string, user?: { role: string; profileId?: string | null }) {
+  async findOne(
+    id: string,
+    user?: { role: string; profileId?: string | null },
+  ) {
     if (user) await this.assertAccess(id, user);
     const request = await this.prisma.examRequest.findUnique({
       where: { id },
@@ -82,12 +90,12 @@ export class ExamRequestService {
         clinic: true,
         invite: { include: { company: true } },
         results: { include: { type: true } },
-        asoDocuments: true,
+        asoDocuments: { orderBy: { signedAt: 'desc' } },
         teleconsultations: { orderBy: { startedAt: 'desc' }, take: 1 },
       },
     });
     if (!request) throw new NotFoundException('Solicitação não encontrada');
-    const results = request.results.map(r => ({
+    const results = request.results.map((r) => ({
       ...r,
       valueJson: this.parseResultValue(r.valueJson),
     }));
@@ -118,9 +126,12 @@ export class ExamRequestService {
 
     let allowed = false;
     if (user.role === 'COMPANY_ADMIN') {
-      allowed = !write && request.patient.companies.some(
-        (relation) => relation.companyId === user.profileId && !relation.endDate,
-      );
+      allowed =
+        !write &&
+        request.patient.companies.some(
+          (relation) =>
+            relation.companyId === user.profileId && !relation.endDate,
+        );
     } else if (user.role === 'DOCTOR') {
       allowed = request.queueEntry?.assignedDoctorId === user.profileId;
     } else if (user.role === 'CLINIC') {
@@ -133,18 +144,28 @@ export class ExamRequestService {
       allowed = operator?.clinicId === request.clinicId;
     }
 
-    if (!allowed) throw new ForbiddenException('Acesso negado a esta solicitacao');
+    if (!allowed)
+      throw new ForbiddenException('Acesso negado a esta solicitacao');
   }
 
-  async getResultAttachment(resultId: string, user: { role: string; profileId?: string | null }) {
-    const result = await this.prisma.examResult.findUnique({ where: { id: resultId } });
-    if (!result?.attachmentUrl) throw new NotFoundException('Anexo nao encontrado');
+  async getResultAttachment(
+    resultId: string,
+    user: { role: string; profileId?: string | null },
+  ) {
+    const result = await this.prisma.examResult.findUnique({
+      where: { id: resultId },
+    });
+    if (!result?.attachmentUrl)
+      throw new NotFoundException('Anexo nao encontrado');
     await this.assertAccess(result.requestId, user);
     const fileName = basename(result.attachmentUrl);
     if (!/^[0-9a-f-]{36}\.(pdf|jpg|jpeg|png)$/i.test(fileName)) {
       throw new NotFoundException('Anexo nao encontrado');
     }
-    return { buffer: await this.storage.downloadFile('uploads', fileName), fileName };
+    return {
+      buffer: await this.storage.downloadFile('uploads', fileName),
+      fileName,
+    };
   }
 
   /**
@@ -152,7 +173,16 @@ export class ExamRequestService {
    * conforme F2-REQ-013) e propaga a mudança para empresa e
    * colaborador em tempo real.
    */
-  async updateStatus(id: string, body: { status: string; laudoTexto?: string; decision?: string; restrictionNotes?: string; doctorId?: string }) {
+  async updateStatus(
+    id: string,
+    body: {
+      status: string;
+      laudoTexto?: string;
+      decision?: string;
+      restrictionNotes?: string;
+      doctorId?: string;
+    },
+  ) {
     const existing = await this.prisma.examRequest.findUnique({
       where: { id },
       include: { invite: true },
@@ -160,7 +190,10 @@ export class ExamRequestService {
     if (!existing) throw new NotFoundException('Solicitação não encontrada');
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const req = await tx.examRequest.update({ where: { id }, data: { status: body.status } });
+      const req = await tx.examRequest.update({
+        where: { id },
+        data: { status: body.status },
+      });
 
       if (body.decision) {
         const validUntil = new Date();
@@ -178,7 +211,12 @@ export class ExamRequestService {
 
       if (body.laudoTexto && existing.invite) {
         await tx.examTimelineEvent.create({
-          data: { inviteId: existing.invite.id, examRequestId: id, eventType: 'CONCLUIDO', metadata: body.laudoTexto },
+          data: {
+            inviteId: existing.invite.id,
+            examRequestId: id,
+            eventType: 'CONCLUIDO',
+            metadata: body.laudoTexto,
+          },
         });
       }
       return req;
