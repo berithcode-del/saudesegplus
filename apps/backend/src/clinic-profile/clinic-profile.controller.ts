@@ -12,18 +12,24 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PrismaService } from '../prisma.service';
-import * as bcrypt from 'bcrypt';
-import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
-import { Roles } from '../auth/decorators/roles.decorator';
+  Res,
+} from '@nestjs/common'
+import type { Response } from 'express'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { PrismaService } from '../prisma.service'
+import * as bcrypt from 'bcrypt'
+import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto'
+import { Roles } from '../auth/decorators/roles.decorator'
+import { ClinicProfileService } from './clinic-profile.service'
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/clinic')
 @Roles('CLINIC', 'OPERATOR')
 export class ClinicProfileController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private clinicProfileService: ClinicProfileService,
+  ) {}
 
   // GET /api/clinics?state=XX&city=YY — List clinics (public endpoint for company config)
   @Get('clinics')
@@ -275,5 +281,40 @@ export class ClinicProfileController {
     await this.prisma.userAccount.delete({ where: { id: userId } });
 
     return { success: true };
+  }
+
+  // ─── ASOs da Clínica ────────────────────────────────────────────────────────
+
+  // GET /api/clinic/asos — Lista ASOs emitidos pela clínica
+  @Get('asos')
+  @Roles('CLINIC', 'OPERATOR')
+  async listClinicAsos(@Request() req: any) {
+    try {
+      const asos = await this.clinicProfileService.listClinicAsos(req.user.sub);
+      return { success: true, data: asos };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return { success: false, message: error.message };
+      }
+      throw error;
+    }
+  }
+
+  // GET /api/clinic/asos/:asoId/file — Download/visualização protegida do PDF
+  @Get('asos/:asoId/file')
+  @Roles('CLINIC', 'OPERATOR')
+  async getClinicAsoFile(@Request() req: any, @Param('asoId') asoId: string, @Res() response: Response) {
+    try {
+      const file = await this.clinicProfileService.getClinicAsoPdf(req.user.sub, asoId);
+      response.setHeader('Content-Type', 'application/pdf');
+      response.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+      response.send(file.buffer);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        response.status(404).send({ success: false, message: error.message });
+      } else {
+        throw error;
+      }
+    }
   }
 }

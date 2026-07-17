@@ -10,11 +10,18 @@ import {
   apiQuotePayment,
   apiCreatePayment,
   apiConfirmPayment,
+  getAuthToken,
   type PaymentQuote,
 } from '../../lib/api';
 import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 import { Pagination } from '../../../components/ui/Pagination';
-import { PlusIcon, ClipboardDocumentCheckIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentIcon,
+  DocumentArrowDownIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import CboAutocomplete from '../../../components/ui/CboAutocomplete';
 import PaymentReviewCard from '../../../components/ui/PaymentReviewCard';
 
@@ -24,8 +31,28 @@ interface Solicitacao {
   status: string;
   createdAt: string;
   patient: { name: string; cpf: string };
-  asoDocuments?: Array<{ decision: string }>;
+  asoDocuments?: Array<{
+    id?: string;
+    decision: string;
+    pdfUrl?: string | null;
+    validUntil?: string | null;
+    signedAt?: string | null;
+  }>;
   token?: string;
+}
+
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
+
+async function openAsoPdf(companyId: string, asoId: string) {
+  const token = getAuthToken();
+  const response = await fetch(`${BACKEND_URL}/api/company/${companyId}/asos/${asoId}/file`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) return;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
 }
 
 export default function EmpresaSolicitacoesPage() {
@@ -487,9 +514,21 @@ export default function EmpresaSolicitacoesPage() {
                     <td className="capitalize">{sol.examPurpose}</td>
                     <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td><span className="badge badge-done">{sol.status}</span></td>
-                    <td>{sol.asoDocuments?.[0]?.decision ?? '—'}</td>
                     <td>
-                      {sol.token ? (
+                                          {sol.asoDocuments?.[0]?.pdfUrl ? (
+                                            <button
+                                              className="btn btn-secondary"
+                                              style={{ padding: '6px 10px', minHeight: 'unset' }}
+                                              onClick={() => openAsoPdf(companyId, sol.asoDocuments![0].id!)}
+                                            >
+                                              <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                            </button>
+                                          ) : (
+                                            <span>{sol.asoDocuments?.[0]?.decision ?? '—'}</span>
+                                          )}
+                                        </td>
+                                        <td>
+                                          {sol.token ? (
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
                             className="btn btn-secondary"
