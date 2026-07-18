@@ -171,7 +171,7 @@ export default function AdminProtocoloDetailPage() {
           <button className="btn btn-secondary" onClick={() => { setEditForm({ ...p }); setModalType('edit'); setShowModal(true); }}>
             <PencilIcon className="icon" /> Editar
           </button>
-          <button className="btn btn-outline" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => setModalType('delete'); setShowModal(true);}>
+          <button className="btn btn-outline" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => { setModalType('delete'); setShowModal(true); }}>
             <TrashIcon className="icon" /> Excluir
           </button>
         </div>
