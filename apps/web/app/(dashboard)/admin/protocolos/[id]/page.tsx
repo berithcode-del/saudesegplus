@@ -82,7 +82,7 @@ export default function AdminProtocoloDetailPage() {
     setError('');
     try {
       const { numeroProtocolo, ...updateDto } = editForm;
-      await asoProtocoloApi.adminUpdate(id, { ...updateDto, numeroProtocolo }, '');
+      await asoProtocoloApi.adminUpdate(id, { ...updateDto, numeroProtocolo });
       await loadProtocelo();
       alert('Protocolo atualizado com sucesso!');
     } catch (err: any) {
