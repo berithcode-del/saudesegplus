@@ -137,15 +137,22 @@ export class CompanyController {
   }
 
   @Post(':id/invite')
-  @UseGuards(CompanyScopeGuard)
-  async createInvite(@Param('id') companyId: string, @Body() dto: CreateInviteDto) {
-    try {
-      const invite = await this.companyService.createInvite(companyId, dto);
-      return { success: true, data: invite };
-    } catch (error) {
-      throw error;
+    @UseGuards(CompanyScopeGuard)
+    async createInvite(@Param('id') companyId: string, @Body() dto: CreateInviteDto, @Req() req: any) {
+      try {
+        const invite = await this.companyService.createInvite(companyId, dto);
+        return { success: true, data: invite };
+      } catch (error) {
+        // Se for erro de validação (class-validator), retorna detalhes
+        if (error?.response?.message && Array.isArray(error.response.message)) {
+          throw new BadRequestException({
+            message: 'Erro de validação',
+            errors: error.response.message,
+          });
+        }
+        throw error;
+      }
     }
-  }
   @Delete('invite/:id')
   @UseGuards(CompanyInviteScopeGuard)
   async cancelInvite(@Param('id') id: string) {
