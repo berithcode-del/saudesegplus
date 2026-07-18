@@ -3,7 +3,7 @@ import { ColaboradorController } from './colaborador.controller';
 import { ColaboradorService } from './colaborador.service';
 import { PrismaService } from '../prisma.service';
 import { CompanyModule } from '../company/company.module';
-import { AsoProtocoloModule } from '../aso-protocolo/aso-protocelo.module';
+import { AsoProtocoloModule } from '../aso-protocolo/aso-protocolo.module';
 
 @Module({
   imports: [CompanyModule, AsoProtocoloModule],

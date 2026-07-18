@@ -56,6 +56,7 @@ export class AsoProtocoloService {
         empresa: true,
         clinica: true,
         paciente: true,
+        medico: true,
       },
     });
 

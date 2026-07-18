@@ -7,7 +7,7 @@ import { InviteStatus, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
-import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
+import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
 import { TipoExame } from '@prisma/client';
 
 interface ValidateInviteAndRegisterArgs {
@@ -21,7 +21,7 @@ export class ColaboradorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyGateway: CompanyGateway,
-    private readonly asoProtoceloService: AsoProtoceloService,
+    private readonly asoProtocoloService: AsoProtocoloService,
   ) {}
 
   private mapExamTypeToTipoExame(examType: string): TipoExame {
@@ -129,7 +129,7 @@ export class ColaboradorService {
     });
 
     // 6. Criar Protocolo ASO automaticamente
-        const protocolo = await this.asoProtoceloService.create(
+        const protocolo = await this.asoProtocoloService.create(
           {
             empresaId: invite.companyId,
             clinicaId: invite.company.clinicId ?? examRequest.clinicId ?? '',

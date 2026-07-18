@@ -49,13 +49,14 @@ model Clinic {
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
   payments              Payment[]
-  operators             Operator[]
-  parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
-  childClinics          Clinic[]               @relation("ClinicHierarchy")
+    operators             Operator[]
+    parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
+    childClinics          Clinic[]               @relation("ClinicHierarchy")
+    processosAso          ProcessoASO[]
 
-  @@index([isMatriz])
-  @@index([parentClinicId])
-}
+    @@index([isMatriz])
+    @@index([parentClinicId])
+  }
 
 model Operator {
   id          String       @id @default(uuid())
@@ -89,6 +90,7 @@ model Doctor {
   user                  UserAccount            @relation(fields: [userId], references: [id])
   financialTransactions FinancialTransaction[]
   teleconsultations     Teleconsultation[]
+  processoAsos          ProcessoASO[]
 }
 
 /// Empresa contratante — cliente comercial da plataforma
@@ -128,6 +130,7 @@ model Company {
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
   payments              Payment[]
+  processosAso          ProcessoASO[]
 }
 
 /// Papel "Cadastrador" — único papel por empresa nesta fase
@@ -198,6 +201,7 @@ model Patient {
   examRequests    ExamRequest[]
   user            UserAccount              @relation(fields: [userId], references: [id])
   documents       PatientDocument[]
+  processoAsos    ProcessoASO[]
 }
 
 /// Vínculo entre Empresa e Paciente/Colaborador (suporta múltiplos vínculos)
@@ -256,9 +260,9 @@ model ExamRequest {
   payment               Payment?               @relation(fields: [paymentId], references: [id])
   paymentId             String?                @unique
   /// Protocolo ASO associado (opcional para compatibilidade com dados legados)
-    processoAsoId         String?                @unique @map("processo_aso_id")
-    processoAso           ProcessoASO?           @relation("ProcessoASOExamRequest", fields: [processoAsoId], references: [id])
-  }
+      processoAsoId         String?                @unique @map("processo_aso_id")
+      processoAso           ProcessoASO?           @relation("ProcessoASOExamRequest", fields: [processoAsoId], references: [id])
+    }
 
 model ExamResult {
   id            String      @id @default(uuid())
@@ -504,33 +508,37 @@ model SupportMessage {
   }
 
   /// Protocolo único que acompanha todo o processo de ASO — da abertura à emissão
-  model ProcessoASO {
-    id              String       @id @default(uuid())
-    numeroProtocolo String       @unique @map("numero_protocolo")
-    empresaId       String       @map("empresa_id")
-    clinicaId       String?      @map("clinica_id")
-    pacienteId      String       @map("paciente_id")
-    medicoId        String?      @map("medico_id")
-    examRequestId   String?      @unique @map("exam_request_id")
-    examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
-    status          StatusProtocolo @default(AGUARDANDO_COLETA)
-    tipoExame       TipoExame @map("tipo_exame")
-    dataAbertura    DateTime  @default(now()) @map("data_abertura")
-    dataConclusao   DateTime? @map("data_conclusao")
-    documentos      Json      @default("[]")
-    historico       Json      @default("[]")
-    observacoes     String?
-    createdAt       DateTime  @default(now()) @map("created_at")
-    updatedAt       DateTime  @updatedAt @map("updated_at")
+    model ProcessoASO {
+      id              String       @id @default(uuid())
+      numeroProtocolo String       @unique @map("numero_protocolo")
+      empresaId       String       @map("empresa_id")
+      empresa         Company      @relation(fields: [empresaId], references: [id])
+      clinicaId       String?      @map("clinica_id")
+      clinica         Clinic?      @relation(fields: [clinicaId], references: [id])
+      pacienteId      String       @map("paciente_id")
+      paciente        Patient      @relation(fields: [pacienteId], references: [id])
+      medicoId        String?      @map("medico_id")
+      medico          Doctor?      @relation(fields: [medicoId], references: [id])
+      examRequestId   String?      @unique @map("exam_request_id")
+      examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
+      status          StatusProtocolo @default(AGUARDANDO_COLETA)
+      tipoExame       TipoExame @map("tipo_exame")
+      dataAbertura    DateTime  @default(now()) @map("data_abertura")
+      dataConclusao   DateTime? @map("data_conclusao")
+      documentos      Json      @default("[]")
+      historico       Json      @default("[]")
+      observacoes     String?
+      createdAt       DateTime  @default(now()) @map("created_at")
+      updatedAt       DateTime  @updatedAt @map("updated_at")
 
-    @@index([empresaId])
-    @@index([clinicaId])
-    @@index([pacienteId])
-    @@index([medicoId])
-    @@index([status])
-    @@index([numeroProtocolo])
-    @@map("processos_aso")
-  }
+      @@index([empresaId])
+      @@index([clinicaId])
+      @@index([pacienteId])
+      @@index([medicoId])
+      @@index([status])
+      @@index([numeroProtocolo])
+      @@map("processos_aso")
+    }
 
   enum StatusProtocolo {
     AGUARDANDO_COLETA
@@ -551,13 +559,14 @@ model SupportMessage {
   }
 
   /// Papel do usuário na plataforma
-  enum Role {
-  OPERATOR
-  DOCTOR
-  PATIENT
-  COMPANY_ADMIN
-  CLINIC
-}
+    enum Role {
+    OPERATOR
+    DOCTOR
+    PATIENT
+    COMPANY_ADMIN
+    CLINIC
+    ADMIN
+  }
 
 enum CompanyStatus {
   CADASTRO_INCOMPLETO

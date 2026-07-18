@@ -4,7 +4,7 @@ import { AsoController } from './aso.controller';
 import { AsoService } from './aso.service';
 import { FinancialModule } from '../financial/financial.module';
 import { UploadModule } from '../upload/upload.module';
-import { AsoProtocoloModule } from '../aso-protocolo/aso-protocelo.module';
+import { AsoProtocoloModule } from '../aso-protocolo/aso-protocolo.module';
 
 @Module({
   imports: [FinancialModule, UploadModule, AsoProtocoloModule],

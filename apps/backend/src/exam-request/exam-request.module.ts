@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { CompanyModule } from '../company/company.module';
 import { PresenceModule } from '../presence/presence.module';
 import { UploadModule } from '../upload/upload.module';
-import { AsoProtocoloModule } from '../aso-protocolo/aso-protocelo.module';
+import { AsoProtocoloModule } from '../aso-protocolo/aso-protocolo.module';
 
 @Module({
   imports: [CompanyModule, PresenceModule, UploadModule, AsoProtocoloModule],

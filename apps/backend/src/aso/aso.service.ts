@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { FinancialService } from '../financial/financial.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
-import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
+import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -179,109 +179,110 @@ export class AsoService {
     });
     if (!doctor) throw new NotFoundException('Perfil médico não encontrado');
 
-    const request = await this.prisma.examRequest.findUnique({
-      where: { id: examRequestId },
-      include: {
-        patient: true,
-        clinic: true,
-        invite: { include: { company: true } },
-        results: { include: { type: true } },
-      },
-    });
-    this.logAsoStep(context, 'request_lookup_finished', {
-      found: !!request,
-      status: request?.status ?? null,
-      patientId: this.shortId(request?.patientId),
-      clinicId: this.shortId(request?.clinicId),
-      resultsCount: request?.results.length ?? 0,
-      hasCompany: !!request?.invite?.company,
-      hasClinic: !!request?.clinic,
-      cboCode: request?.patient.functionCboCode ?? null,
-    });
-    if (!request) throw new NotFoundException('Solicitação não encontrada');
+        const examRequest = await this.prisma.examRequest.findUnique({
+          where: { id: examRequestId },
+          include: {
+            patient: true,
+            clinic: true,
+            invite: { include: { company: true } },
+            results: { include: { type: true } },
+          },
+        });
+        this.logAsoStep(context, 'request_lookup_finished', {
+          found: !!examRequest,
+          status: examRequest?.status ?? null,
+          patientId: this.shortId(examRequest?.patientId),
+          clinicId: this.shortId(examRequest?.clinicId),
+          resultsCount: examRequest?.results.length ?? 0,
+          hasCompany: !!examRequest?.invite?.company,
+          hasClinic: !!examRequest?.clinic,
+          cboCode: examRequest?.patient.functionCboCode ?? null,
+        });
+        if (!examRequest) throw new NotFoundException('Solicitação não encontrada');
 
-    const asoDoc = await this.prisma.asoDocument.findFirst({
-      where: {
-        requestId: examRequestId,
-        doctorId: doctor.id,
-        signedAt: { not: null },
-      },
-      orderBy: { signedAt: 'desc' },
-    });
-    this.logAsoStep(context, 'signed_aso_lookup_finished', {
-      found: !!asoDoc,
-      asoDocumentId: this.shortId(asoDoc?.id),
-      signedAt: asoDoc?.signedAt?.toISOString() ?? null,
-    });
-    if (!asoDoc) {
-      throw new ForbiddenException(
-        'O documento precisa ser assinado antes da geração do PDF',
-      );
-    }
+        const asoDoc = await this.prisma.asoDocument.findFirst({
+          where: {
+            requestId: examRequestId,
+            doctorId: doctor.id,
+            signedAt: { not: null },
+          },
+          orderBy: { signedAt: 'desc' },
+        });
+        this.logAsoStep(context, 'signed_aso_lookup_finished', {
+          found: !!asoDoc,
+          asoDocumentId: this.shortId(asoDoc?.id),
+          signedAt: asoDoc?.signedAt?.toISOString() ?? null,
+        });
+        if (!asoDoc) {
+          throw new ForbiddenException(
+            'O documento precisa ser assinado antes da geração do PDF',
+          );
+        }
 
-    const occupationalRisk = request.patient.functionCboCode
-      ? await this.prisma.occupationalRisk.findUnique({
-          where: { cboCode: request.patient.functionCboCode },
-        })
-      : null;
-    const todayPtBr = new Date().toLocaleDateString('pt-BR');
-    const isApto = decision !== 'INAPTO';
-    const company = request.invite?.company;
-    const verificationBaseUrl =
-      process.env.PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const proceduresRowsHtml = request.results
-      .map((result) => {
-        const code = result.type.id.slice(0, 6).toUpperCase();
-        const name = this.escapeHtml(result.type.name);
-        const date = result.collectedAt.toLocaleDateString('pt-BR');
-        return `<tr><td class="proc-code">${code}</td><td>${name}</td><td class="proc-date">${date}</td></tr>`;
-      })
-      .join('');
-    const riskFactorsHtml = occupationalRisk
-      ? `<li>${this.escapeHtml(`Grau de risco: ${occupationalRisk.riskGrade}`)}</li>`
-      : '';
+        const occupationalRisk = examRequest.patient.functionCboCode
+          ? await this.prisma.occupationalRisk.findUnique({
+              where: { cboCode: examRequest.patient.functionCboCode },
+            })
+          : null;
+        const todayPtBr = new Date().toLocaleDateString('pt-BR');
+        const isApto = decision !== 'INAPTO';
+        const company = examRequest.invite?.company;
+        const verificationBaseUrl =
+          process.env.PUBLIC_APP_URL ?? 'http://localhost:3000';
+        const proceduresRowsHtml = examRequest.results
+          .map((result) => {
+            const code = result.type.id.slice(0, 6).toUpperCase();
+            const name = this.escapeHtml(result.type.name);
+            const date = result.collectedAt.toLocaleDateString('pt-BR');
+            return `<tr><td class="proc-code">${code}</td><td>${name}</td><td class="proc-date">${date}</td></tr>`;
+          })
+          .join('');
 
-    const rawData: Record<string, string> = {
-      asoNumero: asoDoc.id.slice(0, 8).toUpperCase(),
-      patientName: request.patient.name,
-      patientCpf: request.patient.cpf,
-      patientNascimento: this.formatBirthDate(request.patient.birthDate),
-      cargoFuncao:
-        request.invite?.roleFunction ?? occupationalRisk?.functionName ?? '',
-      cboCode: request.patient.functionCboCode ?? '',
-      setorCargo: '',
-      companyName:
-        company?.razaoSocial ?? company?.nomeFantasia ?? company?.name ?? '',
-      companyCnpj: company?.cnpj ?? '',
-      companyEndereco: company?.address ?? '',
-      clinicName: request.clinic?.name ?? '',
-      clinicAddress: request.clinic?.address ?? '',
-      clinicCnpj: request.clinic?.cnpj ?? '',
-      clinicPhone: request.clinic?.phone ?? '',
-      examPurpose: request.examPurpose,
-      tipoExame: this.formatExamPurpose(request.examPurpose),
-      examDate: todayPtBr,
-      decision,
-      restrictionNotes: restrictionNotes ?? '',
-      doctorName: doctor.name,
-      doctorCrm: `${doctor.crmNumber} ${doctor.crmState}`,
-      signatureDate: asoDoc.signedAt?.toLocaleDateString('pt-BR') ?? todayPtBr,
-      verificationCode: asoDoc.id.slice(0, 12).toUpperCase(),
-      verificationUrl: `${verificationBaseUrl}/verificar/${asoDoc.id}`,
-      requiresAltura: '',
-      requiresConfinado: '',
-      alturaAptoMark: '',
-      alturaInaptoMark: '',
-      confinadoAptoMark: '',
-      confinadoInaptoMark: '',
-      geralAptoMark: isApto ? '✕' : '',
-      geralInaptoMark: isApto ? '' : '✕',
-      riskFactorsHtml,
-      proceduresRowsHtml,
-    };
-    const htmlKeys = new Set(['riskFactorsHtml', 'proceduresRowsHtml']);
-    const data = Object.fromEntries(
-      Object.entries(rawData).map(([key, value]) => [
+        const riskFactorsHtml = occupationalRisk
+          ? `<li>${this.escapeHtml(`Grau de risco: ${occupationalRisk.riskGrade}`)}</li>`
+          : '';
+
+        const rawData: Record<string, string> = {
+          asoNumero: asoDoc.id.slice(0, 8).toUpperCase(),
+          patientName: examRequest.patient.name,
+          patientCpf: examRequest.patient.cpf,
+          patientNascimento: this.formatBirthDate(examRequest.patient.birthDate),
+          cargoFuncao:
+            examRequest.invite?.roleFunction ?? occupationalRisk?.functionName ?? '',
+          cboCode: examRequest.patient.functionCboCode ?? '',
+          setorCargo: '',
+          companyName:
+            company?.razaoSocial ?? company?.nomeFantasia ?? company?.name ?? '',
+          companyCnpj: company?.cnpj ?? '',
+          companyEndereco: company?.address ?? '',
+          clinicName: examRequest.clinic?.name ?? '',
+          clinicAddress: examRequest.clinic?.address ?? '',
+          clinicCnpj: examRequest.clinic?.cnpj ?? '',
+          clinicPhone: examRequest.clinic?.phone ?? '',
+          examPurpose: examRequest.examPurpose,
+          tipoExame: this.formatExamPurpose(examRequest.examPurpose),
+          examDate: todayPtBr,
+          decision,
+          restrictionNotes: restrictionNotes ?? '',
+          doctorName: doctor.name,
+          doctorCrm: `${doctor.crmNumber} ${doctor.crmState}`,
+          signatureDate: asoDoc.signedAt?.toLocaleDateString('pt-BR') ?? todayPtBr,
+          verificationCode: asoDoc.id.slice(0, 12).toUpperCase(),
+          verificationUrl: `${verificationBaseUrl}/verificar/${asoDoc.id}`,
+          requiresAltura: '',
+          requiresConfinado: '',
+          alturaAptoMark: '',
+          alturaInaptoMark: '',
+          confinadoAptoMark: '',
+          confinadoInaptoMark: '',
+          geralAptoMark: isApto ? '✕' : '',
+                geralInaptoMark: isApto ? '' : '✕',
+                riskFactorsHtml,
+                proceduresRowsHtml,
+              };
+              const htmlKeys = new Set(['riskFactorsHtml', 'proceduresRowsHtml']);
+              const data = Object.fromEntries(
+                Object.entries(rawData).map(([key, value]) => [
         key,
         htmlKeys.has(key) ? value : this.escapeHtml(value),
       ]),
@@ -383,23 +384,23 @@ export class AsoService {
         }
 
         // Atualizar protocolo ASO se existir
-        const request = await this.prisma.examRequest.findUnique({
-          where: { id: examRequestId },
-          select: { processoAsoId: true },
-        });
-        if (request?.processoAsoId) {
-          await this.asoProtocoloService.update(
-            request.processoAsoId,
-            {
-              status: 'CONCLUIDO' as any,
-              medicoId: doctor.id,
-              documentos: [
-                { id: asoDoc.id, tipo: 'ASO', url: fileUrl, data: new Date().toISOString() },
-              ],
-            },
-            userId,
-          );
-        }
+                const processoAsoData = await this.prisma.examRequest.findUnique({
+                  where: { id: examRequestId },
+                  select: { processoAsoId: true },
+                });
+                if (processoAsoData?.processoAsoId) {
+                  await this.asoProtocoloService.update(
+                    processoAsoData.processoAsoId,
+                    {
+                      status: 'CONCLUIDO' as any,
+                      medicoId: doctor.id,
+                      documentos: [
+                        { id: asoDoc.id, tipo: 'ASO', url: fileUrl, data: new Date().toISOString() },
+                      ],
+                    },
+                    userId,
+                  );
+                }
 
         this.logger.log(`ASO PDF gerado: ${pdfPath}`);
         return { pdfUrl: fileUrl, asoDocumentId: asoDoc.id };

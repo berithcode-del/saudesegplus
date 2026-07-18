@@ -1,0 +1,26 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.JobsModule = void 0;
+const common_1 = require("@nestjs/common");
+const schedule_1 = require("@nestjs/schedule");
+const prisma_service_1 = require("../prisma.service");
+const jobs_service_1 = require("./jobs.service");
+const company_module_1 = require("../company/company.module");
+const auth_module_1 = require("../auth/auth.module");
+const mail_module_1 = require("../mail/mail.module");
+let JobsModule = class JobsModule {
+};
+exports.JobsModule = JobsModule;
+exports.JobsModule = JobsModule = __decorate([
+    (0, common_1.Module)({
+        imports: [schedule_1.ScheduleModule.forRoot(), company_module_1.CompanyModule, auth_module_1.AuthModule, mail_module_1.MailModule],
+        providers: [jobs_service_1.JobsService, prisma_service_1.PrismaService],
+    })
+], JobsModule);
+//# sourceMappingURL=jobs.module.js.map

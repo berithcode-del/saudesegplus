@@ -8,7 +8,7 @@ import { CompanyGateway } from '../company/company.gateway';
 import { paginate, PaginatedResult } from '../common/pagination';
 import { PresenceService } from '../presence/presence.service';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
-import { AsoProtoceloService } from '../aso-protocelo/aso-protocelo.service';
+import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
 import { StatusProtocolo } from '@prisma/client';
 import { basename } from 'path';
 
@@ -19,7 +19,7 @@ export class ExamRequestService {
     private readonly companyGateway: CompanyGateway,
     private readonly presenceService: PresenceService,
     private readonly storage: SupabaseStorageService,
-    private readonly asoProtoceloService: AsoProtoceloService,
+    private readonly asoProtocoloService: AsoProtocoloService,
   ) {}
 
   private parseResultValue(value: string | null | undefined) {
@@ -245,7 +245,7 @@ export class ExamRequestService {
       };
       const protocoloStatus = statusMap[body.status];
       if (protocoloStatus) {
-        await this.asoProtoceloService.update(existing.processoAsoId, {
+        await this.asoProtocoloService.update(existing.processoAsoId, {
           status: protocoloStatus,
           ...(protocoloStatus === StatusProtocolo.CONCLUIDO && { dataConclusao: new Date() }),
         }, body.doctorId ?? 'system');

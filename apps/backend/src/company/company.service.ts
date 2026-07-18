@@ -331,29 +331,30 @@ export class CompanyService {
         },
       },
       include: {
-        request: {
-          include: {
-            patient: true,
-            invite: true,
-          },
-        },
-        doctor: true,
-      },
+              request: {
+                include: {
+                                  patient: true,
+                                  invite: true,
+                                  processoAso: true,
+                                },
+              },
+              doctor: true,
+            },
       orderBy: { validUntil: 'asc' },
     });
 
     return asos.map((aso) => {
-          const validUntil = aso.validUntil as Date;
-          const signedAt = aso.signedAt ?? aso.request.createdAt;
-          const daysUntilExpiration = Math.ceil(
-            (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-          );
+              const validUntil = aso.validUntil as Date;
+              const signedAt = aso.signedAt ?? aso.request.createdAt;
+              const daysUntilExpiration = Math.ceil(
+                (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+              );
 
-          return {
-            id: aso.id,
-            requestId: aso.requestId,
-            numeroProtocolo: aso.request.processoAso?.numeroProtocolo ?? null,
-            processoAsoId: aso.request.processoAsoId ?? null,
+              return {
+                id: aso.id,
+                requestId: aso.requestId,
+                numeroProtocolo: aso.request.processoAso?.numeroProtocolo ?? null,
+                processoAsoId: aso.request.processoAsoId ?? null,
             collaborator: {
               id: aso.request.patient.id,
               name: aso.request.patient.name,
