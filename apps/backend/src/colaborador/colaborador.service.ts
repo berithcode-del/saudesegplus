@@ -129,15 +129,21 @@ export class ColaboradorService {
     });
 
     // 6. Criar Protocolo ASO automaticamente
-        const protocolo = await this.asoProtocoloService.create(
-          {
-            empresaId: invite.companyId,
-            clinicaId: invite.company.clinicId ?? examRequest.clinicId ?? '',
-            pacienteId: patient.id,
-            tipoExame: this.mapExamTypeToTipoExame(invite.examType),
-          },
-          user.id,
-        );
+            const clinicaId = invite.company.clinicId ?? examRequest.clinicId;
+            if (!clinicaId) {
+              throw new BadRequestException(
+                'Não foi possível criar protocolo: clínica não definida para a empresa ou exame',
+              );
+            }
+            const protocolo = await this.asoProtocoloService.create(
+              {
+                empresaId: invite.companyId,
+                clinicaId,
+                pacienteId: patient.id,
+                tipoExame: this.mapExamTypeToTipoExame(invite.examType),
+              },
+              user.id,
+            );
 
     // 7. Vincular protocolo ao ExamRequest
     await this.prisma.examRequest.update({
