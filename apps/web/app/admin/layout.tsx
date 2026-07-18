@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChartBarSquareIcon, BuildingOffice2Icon, BuildingStorefrontIcon, UserGroupIcon, ArrowRightOnRectangleIcon, CurrencyDollarIcon, DocumentTextIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ChartBarSquareIcon, BuildingOffice2Icon, BuildingStorefrontIcon, UserGroupIcon, ArrowRightOnRectangleIcon, CurrencyDollarIcon, DocumentTextIcon, ChatBubbleLeftRightIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 
 const navItems = [
   { href: '/admin', icon: ChartBarSquareIcon, label: 'Dashboard' },
   { href: '/admin/empresas', icon: BuildingOffice2Icon, label: 'Empresas' },
   { href: '/admin/clinicas', icon: BuildingStorefrontIcon, label: 'Clínicas' },
   { href: '/admin/medicos', icon: UserGroupIcon, label: 'Médicos' },
+  { href: '/admin/protocolos', icon: ClipboardDocumentListIcon, label: 'Protocolos' },
   { href: '/admin/suporte', icon: ChatBubbleLeftRightIcon, label: 'Suporte' },
   { href: '/admin/financeiro', icon: CurrencyDollarIcon, label: 'Financeiro' },
 ];
