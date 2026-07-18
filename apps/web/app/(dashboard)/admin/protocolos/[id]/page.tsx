@@ -96,7 +96,7 @@ export default function AdminProtocoloDetailPage() {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await asoProtocoloApi.adminDelete(id, '');
+      await asoProtocoloApi.adminDelete(id);
       alert('Protocolo excluído permanentemente');
       router.push('/admin/protocolos');
     } catch (err: any) {
