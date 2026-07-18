@@ -1,12 +1,9 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowPathIcon, MagnifyingGlassIcon, FunnelIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { asoProtocoloApi } from '@/lib/api/aso-protocolo';
 import type { ProtocoloASO, StatusProtocolo, ProtocoloListResponse, ProtocoloQueryDto, TipoExame } from '@/lib/types/aso-protocolo';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
 const STATUS_COLOR: Record<StatusProtocolo, { bg: string; color: string }> = {
   AGUARDANDO_COLETA: { bg: 'rgba(59, 130, 246, 0.12)', color: '#2563eb' },
@@ -18,6 +15,14 @@ const STATUS_COLOR: Record<StatusProtocolo, { bg: string; color: string }> = {
   CANCELADO: { bg: 'rgba(156, 163, 175, 0.12)', color: '#6b7280' },
 };
 
+const TIPO_EXAME_LABEL: Record<TipoExame, string> = {
+  ADMISSIONAL: 'Admissional',
+  PERIODICO: 'Periódico',
+  DEMISSIONAL: 'Demissional',
+  MUDANCA_FUNCAO: 'Mudança de Função',
+  RETORNO_TRABALHO: 'Retorno ao Trabalho',
+};
+
 export default function AdminProtocolosPage() {
   const router = useRouter();
   const [protocolos, setProtocolos] = useState<ProtocoloASO[]>([]);
@@ -25,7 +30,7 @@ export default function AdminProtocolosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<ProtocoloQueryDto>({
     numeroProtocolo: '',
     status: '',
     empresaId: '',
@@ -65,7 +70,7 @@ export default function AdminProtocolosPage() {
     loadProtocolos();
   }, [page, filters]);
 
-  const handleFilterChange = (key: string, value: string) => {
+  const handleFilterChange = (key: keyof ProtocoloQueryDto, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setPage(1);
   };
@@ -96,15 +101,7 @@ export default function AdminProtocolosPage() {
   const getStatusBadge = (status: StatusProtocolo) => {
     const style = STATUS_COLOR[status] || { bg: 'rgba(156, 163, 175, 0.12)', color: '#6b7280' };
     return (
-      <span style={{
-        background: style.bg,
-        color: style.color,
-        padding: '4px 10px',
-        borderRadius: '999px',
-        fontSize: '11px',
-        fontWeight: 700,
-        textTransform: 'capitalize',
-      }}>
+      <span className="badge" style={{ background: style.bg, color: style.color }}>
         {status.replace(/_/g, ' ')}
       </span>
     );
@@ -114,43 +111,38 @@ export default function AdminProtocolosPage() {
     router.push(`/admin/protocolos/${protocolo.id}`);
   };
 
+  const stats = [
+    { label: 'Total Protocolos', value: total, color: '#4f46e5' },
+    { label: 'Esta Página', value: protocolos.length, color: '#0ea5e9' },
+    { label: 'Página', value: `${page} / ${totalPages}`, color: '#f59e0b' },
+    { label: 'Concluídos', value: protocolos.filter(p => p.status === 'CONCLUIDO').length, color: '#16a34a' },
+  ];
+
   return (
-    <div>
-      <div className="page-header" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <div>
-            <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#1e1b4b' }}>Protocolos ASO</h2>
-            <p style={{ color: '#6b7280', marginTop: '4px' }}>Gerenciamento completo de protocolos - visualização, edição e exclusão</p>
-          </div>
-          <button className="btn btn-secondary" onClick={loadProtocolos} disabled={loading}>
-            <ArrowPathIcon className="icon" /> Atualizar
-          </button>
+    <>
+      <div className="page-header">
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)' }}>Protocolos ASO</h2>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '14px' }}>
+            Gerenciamento completo de protocolos - visualização, edição e exclusão
+          </p>
         </div>
+        <button className="btn btn-primary" onClick={loadProtocolos} disabled={loading} style={{ padding: '10px 20px' }}>
+          <ArrowPathIcon className="icon" /> Atualizar
+        </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats Grid - usando padrão do design system */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(160px, 1fr))', marginBottom: '20px' }}>
-        <div className="stat-card">
-          <div className="stat-label">Total Protocolos</div>
-          <div className="stat-value">{total}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Esta Página</div>
-          <div className="stat-value">{protocolos.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Página</div>
-          <div className="stat-value">{page} / {totalPages}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Concluídos</div>
-          <div className="stat-value" style={{ color: '#16a34a' }}>
-            {protocolos.filter(p => p.status === 'CONCLUIDO').length}
+        {stats.map((stat) => (
+          <div key={stat.label} className="stat-card">
+            <div className="stat-label">{stat.label}</div>
+            <div className="stat-value" style={{ color: stat.color }}>{stat.value}</div>
           </div>
-        </div>
+        ))}
       </div>
 
-      {/* Filters */}
+      {/* Filters Card */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <button
           type="button"
@@ -257,7 +249,7 @@ export default function AdminProtocolosPage() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Table Card */}
       <div className="card">
         {loading ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando protocolos...</p>
@@ -297,7 +289,7 @@ export default function AdminProtocolosPage() {
                         </>
                       ) : '—'}
                     </td>
-                    <td className="capitalize">{p.tipoExame?.replace(/_/g, ' ')}</td>
+                    <td className="capitalize">{TIPO_EXAME_LABEL[p.tipoExame] || p.tipoExame}</td>
                     <td>{getStatusBadge(p.status)}</td>
                     <td style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{formatDate(p.dataAbertura)}</td>
                     <td>
@@ -339,6 +331,6 @@ export default function AdminProtocolosPage() {
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }
