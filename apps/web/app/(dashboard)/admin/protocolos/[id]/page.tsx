@@ -58,7 +58,7 @@ export default function AdminProtocoloDetailPage() {
   const loadProtocolo = async () => {
     setLoading(true);
     try {
-      const data = await asoProtoceloApi.getById(id);
+      const data = await asoProtocoloApi.getById(id);
       setProtocolo(data);
       setEditForm({
         numeroProtocolo: data.numeroProtocolo,
@@ -82,7 +82,7 @@ export default function AdminProtocoloDetailPage() {
     setError('');
     try {
       const { numeroProtocolo, ...updateDto } = editForm;
-      await asoProtoceloApi.adminUpdate(id, { ...updateDto, numeroProtocolo }, '');
+      await asoProtocoloApi.adminUpdate(id, { ...updateDto, numeroProtocolo }, '');
       await loadProtocelo();
       alert('Protocolo atualizado com sucesso!');
     } catch (err: any) {
@@ -96,7 +96,7 @@ export default function AdminProtocoloDetailPage() {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await asoProtoceloApi.adminDelete(id, '');
+      await asoProtocoloApi.adminDelete(id, '');
       alert('Protocolo excluído permanentemente');
       router.push('/admin/protocolos');
     } catch (err: any) {
