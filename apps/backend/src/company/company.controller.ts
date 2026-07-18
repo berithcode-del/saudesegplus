@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Put, Query, Res, Delete, UseGuards, Request } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Body, Param, Patch, Put, Query, Res, Delete, UseGuards, Request } from '@nestjs/common';
 import type { Response } from 'express';
 import { CompanyService } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -138,7 +138,7 @@ export class CompanyController {
 
   @Post(':id/invite')
     @UseGuards(CompanyScopeGuard)
-    async createInvite(@Param('id') companyId: string, @Body() dto: CreateInviteDto, @Req() req: any) {
+    async createInvite(@Param('id') companyId: string, @Body() dto: CreateInviteDto, @Request() req: any) {
       try {
         const invite = await this.companyService.createInvite(companyId, dto);
         return { success: true, data: invite };

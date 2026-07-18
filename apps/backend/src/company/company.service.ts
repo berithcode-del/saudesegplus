@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -13,6 +13,8 @@ import { basename } from 'path';
 
 @Injectable()
 export class CompanyService {
+  private readonly logger = new Logger(CompanyService.name);
+
   constructor(
     private prisma: PrismaService,
     private companyGateway: CompanyGateway,
@@ -162,112 +164,141 @@ export class CompanyService {
   }
 
   async createInvite(companyId: string, dto: CreateInviteDto) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        status: true,
-        pcmsoValidUntil: true,
-        ppraValidUntil: true,
-        razaoSocial: true,
-      },
-    });
+      this.logger.log(`[createInvite] Iniciando criação de convite para empresa=${companyId}, paymentId=${dto.paymentId}, examType=${dto.examType}`);
 
-    if (!company) {
-      throw new Error('Empresa não encontrada');
-    }
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          status: true,
+          pcmsoValidUntil: true,
+          ppraValidUntil: true,
+          clinicId: true,
+          razaoSocial: true,
+        },
+      });
 
-    const now = new Date();
-    const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
-    const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
+      if (!company) {
+        this.logger.error(`[createInvite] Empresa não encontrada: ${companyId}`);
+        throw new Error('Empresa não encontrada');
+      }
 
-    if (company.status !== 'LIBERADA') {
-      throw new Error(
-        `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
-      );
-    }
+      this.logger.log(`[createInvite] Empresa=${companyId}, status=${company.status}, clinicId=${company.clinicId}, pcmsoValidUntil=${company.pcmsoValidUntil}, ppraValidUntil=${company.ppraValidUntil}`);
 
-    if (!pcmsoValid || !ppraValid) {
-      throw new Error(
-        'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
-      );
-    }
+      const now = new Date();
+      const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
+      const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
 
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: dto.paymentId },
-      select: {
-        id: true,
-        companyId: true,
-        flow: true,
-        status: true,
-        quoteSnapshot: true,
-        invite: { select: { id: true } },
-      },
-    });
-    if (
-      !payment ||
-      payment.companyId !== companyId ||
-      payment.flow !== PaymentFlow.COMPANY_INVITE ||
-      payment.status !== PaymentStatus.PAGO
-    ) {
-      throw new ConflictException(
-        'O convite exige um pagamento empresarial confirmado.',
-      );
-    }
-    if (payment.invite) {
-      throw new ConflictException(
-        'Este pagamento ja foi usado para gerar um convite.',
-      );
-    }
-    try {
-      const quote = JSON.parse(payment.quoteSnapshot) as {
-        cboCode?: string;
-        examPurpose?: string;
-      };
-      if (
-        quote.cboCode !== dto.roleFunctionCboCode ||
-        quote.examPurpose !== dto.examType
-      ) {
-        throw new ConflictException(
-          'O pagamento foi cotado para outro CBO ou tipo de exame.',
+      if (company.status !== 'LIBERADA') {
+        this.logger.warn(`[createInvite] Empresa não LIBERADA: ${companyId}, status=${company.status}`);
+        throw new Error(
+          `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
         );
       }
-    } catch (error) {
-      if (error instanceof ConflictException) throw error;
-      throw new ConflictException(
-        'A cotacao vinculada ao pagamento e invalida.',
-      );
-    }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+      if (!pcmsoValid || !ppraValid) {
+        this.logger.warn(`[createInvite] Documentação vencida: empresa=${companyId}, pcmsoValid=${pcmsoValid}, ppraValid=${ppraValid}`);
+        throw new Error(
+          'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
+        );
+      }
 
-    // Determine clinic: use provided clinicId, or find best clinic for company
-    let clinicId = dto.clinicId;
-    if (!clinicId) {
-      const bestClinic = await this.findBestClinicForCompany(companyId);
-      if (bestClinic) clinicId = bestClinic.id;
-    }
+      const payment = await this.prisma.payment.findUnique({
+        where: { id: dto.paymentId },
+        select: {
+          id: true,
+          companyId: true,
+          flow: true,
+          status: true,
+          quoteSnapshot: true,
+          invite: { select: { id: true } },
+        },
+      });
 
-    const invite = await this.prisma.examInvite.create({
-      data: {
-        companyId,
-        clinicId,
-        collaboratorName: dto.collaboratorName,
-        expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
-        expectedEmail: dto.expectedEmail,
-        expectedBirthDate: dto.expectedBirthDate
-          ? new Date(dto.expectedBirthDate)
-          : null,
-        roleFunction: dto.roleFunction,
-        roleFunctionCboCode: dto.roleFunctionCboCode,
-        examType: dto.examType,
-        paymentId: payment.id,
-        expiresAt,
-        status: 'ENVIADO',
-      },
-      include: { company: true },
-    });
+      this.logger.log(`[createInvite] Payment=${dto.paymentId}, found=${!!payment}, flow=${payment?.flow}, status=${payment?.status}`);
+
+      if (
+        !payment ||
+        payment.companyId !== companyId ||
+        payment.flow !== PaymentFlow.COMPANY_INVITE ||
+        payment.status !== PaymentStatus.PAGO
+      ) {
+        this.logger.warn(`[createInvite] Pagamento inválido: paymentId=${dto.paymentId}, paymentCompany=${payment?.companyId}, expectedCompany=${companyId}, flow=${payment?.flow}, status=${payment?.status}`);
+        throw new ConflictException(
+          'O convite exige um pagamento empresarial confirmado.',
+        );
+      }
+      if (payment.invite) {
+        this.logger.warn(`[createInvite] Pagamento já usado: paymentId=${dto.paymentId}, existingInviteId=${payment.invite.id}`);
+        throw new ConflictException(
+          'Este pagamento ja foi usado para gerar um convite.',
+        );
+      }
+      try {
+        const quote = JSON.parse(payment.quoteSnapshot) as {
+          cboCode?: string;
+          examPurpose?: string;
+        };
+        this.logger.log(`[createInvite] Quote do pagamento: cboCode=${quote.cboCode}, examPurpose=${quote.examPurpose}, dtoCboCode=${dto.roleFunctionCboCode}, dtoExamType=${dto.examType}`);
+
+        if (
+          quote.cboCode !== dto.roleFunctionCboCode ||
+          quote.examPurpose !== dto.examType
+        ) {
+          this.logger.warn(`[createInvite] CBO/Tipo divergente: quote.cboCode=${quote.cboCode} !== dto.roleFunctionCboCode=${dto.roleFunctionCboCode} OU quote.examPurpose=${quote.examPurpose} !== dto.examType=${dto.examType}`);
+          throw new ConflictException(
+            'O pagamento foi cotado para outro CBO ou tipo de exame.',
+          );
+        }
+      } catch (error) {
+        if (error instanceof ConflictException) throw error;
+        this.logger.error(`[createInvite] Erro ao parsear quoteSnapshot: ${error}`);
+        throw new ConflictException(
+          'A cotacao vinculada ao pagamento e invalida.',
+        );
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+
+      // Determine clinic: use provided clinicId, or find best clinic for company
+      let clinicId = dto.clinicId;
+      if (!clinicId) {
+        this.logger.log(`[createInvite] ClinicId não fornecido, buscando melhor clínica para empresa=${companyId}`);
+        const bestClinic = await this.findBestClinicForCompany(companyId);
+        if (bestClinic) {
+          clinicId = bestClinic.id;
+          this.logger.log(`[createInvite] Melhor clínica encontrada: ${bestClinic.id} (${bestClinic.name})`);
+        } else {
+          this.logger.warn(`[createInvite] NENHUMA clínica encontrada para empresa=${companyId}`);
+        }
+      } else {
+        this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
+      }
+
+      this.logger.log(`[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`);
+
+      const invite = await this.prisma.examInvite.create({
+        data: {
+          companyId,
+          clinicId,
+          collaboratorName: dto.collaboratorName,
+          expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
+          expectedEmail: dto.expectedEmail,
+          expectedBirthDate: dto.expectedBirthDate
+            ? new Date(dto.expectedBirthDate)
+            : null,
+          roleFunction: dto.roleFunction,
+          roleFunctionCboCode: dto.roleFunctionCboCode,
+          examType: dto.examType,
+          paymentId: payment.id,
+          expiresAt,
+          status: 'ENVIADO',
+        },
+        include: { company: true },
+      });
+
+      this.logger.log(`[createInvite] ExamInvite criado com sucesso: inviteId=${invite.id}, token=${invite.token}`);
 
     await this.prisma.examTimelineEvent.create({
       data: {
