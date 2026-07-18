@@ -170,18 +170,18 @@ html, body {
 }
 
 .nav-label {
-  display: none;
+  display: inline;
+  margin-left: 12px;
+  white-space: nowrap;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
+  justify-content: flex-start;
+  width: calc(100% - 40px);
   height: 48px;
-  margin-left: 27px;
-  margin-top: 6px;
-  margin-bottom: 6px;
+  margin: 6px 20px;
   border-radius: 14px;
   flex-shrink: 0;
   font-size: 14px;
@@ -201,9 +201,10 @@ html, body {
 .nav-item.active {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
+  justify-content: flex-start;
+  width: calc(100% - 40px);
   height: 48px;
+  margin: 6px 20px;
   border-radius: 14px;
   flex-shrink: 0;
   background: white;
