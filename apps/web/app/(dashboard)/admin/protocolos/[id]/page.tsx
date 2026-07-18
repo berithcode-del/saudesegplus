@@ -107,12 +107,12 @@ export default function AdminProtocoloDetailPage() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString('pt-BR');
   };
 
-  const formatDateShort = (dateStr: string) => {
+  const formatDateShort = (dateStr?: string) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('pt-BR');
   };
