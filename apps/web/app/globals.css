@@ -96,7 +96,7 @@ html, body {
    conteúdo (abaixo) é arredondado nos cantos esquerdos e se sobrepõe
    à sidebar — é essa sobreposição que produz o efeito de encaixe. */
 .sidebar {
-  width: 200px;
+  width: 260px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
   display: flex;
