@@ -30,12 +30,12 @@ export default function AdminProtocolosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState<ProtocoloQueryDto>({
+  const [filters, setFilters] = useState<Omit<ProtocoloQueryDto, 'page' | 'limit'>>({
     numeroProtocolo: '',
-    status: '',
+    status: undefined,
     empresaId: '',
     clinicaId: '',
-    tipoExame: '',
+    tipoExame: undefined,
     dataInicio: '',
     dataFim: '',
   });
@@ -83,10 +83,10 @@ export default function AdminProtocolosPage() {
   const handleClearFilters = () => {
     setFilters({
       numeroProtocolo: '',
-      status: '',
+      status: undefined,
       empresaId: '',
       clinicaId: '',
-      tipoExame: '',
+      tipoExame: undefined,
       dataInicio: '',
       dataFim: '',
     });
