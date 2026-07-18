@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowPathIcon, MagnifyingGlassIcon, FunnelIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { asoProtocoloApi } from '@/lib/api/aso-protocolo';
-import type { ProtocoloASO, StatusProtocolo, ProtocoloListResponse } from '@/lib/types/aso-protocolo';
+import type { ProtocoloASO, StatusProtocolo, ProtocoloListResponse, ProtocoloQueryDto, TipoExame } from '@/lib/types/aso-protocolo';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001';
 
@@ -39,11 +39,18 @@ export default function AdminProtocolosPage() {
   const loadProtocolos = async () => {
     setLoading(true);
     try {
-      const response = await asoProtocoloApi.list({
+      const query: ProtocoloQueryDto = {
         page,
         limit: 20,
-        ...filters,
-      });
+        numeroProtocolo: filters.numeroProtocolo || undefined,
+        status: (filters.status as StatusProtocolo) || undefined,
+        empresaId: filters.empresaId || undefined,
+        clinicaId: filters.clinicaId || undefined,
+        tipoExame: (filters.tipoExame as TipoExame) || undefined,
+        dataInicio: filters.dataInicio || undefined,
+        dataFim: filters.dataFim || undefined,
+      };
+      const response = await asoProtocoloApi.list(query);
       setProtocolos(response.data);
       setTotalPages(response.totalPages);
       setTotal(response.total);

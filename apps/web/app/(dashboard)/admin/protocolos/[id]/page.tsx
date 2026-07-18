@@ -388,7 +388,7 @@ export default function AdminProtocoloDetailPage() {
               </div>
               <div className="form-group">
                 <label>Status</label>
-                <select className="form-input" value={editForm.status || ''} onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}>
+                <select className="form-input" value={editForm.status || ''} onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value as StatusProtocolo }))}>
                   <option value="AGUARDANDO_COLETA">Aguardando Coleta</option>
                   <option value="EM_COLETA">Em Coleta</option>
                   <option value="NA_FILA_MEDICA">Na Fila Médica</option>
