@@ -38,6 +38,7 @@ export interface ProtocoloASO {
   pacienteId: string;
   medicoId?: string;
   examRequestId?: string;
+  examRequest?: any;
   status: StatusProtocolo;
   tipoExame: TipoExame;
   dataAbertura: string;
