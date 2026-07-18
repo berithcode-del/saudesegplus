@@ -349,7 +349,7 @@ export default function AdminProtocoloDetailPage() {
               <button
                 className="btn btn-ghost"
                 style={{ justifyContent: 'flex-start', gap: '10px', color: '#dc2626', borderColor: '#fca5a5' }}
-                onClick={() => setModalType('delete'); setShowModal(true)}
+                onClick={() => { setModalType('delete'); setShowModal(true); }}
               >
                 <TrashIcon className="icon" /> Excluir Permanentemente
               </button>
