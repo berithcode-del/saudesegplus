@@ -12,7 +12,7 @@ import {
   DocumentTextIcon,
   UserCircleIcon,
   BuildingOffice2Icon,
-  FlaskConicalIcon,
+  BeakerIcon,
   CalendarDaysIcon,
   ClipboardDocumentCheckIcon,
   InformationCircleIcon,
@@ -216,7 +216,7 @@ export default function AdminProtocoloDetailPage() {
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>
-                  <FlaskConicalIcon className="icon" /> Clínica
+                  <BeakerIcon className="icon" /> Clínica
                 </div>
                 <div style={{ fontWeight: 600 }}>{p.clinica?.name || '—'}</div>
               </div>
@@ -329,7 +329,7 @@ export default function AdminProtocoloDetailPage() {
         <div>
           <div className="card" style={{ marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', color: '#4f46e5', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>
-              <FlaskConicalIcon className="icon" /> Ações Rápidas
+              <BeakerIcon className="icon" /> Ações Rápidas
             </div>
             <div style={{ display: 'grid', gap: '8px' }}>
               <button
