@@ -96,7 +96,7 @@ html, body {
    conteúdo (abaixo) é arredondado nos cantos esquerdos e se sobrepõe
    à sidebar — é essa sobreposição que produz o efeito de encaixe. */
 .sidebar {
-  width: 260px;
+  width: 200px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
   display: flex;
@@ -170,18 +170,18 @@ html, body {
 }
 
 .nav-label {
-  display: inline;
-  margin-left: 12px;
-  white-space: nowrap;
+  display: none;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  width: calc(100% - 40px);
+  justify-content: center;
+  width: 48px;
   height: 48px;
-  margin: 6px 20px;
+  margin-left: 27px;
+  margin-top: 6px;
+  margin-bottom: 6px;
   border-radius: 14px;
   flex-shrink: 0;
   font-size: 14px;
@@ -201,10 +201,9 @@ html, body {
 .nav-item.active {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  width: calc(100% - 40px);
+  justify-content: center;
+  width: 48px;
   height: 48px;
-  margin: 6px 20px;
   border-radius: 14px;
   flex-shrink: 0;
   background: white;
