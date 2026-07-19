@@ -7,7 +7,7 @@ import { CompanyGateway } from './company.gateway';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { PaymentFlow, PaymentStatus, Prisma, TipoExame, CompanyStatus } from '@prisma/client';
+import { PaymentFlow, PaymentStatus, Prisma, TipoExame, CompanyStatus, TimelineEventType } from '@prisma/client';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import { basename } from 'path';
 import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
@@ -284,13 +284,14 @@ export class CompanyService {
           clinicId = bestClinic.id;
           this.logger.log(`[createInvite] Melhor clínica encontrada: ${bestClinic.id} (${bestClinic.name})`);
         } else {
-          this.logger.warn(`[createInvite] NENHUMA clínica encontrada para empresa=${companyId}`);
-        }
-      } else {
-        this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
-      }
+                  this.logger.error(`[createInvite] NENHUMA clínica encontrada para empresa=${companyId}`);
+                  throw new ConflictException('Nenhuma clínica disponível para esta empresa. Configure uma clínica antes de criar convites.');
+                }
+              } else {
+                this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
+              }
 
-      // Transação atômica: criar ExamInvite + ProcessoASO (status INICIADO)
+              // Transação atômica: criar ExamInvite + ProcessoASO (status INICIADO)
       const result = await this.prisma.$transaction(async (tx) => {
         this.logger.log(`[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`);
 
@@ -326,6 +327,7 @@ export class CompanyService {
                     observacoes: `Protocolo gerado no pagamento para colaborador ${dto.collaboratorName}`,
                   },
                   'system',
+                  tx,
                 );
 
         this.logger.log(`[createInvite] ProcessoASO criado: protocolo=${protocolo.numeroProtocolo}, id=${protocolo.id}`);
@@ -359,18 +361,19 @@ export class CompanyService {
       });
 
       if (dto.expectedEmail) {
-        const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-        void this.mailService
-          .sendInviteLink(
-            dto.expectedEmail,
-            invite.company.razaoSocial ?? '',
-            link,
-            invite.expiresAt,
-          )
-          .catch((err) =>
-            console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err),
-          );
-      }
+              const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
+              await this.mailService
+                .sendInviteLink(
+                  dto.expectedEmail,
+                  invite.company.razaoSocial ?? '',
+                  link,
+                  invite.expiresAt,
+                )
+                .catch((err) => {
+                  this.logger.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}: ${err.message}`, err.stack);
+                  // Não lança erro para não bloquear o fluxo — convite já foi criado
+                });
+            }
 
       return invite;
   }
@@ -529,18 +532,18 @@ export class CompanyService {
   }
 
   async recordTimelineEvent(data: {
-    inviteId?: string;
-    examRequestId?: string;
-    eventType: string;
-  }) {
-    return this.prisma.examTimelineEvent.create({
-      data: {
-        inviteId: data.inviteId,
-        examRequestId: data.examRequestId,
-        eventType: data.eventType as any,
-      },
-    });
-  }
+      inviteId: string;
+      examRequestId?: string;
+      eventType: TimelineEventType;
+    }) {
+      return this.prisma.examTimelineEvent.create({
+        data: {
+          inviteId: data.inviteId,
+          examRequestId: data.examRequestId,
+          eventType: data.eventType,
+        },
+      });
+    }
 
   async getDashboardStats(companyId: string) {
     const invites = await this.prisma.examInvite.findMany({

@@ -33,10 +33,11 @@ export class AsoProtocoloService {
     return historico;
   }
 
-  async create(dto: CreateProtocoloDto, userId: string) {
+  async create(dto: CreateProtocoloDto, userId: string, tx?: Prisma.TransactionClient) {
+    const client = tx ?? this.prisma;
     const numeroProtocolo = this.gerarNumeroProtocolo();
 
-    const processo = await this.prisma.processoASO.create({
+    const processo = await client.processoASO.create({
       data: {
         numeroProtocolo,
         empresaId: dto.empresaId,
