@@ -10,17 +10,19 @@ import { randomUUID } from 'crypto';
 import { PaymentFlow, PaymentStatus, Prisma } from '@prisma/client';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import { basename } from 'path';
+import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
 
 @Injectable()
 export class CompanyService {
   private readonly logger = new Logger(CompanyService.name);
 
   constructor(
-    private prisma: PrismaService,
-    private companyGateway: CompanyGateway,
-    private mailService: MailService,
-    private storage: SupabaseStorageService,
-  ) {}
+      private prisma: PrismaService,
+      private companyGateway: CompanyGateway,
+      private mailService: MailService,
+      private storage: SupabaseStorageService,
+      private asoProtocoloService: AsoProtocoloService,
+    ) {}
 
   async createCompany(dto: CreateCompanyDto) {
     const email = dto.contactEmail.trim().toLowerCase();
@@ -276,73 +278,102 @@ export class CompanyService {
         this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
       }
 
-      this.logger.log(`[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`);
+      // Transação atômica: criar ExamInvite + ProcessoASO (status INICIADO)
+      const result = await this.prisma.$transaction(async (tx) => {
+        this.logger.log(`[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`);
 
-      const invite = await this.prisma.examInvite.create({
-        data: {
-          companyId,
-          clinicId,
-          collaboratorName: dto.collaboratorName,
-          expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
-          expectedEmail: dto.expectedEmail,
-          expectedBirthDate: dto.expectedBirthDate
-            ? new Date(dto.expectedBirthDate)
-            : null,
-          roleFunction: dto.roleFunction,
-          roleFunctionCboCode: dto.roleFunctionCboCode,
-          examType: dto.examType,
-          paymentId: payment.id,
-          expiresAt,
-          status: 'ENVIADO',
-        },
-        include: { company: true },
+        const invite = await tx.examInvite.create({
+          data: {
+            companyId,
+            clinicId,
+            collaboratorName: dto.collaboratorName,
+            expectedCpf: dto.expectedCpf?.replace(/\D/g, '') ?? null,
+            expectedEmail: dto.expectedEmail,
+            expectedBirthDate: dto.expectedBirthDate
+              ? new Date(dto.expectedBirthDate)
+              : null,
+            roleFunction: dto.roleFunction,
+            roleFunctionCboCode: dto.roleFunctionCboCode,
+            examType: dto.examType,
+            paymentId: payment.id,
+            expiresAt,
+            status: 'ENVIADO',
+          },
+          include: { company: true },
+        });
+
+        this.logger.log(`[createInvite] ExamInvite criado com sucesso: inviteId=${invite.id}, token=${invite.token}`);
+
+        // Criar ProcessoASO (status INICIADO) acompanhando o convite desde o pagamento
+                const protocolo = await this.asoProtocoloService.create(
+                  {
+                    empresaId: companyId,
+                    clinicaId: clinicId ?? undefined,
+                    tipoExame: dto.examType as any,
+                    inviteId: invite.id,
+                    observacoes: `Protocolo gerado no pagamento para colaborador ${dto.collaboratorName}`,
+                  },
+                  'system',
+                );
+
+        this.logger.log(`[createInvite] ProcessoASO criado: protocolo=${protocolo.numeroProtocolo}, id=${protocolo.id}`);
+
+        // Vincular protocolo ao convite
+        await tx.examInvite.update({
+          where: { id: invite.id },
+          data: { processoAsoId: protocolo.id },
+        });
+
+        await tx.examTimelineEvent.create({
+          data: {
+            inviteId: invite.id,
+            eventType: 'LINK_ENVIADO',
+          },
+        });
+
+        return { invite, protocolo };
+      }, {
+        timeout: 30000,
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       });
 
-      this.logger.log(`[createInvite] ExamInvite criado com sucesso: inviteId=${invite.id}, token=${invite.token}`);
+      const { invite, protocolo } = result;
 
-    await this.prisma.examTimelineEvent.create({
-      data: {
+      // Emitir WS após transação committada
+      this.companyGateway.emitTimelineUpdate(companyId, {
         inviteId: invite.id,
         eventType: 'LINK_ENVIADO',
-      },
-    });
+        occurredAt: invite.sentAt.toISOString(),
+      });
 
-    // Antes este evento era apenas persistido — nada era emitido pelo
-    // CompanyGateway, então o painel da empresa só via o convite após
-    // um refresh manual da página.
-    this.companyGateway.emitTimelineUpdate(companyId, {
-      inviteId: invite.id,
-      eventType: 'LINK_ENVIADO',
-      occurredAt: invite.sentAt.toISOString(),
-    });
+      if (dto.expectedEmail) {
+        const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
+        void this.mailService
+          .sendInviteLink(
+            dto.expectedEmail,
+            invite.company.razaoSocial ?? '',
+            link,
+            invite.expiresAt,
+          )
+          .catch((err) =>
+            console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err),
+          );
+      }
 
-    if (dto.expectedEmail) {
-      const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-      void this.mailService
-        .sendInviteLink(
-          dto.expectedEmail,
-          invite.company.razaoSocial ?? '',
-          link,
-          invite.expiresAt,
-        )
-        .catch((err) =>
-          console.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}:`, err),
-        );
-    }
-
-    return invite;
+      return invite;
   }
 
   async listInvites(companyId: string) {
-    return this.prisma.examInvite.findMany({
-      where: { companyId },
-      include: {
-        timelineEvents: { orderBy: { occurredAt: 'asc' } },
-        examRequest: { include: { results: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+      return this.prisma.examInvite.findMany({
+        where: { companyId },
+        include: {
+          timelineEvents: { orderBy: { occurredAt: 'asc' } },
+          examRequest: { include: { results: true } },
+          processoAso: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
   async listActiveAsos(companyId: string) {
     const now = new Date();

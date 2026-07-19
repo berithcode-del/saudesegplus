@@ -167,12 +167,14 @@ model ExamInvite {
   collaboratorName    String?
   expectedBirthDate   DateTime?
   company             Company             @relation(fields: [companyId], references: [id])
-  clinic              Clinic?             @relation(fields: [clinicId], references: [id])
-  examRequest         ExamRequest?
-  timelineEvents      ExamTimelineEvent[]
-  payment             Payment?            @relation(fields: [paymentId], references: [id])
-  paymentId           String?             @unique
-}
+    clinic              Clinic?             @relation(fields: [clinicId], references: [id])
+    examRequest         ExamRequest?
+    processoAso         ProcessoASO?
+    processoAsoId       String?             @unique
+    timelineEvents      ExamTimelineEvent[]
+    payment             Payment?            @relation(fields: [paymentId], references: [id])
+    paymentId           String?             @unique
+  }
 
 /// Eventos append-only — apenas progresso operacional, nunca dado clínico
 model ExamTimelineEvent {
@@ -515,13 +517,15 @@ model SupportMessage {
       empresa         Company      @relation(fields: [empresaId], references: [id])
       clinicaId       String?      @map("clinica_id")
       clinica         Clinic?      @relation(fields: [clinicaId], references: [id])
-      pacienteId      String       @map("paciente_id")
-      paciente        Patient      @relation(fields: [pacienteId], references: [id])
-      medicoId        String?      @map("medico_id")
-      medico          Doctor?      @relation(fields: [medicoId], references: [id])
-      examRequestId   String?      @unique @map("exam_request_id")
-      examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
-      status          StatusProtocolo @default(AGUARDANDO_COLETA)
+      pacienteId      String?      @map("paciente_id")
+            paciente        Patient?     @relation(fields: [pacienteId], references: [id])
+            medicoId        String?      @map("medico_id")
+            medico          Doctor?      @relation(fields: [medicoId], references: [id])
+            examRequestId   String?      @unique @map("exam_request_id")
+            examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
+            inviteId        String?      @unique @map("invite_id")
+            invite          ExamInvite?  @relation(fields: [inviteId], references: [id])
+            status          StatusProtocolo @default(INICIADO)
       tipoExame       TipoExame @map("tipo_exame")
       dataAbertura    DateTime  @default(now()) @map("data_abertura")
       dataConclusao   DateTime? @map("data_conclusao")
@@ -541,13 +545,9 @@ model SupportMessage {
     }
 
   enum StatusProtocolo {
-    AGUARDANDO_COLETA
-    EM_COLETA
-    NA_FILA_MEDICA
-    EM_ATENDIMENTO
-    DOCUMENTOS_PENDENTES
-    CONCLUIDO
-    CANCELADO
+    INICIADO
+    EM_PROGRESSO
+    FINALIZADO
   }
 
   enum TipoExame {

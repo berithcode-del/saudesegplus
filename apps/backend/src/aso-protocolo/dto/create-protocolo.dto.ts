@@ -12,9 +12,15 @@ export class CreateProtocoloDto {
   @IsUUID()
   clinicaId?: string;
 
-  @ApiProperty({ example: 'paciente_789' })
+  @ApiProperty({ example: 'paciente_789', required: false })
+  @IsOptional()
   @IsUUID()
-  pacienteId: string;
+  pacienteId?: string;
+
+  @ApiProperty({ example: 'invite_abc', required: false })
+  @IsOptional()
+  @IsUUID()
+  inviteId?: string;
 
   @ApiProperty({ enum: TipoExame, example: TipoExame.ADMISSIONAL })
   @IsEnum(TipoExame)

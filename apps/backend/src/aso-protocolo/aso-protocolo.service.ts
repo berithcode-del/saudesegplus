@@ -42,12 +42,13 @@ export class AsoProtocoloService {
         empresaId: dto.empresaId,
         clinicaId: dto.clinicaId,
         pacienteId: dto.pacienteId,
+        inviteId: dto.inviteId,
         tipoExame: dto.tipoExame,
         observacoes: dto.observacoes,
         historico: [{
           acao: 'criacao',
           de: null,
-          para: { status: StatusProtocolo.AGUARDANDO_COLETA },
+          para: { status: StatusProtocolo.INICIADO },
           userId,
           timestamp: new Date().toISOString(),
         }],
@@ -57,6 +58,7 @@ export class AsoProtocoloService {
         clinica: true,
         paciente: true,
         medico: true,
+        invite: true,
       },
     });
 
@@ -173,7 +175,7 @@ export class AsoProtocoloService {
         timestamp: new Date().toISOString(),
       });
 
-      if (dto.status === StatusProtocolo.CONCLUIDO) {
+      if (dto.status === StatusProtocolo.FINALIZADO) {
         updates.dataConclusao = new Date();
       }
     }
@@ -245,7 +247,7 @@ export class AsoProtocoloService {
         timestamp: new Date().toISOString(),
       });
 
-      if (dto.status === StatusProtocolo.CONCLUIDO) {
+      if (dto.status === StatusProtocolo.FINALIZADO) {
         updates.dataConclusao = new Date();
       }
     }
@@ -294,9 +296,9 @@ export class AsoProtocoloService {
   async delete(id: string, userId: string) {
     const processo = await this.findById(id);
 
-    // Soft delete - marcar como cancelado com histórico
+    // Soft delete - marcar como finalizado com histórico
     return this.update(id, {
-      status: StatusProtocolo.CANCELADO,
+      status: StatusProtocolo.FINALIZADO,
       observacoes: `Cancelado por ${userId}: ${processo.observacoes || ''}`,
     }, userId);
   }

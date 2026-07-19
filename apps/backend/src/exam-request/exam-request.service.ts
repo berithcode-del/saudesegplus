@@ -236,18 +236,18 @@ export class ExamRequestService {
     // Sincronizar status com protocolo ASO se existir
     if (existing.processoAsoId) {
       const statusMap: Record<string, StatusProtocolo> = {
-        'AGUARDANDO_COLETA': StatusProtocolo.AGUARDANDO_COLETA,
-        'EM_COLETA': StatusProtocolo.EM_COLETA,
-        'NA_FILA_MEDICA': StatusProtocolo.NA_FILA_MEDICA,
-        'EM_ATENDIMENTO': StatusProtocolo.EM_ATENDIMENTO,
-        'CONCLUIDO': StatusProtocolo.CONCLUIDO,
-        'CANCELADO': StatusProtocolo.CANCELADO,
+        'AGUARDANDO_COLETA': StatusProtocolo.EM_PROGRESSO,
+        'EM_COLETA': StatusProtocolo.EM_PROGRESSO,
+        'NA_FILA_MEDICA': StatusProtocolo.EM_PROGRESSO,
+        'EM_ATENDIMENTO': StatusProtocolo.EM_PROGRESSO,
+        'CONCLUIDO': StatusProtocolo.FINALIZADO,
+        'CANCELADO': StatusProtocolo.FINALIZADO,
       };
       const protocoloStatus = statusMap[body.status];
       if (protocoloStatus) {
         await this.asoProtocoloService.update(existing.processoAsoId, {
           status: protocoloStatus,
-          ...(protocoloStatus === StatusProtocolo.CONCLUIDO && { dataConclusao: new Date() }),
+          ...(protocoloStatus === StatusProtocolo.FINALIZADO && { dataConclusao: new Date() }),
         }, body.doctorId ?? 'system');
       }
     }

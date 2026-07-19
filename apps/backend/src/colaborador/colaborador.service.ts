@@ -1,17 +1,16 @@
 import {
-  Injectable,
-  NotFoundException,
   BadRequestException,
+  Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
-import { InviteStatus, Role, Prisma } from '@prisma/client';
+import { InviteStatus, Prisma, Role, StatusProtocolo, TipoExame } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
-import { TipoExame } from '@prisma/client';
 
-interface ValidateInviteAndRegisterArgs {
+export interface ValidateInviteAndRegisterArgs {
   token: string;
   name: string;
   password: string;
@@ -22,13 +21,13 @@ export class ColaboradorService {
   private readonly logger = new Logger(ColaboradorService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly companyGateway: CompanyGateway,
-    private readonly asoProtocoloService: AsoProtocoloService,
+    private prisma: PrismaService,
+    private companyGateway: CompanyGateway,
+    private asoProtocoloService: AsoProtocoloService,
   ) {}
 
   private mapExamTypeToTipoExame(examType: string): TipoExame {
-    const map: Record<string, TipoExame> = {
+    const map = {
       admissional: TipoExame.ADMISSIONAL,
       periodico: TipoExame.PERIODICO,
       demissional: TipoExame.DEMISSIONAL,
@@ -95,8 +94,8 @@ export class ColaboradorService {
     const patient = await this.prisma.patient.create({
       data: {
         userId: user.id,
-        cpf: invite.expectedCpf.replace(/\D/g, ''),
         name,
+        cpf: invite.expectedCpf.replace(/\D/g, ''),
         birthDate: invite.expectedBirthDate ?? undefined,
         phone: '',
         functionCboCode:
@@ -112,7 +111,7 @@ export class ColaboradorService {
       },
     });
 
-    // 5..10. Transação atômica: ExamRequest + ProcessoASO + convite + timeline.
+    // 5..10. Transação atômica: ExamRequest + ProcessoASO update + convite + timeline.
     // Se qualquer passo falhar, $transaction faz rollback de tudo.
     const result = await this.prisma.$transaction(
       async (tx) => {
@@ -153,12 +152,24 @@ export class ColaboradorService {
           }
         }
 
-        // 7. Criar ProcessoASO (gera numeroProtocolo: ASO-{ANO}-{random4})
-        const protocolo = await this.asoProtocoloService.create(
+        // 7. ATUALIZAR ProcessoASO existente (criado no pagamento) — não criar novo
+        // Buscar protocolo pelo inviteId
+        const protocoloExistente = await tx.processoASO.findUnique({
+          where: { inviteId: invite.id },
+        });
+
+        if (!protocoloExistente) {
+          throw new BadRequestException(
+            `Protocolo não encontrado para convite ${invite.id}. O pagamento deveria ter gerado o ProcessoASO.`,
+          );
+        }
+
+        const protocolo = await this.asoProtocoloService.update(
+          protocoloExistente.id,
           {
-            empresaId: invite.companyId,
-            clinicaId: clinicaId ?? undefined,
+            status: StatusProtocolo.EM_PROGRESSO,
             pacienteId: patient.id,
+            clinicaId: clinicaId ?? undefined,
             tipoExame: this.mapExamTypeToTipoExame(invite.examType),
           },
           user.id,
@@ -189,7 +200,7 @@ export class ColaboradorService {
         });
 
         this.logger.log(
-          `[validateInviteAndRegister] Protocolo criado: ${protocolo.numeroProtocolo} (${protocolo.id})`,
+          `[validateInviteAndRegister] Protocolo atualizado: ${protocolo.numeroProtocolo} (${protocolo.id}) -> EM_PROGRESSO, pacienteId=${patient.id}`,
         );
 
         return { examRequest, protocolo, timelineEvent };

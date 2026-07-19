@@ -15,6 +15,21 @@ export class UpdateProtocoloDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
+  @IsUUID()
+  pacienteId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  clinicaId?: string;
+
+  @ApiProperty({ enum: TipoExame, required: false })
+  @IsOptional()
+  @IsEnum(TipoExame)
+  tipoExame?: TipoExame;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
   observacoes?: string;
 
