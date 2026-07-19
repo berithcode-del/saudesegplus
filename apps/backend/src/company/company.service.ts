@@ -7,7 +7,7 @@ import { CompanyGateway } from './company.gateway';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { PaymentFlow, PaymentStatus, Prisma } from '@prisma/client';
+import { PaymentFlow, PaymentStatus, Prisma, TipoExame, CompanyStatus } from '@prisma/client';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import { basename } from 'path';
 import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
@@ -23,6 +23,18 @@ export class CompanyService {
       private storage: SupabaseStorageService,
       private asoProtocoloService: AsoProtocoloService,
     ) {}
+
+  private mapExamTypeToTipoExame(examType: string): TipoExame {
+    const map: Record<string, TipoExame> = {
+      admissional: TipoExame.ADMISSIONAL,
+      periodico: TipoExame.PERIODICO,
+      demissional: TipoExame.DEMISSIONAL,
+      mudanca_funcao: TipoExame.MUDANCA_FUNCAO,
+      retorno: TipoExame.RETORNO_TRABALHO,
+      retorno_trabalho: TipoExame.RETORNO_TRABALHO,
+    };
+    return map[examType?.toLowerCase()] ?? TipoExame.ADMISSIONAL;
+  }
 
   async createCompany(dto: CreateCompanyDto) {
     const email = dto.contactEmail.trim().toLowerCase();
@@ -159,11 +171,11 @@ export class CompanyService {
   }
 
   async updateCompanyStatus(companyId: string, status: string) {
-    return this.prisma.company.update({
-      where: { id: companyId },
-      data: { status: status as any },
-    });
-  }
+      return this.prisma.company.update({
+        where: { id: companyId },
+        data: { status: status as CompanyStatus },
+      });
+    }
 
   async createInvite(companyId: string, dto: CreateInviteDto) {
       this.logger.log(`[createInvite] Iniciando criação de convite para empresa=${companyId}, paymentId=${dto.paymentId}, examType=${dto.examType}`);
@@ -294,7 +306,7 @@ export class CompanyService {
               : null,
             roleFunction: dto.roleFunction,
             roleFunctionCboCode: dto.roleFunctionCboCode,
-            examType: dto.examType,
+            examType: this.mapExamTypeToTipoExame(dto.examType),
             paymentId: payment.id,
             expiresAt,
             status: 'ENVIADO',
@@ -309,7 +321,7 @@ export class CompanyService {
                   {
                     empresaId: companyId,
                     clinicaId: clinicId ?? undefined,
-                    tipoExame: dto.examType as any,
+                    tipoExame: this.mapExamTypeToTipoExame(dto.examType),
                     inviteId: invite.id,
                     observacoes: `Protocolo gerado no pagamento para colaborador ${dto.collaboratorName}`,
                   },

@@ -44,14 +44,15 @@ export class CreateInviteDto {
   roleFunctionCboCode?: string;
 
   @IsString()
-  @IsIn([
-    'admissional',
-    'periodico',
-    'demissional',
-    'mudanca_funcao',
-    'retorno',
-  ])
-  examType: string;
+    @IsIn([
+      'admissional',
+      'periodico',
+      'demissional',
+      'mudanca_funcao',
+      'retorno',
+      'retorno_trabalho',
+    ])
+    examType: string;
 
   @IsOptional()
   @IsString()
