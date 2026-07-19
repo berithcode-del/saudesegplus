@@ -15,6 +15,7 @@ import {
 } from '../../lib/api';
 import { maskCPF, FIELD_LIMITS } from '../../../lib/formatUtils';
 import { Pagination } from '../../../components/ui/Pagination';
+import { ProntuarioPopup } from '../../../components/ProntuarioPopup';
 import {
   PlusIcon,
   ClipboardDocumentCheckIcon,
@@ -81,7 +82,8 @@ export default function EmpresaSolicitacoesPage() {
   const [creating, setCreating] = useState(false);
   const [requiredExams, setRequiredExams] = useState<string[]>([]);
   const [createError, setCreateError] = useState('');
-  const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null);
+    const [prontuarioNumero, setProntuarioNumero] = useState<string | null>(null);
+    const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null);
 
   // Busca o companyId do token ou localStorage
   useEffect(() => {
@@ -155,20 +157,22 @@ export default function EmpresaSolicitacoesPage() {
         );
 
         // Transforma convites pendentes no mesmo formato de Solicitacao
-        const pendingInvites: Solicitacao[] = rawInvites
-          .filter((inv: any) => !acceptedInviteIds.has(inv.id))
-          .map((inv: any) => ({
-            id: inv.id,
-            examPurpose: inv.examType,
-            status: '⏳ ' + (inv.status ?? 'ENVIADO'),
-            createdAt: inv.createdAt,
-            patient: {
-              name: inv.collaboratorName || inv.expectedEmail || inv.expectedCpf || 'Novo Colaborador',
-              cpf: inv.expectedCpf || '—',
-            },
-            asoDocuments: [{ decision: 'Aguardando aceite do colaborador' }],
-            token: inv.token,
-          }));
+                const pendingInvites: Solicitacao[] = rawInvites
+                  .filter((inv: any) => !acceptedInviteIds.has(inv.id))
+                  .map((inv: any) => ({
+                    id: inv.id,
+                    examPurpose: inv.examType,
+                    status: '⏳ ' + (inv.status ?? 'ENVIADO'),
+                    createdAt: inv.createdAt,
+                    patient: {
+                      name: inv.collaboratorName || inv.expectedEmail || inv.expectedCpf || 'Novo Colaborador',
+                      cpf: inv.expectedCpf || '—',
+                    },
+                    asoDocuments: [{ decision: 'Aguardando aceite do colaborador' }],
+                    token: inv.token,
+                    numeroProtocolo: inv.processoAso?.numeroProtocolo ?? null,
+                    processoAsoId: inv.processoAso?.id ?? null,
+                  }));
 
         // Convites pendentes aparecem no topo, seguidos dos exames em andamento
         setSolicitacoes([...pendingInvites, ...examRequests]);
@@ -520,24 +524,23 @@ export default function EmpresaSolicitacoesPage() {
                                                 <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
                                                 <td><span className="badge badge-done">{sol.status}</span></td>
                                                 <td>
-                                                  {sol.numeroProtocolo ? (
-                                                    <a
-                                                      href={`/admin/protocolos/${sol.processoAsoId}`}
-                                                      style={{
-                                                        color: '#4f46e5',
-                                                        textDecoration: 'underline',
-                                                        fontWeight: 500,
-                                                        fontSize: '13px',
-                                                      }}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                    >
-                                                      {sol.numeroProtocolo}
-                                                    </a>
-                                                  ) : (
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
-                                                  )}
-                                                </td>
+                                                                                                  {sol.numeroProtocolo ? (
+                                                                                                    <span
+                                                                                                      style={{
+                                                                                                        color: '#4f46e5',
+                                                                                                        textDecoration: 'underline',
+                                                                                                        fontWeight: 500,
+                                                                                                        fontSize: '13px',
+                                                                                                        cursor: 'pointer',
+                                                                                                      }}
+                                                                                                      onClick={() => setProntuarioNumero(sol.numeroProtocolo!)}
+                                                                                                    >
+                                                                                                      {sol.numeroProtocolo}
+                                                                                                    </span>
+                                                                                                  ) : (
+                                                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                                                                                                  )}
+                                                                                                </td>
                                                 <td>
                                     {asoDoc?.pdfUrl ? (
                                       <button
@@ -580,11 +583,19 @@ export default function EmpresaSolicitacoesPage() {
                               );
                             })}
               </tbody>
-            </table>
-            <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
-          </>
-        )}
-      </div>
-    </>
-  );
-}
+                          </table>
+                          <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+                        </>
+                      )}
+                    </div>
+
+                    {prontuarioNumero && (
+                      <ProntuarioPopup
+                        numeroProtocolo={prontuarioNumero}
+                        isOpen={true}
+                        onClose={() => setProntuarioNumero(null)}
+                      />
+                    )}
+                  </>
+                );
+              }
