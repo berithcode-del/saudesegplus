@@ -80,28 +80,48 @@ export class SupabaseStorageService {
   }
 
   async uploadAsoPdf(
-    filePath: string,
-    asoId: string,
-  ): Promise<{ fileUrl: string; fileName: string }> {
-    const fileName = `aso-${asoId}.pdf`;
-    const path = `aso/${fileName}`;
-    const fileBuffer = fs.readFileSync(filePath);
+      filePath: string,
+      asoId: string,
+    ): Promise<{ fileUrl: string; fileName: string }> {
+      const fileName = `aso-${asoId}.pdf`;
+      const path = `aso/${fileName}`;
+      const fileBuffer = fs.readFileSync(filePath);
 
-    const { error } = await this.client.storage
-      .from('aso-documents')
-      .upload(path, fileBuffer, {
-        contentType: 'application/pdf',
-        upsert: true,
-      });
+      const { error } = await this.client.storage
+        .from('aso-documents')
+        .upload(path, fileBuffer, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
 
-    if (error)
-      throw new BadRequestException(`Erro ao fazer upload do ASO: ${error.message}`);
+      if (error)
+        throw new BadRequestException(`Erro ao fazer upload do ASO: ${error.message}`);
 
-    const { data } = this.client.storage
-      .from('aso-documents')
-      .getPublicUrl(path);
-    return { fileUrl: data.publicUrl, fileName };
-  }
+      // Aguarda o arquivo estar disponível para download (evita race condition)
+      let retries = 5;
+      while (retries > 0) {
+        const { data, error: downloadError } = await this.client.storage
+          .from('aso-documents')
+          .download(path);
+      
+        if (!downloadError && data) {
+          break; // Arquivo disponível
+        }
+      
+        retries--;
+        if (retries === 0) {
+          throw new BadRequestException('Timeout: arquivo não disponível no storage após upload');
+        }
+      
+        // Aguarda 200ms antes de tentar novamente
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      const { data } = this.client.storage
+        .from('aso-documents')
+        .getPublicUrl(path);
+      return { fileUrl: data.publicUrl, fileName };
+    }
 
   async downloadFile(folder: string, fileName: string): Promise<Buffer> {
     const path = `${folder}/${fileName}`;
