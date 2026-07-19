@@ -495,95 +495,95 @@ export default function EmpresaSolicitacoesPage() {
       {/* Tabela de solicitações */}
       <div className="card">
         {loading ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando...</p>
-        ) : solicitacoes.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhuma solicitação encontrada.</p>
-        ) : (
-          <>
-            <table className="queue-table">
-                          <thead>
-                            <tr>
-                              <th>Paciente</th>
-                              <th>CPF</th>
-                              <th>Tipo</th>
-                              <th>Data</th>
-                              <th>Status</th>
-                              <th>Protocolo</th>
-                              <th>ASO</th>
-                              <th>Ações</th>
-                            </tr>
-                          </thead>
-              <tbody>
-                                          {solicitacoes.map(sol => {
-                                            const asoDoc = sol.asoDocuments?.[0];
-                                            return (
-                                              <tr key={sol.id}>
-                                                <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
-                                                <td>{sol.patient?.cpf ?? '—'}</td>
-                                                <td className="capitalize">{sol.examPurpose}</td>
-                                                <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
-                                                <td><span className="badge badge-done">{sol.status}</span></td>
-                                                <td>
-                                                                                                  {sol.numeroProtocolo ? (
-                                                                                                    <span
-                                                                                                      style={{
-                                                                                                        color: '#4f46e5',
-                                                                                                        textDecoration: 'underline',
-                                                                                                        fontWeight: 500,
-                                                                                                        fontSize: '13px',
-                                                                                                        cursor: 'pointer',
-                                                                                                      }}
-                                                                                                      onClick={() => setProntuarioNumero(sol.numeroProtocolo!)}
-                                                                                                    >
-                                                                                                      {sol.numeroProtocolo}
-                                                                                                    </span>
-                                                                                                  ) : (
-                                                                                                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
-                                                                                                  )}
-                                                                                                </td>
-                                                <td>
-                                    {asoDoc?.pdfUrl ? (
-                                      <button
-                                        className="btn btn-secondary"
-                                        style={{ padding: '6px 10px', minHeight: 'unset' }}
-                                        onClick={() => openAsoPdf(companyId, asoDoc.id!)}
-                                      >
-                                        <DocumentArrowDownIcon className="icon-sm" /> Visualizar
-                                      </button>
-                                    ) : (
-                                      <span>{asoDoc?.decision ?? '—'}</span>
-                                    )}
-                                  </td>
-                                  <td>
-                                    {sol.token ? (
-                                      <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button
-                                          className="btn btn-secondary"
-                                          style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px' }}
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(`${window.location.origin}/p/${sol.token}`);
-                                            alert('Link copiado!');
-                                          }}
-                                        >
-                                          Copiar Link
-                                        </button>
-                                        <button
-                                          className="btn btn-outline"
-                                          style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px', color: '#dc2626', borderColor: '#fca5a5' }}
-                                          onClick={() => handleCancelInvite(sol.id)}
-                                        >
-                                          Excluir
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <span style={{ color: '#9ca3af', fontSize: '13px' }}>—</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-              </tbody>
-                          </table>
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Carregando...</p>
+                ) : solicitacoes.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Nenhuma solicitação encontrada.</p>
+                ) : (
+                  <>
+                    <table className="queue-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Protocolo</th>
+                                      <th>Paciente</th>
+                                      <th>CPF</th>
+                                      <th>Tipo</th>
+                                      <th>Data</th>
+                                      <th>Status</th>
+                                      <th>ASO</th>
+                                      <th>Ações</th>
+                                    </tr>
+                                  </thead>
+                      <tbody>
+                                                  {solicitacoes.map(sol => {
+                                                    const asoDoc = sol.asoDocuments?.[0];
+                                                    return (
+                                                      <tr key={sol.id}>
+                                                        <td>
+                                                                                                      {sol.numeroProtocolo ? (
+                                                                                                            <span
+                                                                                                              style={{
+                                                                                                                color: '#4f46e5',
+                                                                                                                textDecoration: 'underline',
+                                                                                                                fontWeight: 500,
+                                                                                                                fontSize: '13px',
+                                                                                                                cursor: 'pointer',
+                                                                                                              }}
+                                                                                                              onClick={() => setProntuarioNumero(sol.numeroProtocolo!)}
+                                                                                                            >
+                                                                                                              {sol.numeroProtocolo}
+                                                                                                            </span>
+                                                                                                          ) : (
+                                                                                                            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
+                                                                                                          )}
+                                                                                                    </td>
+                                                        <td style={{ fontWeight: 600 }}>{sol.patient?.name ?? '—'}</td>
+                                                        <td>{sol.patient?.cpf ?? '—'}</td>
+                                                        <td className="capitalize">{sol.examPurpose}</td>
+                                                        <td>{new Date(sol.createdAt).toLocaleDateString('pt-BR')}</td>
+                                                        <td><span className="badge badge-done">{sol.status}</span></td>
+                                                        <td>
+                                            {asoDoc?.pdfUrl ? (
+                                              <button
+                                                className="btn btn-secondary"
+                                                style={{ padding: '6px 10px', minHeight: 'unset' }}
+                                                onClick={() => openAsoPdf(companyId, asoDoc.id!)}
+                                              >
+                                                <DocumentArrowDownIcon className="icon-sm" /> Visualizar
+                                              </button>
+                                            ) : (
+                                              <span>{asoDoc?.decision ?? '—'}</span>
+                                            )}
+                                          </td>
+                                          <td>
+                                            {sol.token ? (
+                                              <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                  className="btn btn-secondary"
+                                                  style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px' }}
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/p/${sol.token}`);
+                                                    alert('Link copiado!');
+                                                  }}
+                                                >
+                                                  Copiar Link
+                                                </button>
+                                                <button
+                                                  className="btn btn-outline"
+                                                  style={{ padding: '4px 12px', fontSize: '13px', minHeight: 'unset', height: '32px', color: '#dc2626', borderColor: '#fca5a5' }}
+                                                  onClick={() => handleCancelInvite(sol.id)}
+                                                >
+                                                  Excluir
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span style={{ color: '#9ca3af', fontSize: '13px' }}>—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                      </tbody>
+                                  </table>
                           <Pagination page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
                         </>
                       )}
