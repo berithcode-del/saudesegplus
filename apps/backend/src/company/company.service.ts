@@ -4,7 +4,6 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CreateInviteDto } from './dto/create-invite.dto';
 import { CompanyGateway } from './company.gateway';
-import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { PaymentFlow, PaymentStatus, Prisma, TipoExame, CompanyStatus, TimelineEventType } from '@prisma/client';
@@ -17,12 +16,11 @@ export class CompanyService {
   private readonly logger = new Logger(CompanyService.name);
 
   constructor(
-      private prisma: PrismaService,
-      private companyGateway: CompanyGateway,
-      private mailService: MailService,
-      private storage: SupabaseStorageService,
-      private asoProtocoloService: AsoProtocoloService,
-    ) {}
+        private prisma: PrismaService,
+        private companyGateway: CompanyGateway,
+        private storage: SupabaseStorageService,
+        private asoProtocoloService: AsoProtocoloService,
+      ) {}
 
   private mapExamTypeToTipoExame(examType: string): TipoExame {
     const map: Record<string, TipoExame> = {
@@ -353,29 +351,14 @@ export class CompanyService {
 
       const { invite, protocolo } = result;
 
-      // Emitir WS após transação committada
-      this.companyGateway.emitTimelineUpdate(companyId, {
-        inviteId: invite.id,
-        eventType: 'LINK_ENVIADO',
-        occurredAt: invite.sentAt.toISOString(),
-      });
+            // Emitir WS após transação committada
+            this.companyGateway.emitTimelineUpdate(companyId, {
+              inviteId: invite.id,
+              eventType: 'LINK_ENVIADO',
+              occurredAt: invite.sentAt.toISOString(),
+            });
 
-      if (dto.expectedEmail) {
-              const link = `${process.env.APP_BASE_URL ?? 'http://localhost:3000'}/p/${invite.token}`;
-              await this.mailService
-                .sendInviteLink(
-                  dto.expectedEmail,
-                  invite.company.razaoSocial ?? '',
-                  link,
-                  invite.expiresAt,
-                )
-                .catch((err) => {
-                  this.logger.error(`[Mail] Falha ao enviar e-mail para ${dto.expectedEmail}: ${err.message}`, err.stack);
-                  // Não lança erro para não bloquear o fluxo — convite já foi criado
-                });
-            }
-
-      return invite;
+            return invite;
   }
 
   async listInvites(companyId: string) {
