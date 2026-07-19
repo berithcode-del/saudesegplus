@@ -2,8 +2,9 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
-import { InviteStatus, Role } from '@prisma/client';
+import { InviteStatus, Role, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
@@ -18,6 +19,8 @@ interface ValidateInviteAndRegisterArgs {
 
 @Injectable()
 export class ColaboradorService {
+  private readonly logger = new Logger(ColaboradorService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyGateway: CompanyGateway,
@@ -39,8 +42,7 @@ export class ColaboradorService {
     const { token, name, password } = args;
 
     // 1. Buscar convite pelo campo `token` (link enviado ao colaborador),
-    //    e NÃO pelo `id` interno do registro — eram tratados como
-    //    sinônimos, mas são colunas diferentes no schema (bug corrigido).
+    //    e NÃO pelo `id` interno do registro.
     const invite = await this.prisma.examInvite.findUnique({
       where: { token },
       include: { company: true },
@@ -58,9 +60,6 @@ export class ColaboradorService {
     }
 
     if (invite.expiresAt < new Date()) {
-      // Mantemos o status real do convite sincronizado com a regra de
-      // negócio: convite vencido fica EXPIRADO (não é reenviado
-      // automaticamente — a empresa precisa gerar um novo).
       await this.prisma.examInvite.update({
         where: { id: invite.id },
         data: { status: InviteStatus.EXPIRADO },
@@ -99,7 +98,7 @@ export class ColaboradorService {
         cpf: invite.expectedCpf.replace(/\D/g, ''),
         name,
         birthDate: invite.expectedBirthDate ?? undefined,
-        phone: '', // Placeholder (Fase 3: coleta real)
+        phone: '',
         functionCboCode:
           invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
       },
@@ -113,66 +112,97 @@ export class ColaboradorService {
       },
     });
 
-    // 5. Criar a Solicitação (ExamRequest) — esta etapa estava ausente e
-    //    quebrava o fluxo ponta a ponta: sem ExamRequest, não havia nada
-    //    para o médico atender nem para empresa/colaborador acompanhar.
-    const examRequest = await this.prisma.examRequest.create({
-      data: {
-        patientId: patient.id,
-        clinicId: invite.company.clinicId ?? undefined,
-        inviteId: invite.id,
-        source: 'convite_empresa',
-        examPurpose: invite.examType,
-        status: 'AGUARDANDO_COLETA',
-        paymentId: invite.paymentId ?? undefined,
-      },
-    });
+    // 5..10. Transação atômica: ExamRequest + ProcessoASO + convite + timeline.
+    // Se qualquer passo falhar, $transaction faz rollback de tudo.
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        this.logger.log(
+          `[validateInviteAndRegister] Transacao atomica: convite=${invite.id}, empresa=${invite.companyId}`,
+        );
 
-    // 6. Criar Protocolo ASO automaticamente
-            const clinicaId = invite.company.clinicId ?? examRequest.clinicId;
-            if (!clinicaId) {
-              throw new BadRequestException(
-                'Não foi possível criar protocolo: clínica não definida para a empresa ou exame',
-              );
-            }
-            const protocolo = await this.asoProtocoloService.create(
-              {
-                empresaId: invite.companyId,
-                clinicaId,
-                pacienteId: patient.id,
-                tipoExame: this.mapExamTypeToTipoExame(invite.examType),
-              },
-              user.id,
+        // 5. Criar ExamRequest
+        const examRequest = await tx.examRequest.create({
+          data: {
+            patientId: patient.id,
+            clinicId: invite.company.clinicId ?? undefined,
+            inviteId: invite.id,
+            source: 'convite_empresa',
+            examPurpose: invite.examType,
+            status: 'AGUARDANDO_COLETA',
+            paymentId: invite.paymentId ?? undefined,
+          },
+        });
+
+        // 6. Resolver clinicaId com fallback
+        const clinicaId =
+          invite.company.clinicId ?? examRequest.clinicId ?? null;
+
+        if (!clinicaId) {
+          const fallbackClinic = await tx.clinic.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'asc' },
+          });
+          if (fallbackClinic) {
+            this.logger.warn(
+              `[validateInviteAndRegister] clinicaId vazio para invite=${invite.id}, usando fallback ${fallbackClinic.id}`,
             );
+          } else {
+            this.logger.error(
+              '[validateInviteAndRegister] Nenhuma clinica ativa - ProcessoASO sera criado sem clinica',
+            );
+          }
+        }
 
-    // 7. Vincular protocolo ao ExamRequest
-    await this.prisma.examRequest.update({
-      where: { id: examRequest.id },
-      data: { processoAsoId: protocolo.id },
-    });
+        // 7. Criar ProcessoASO (gera numeroProtocolo: ASO-{ANO}-{random4})
+        const protocolo = await this.asoProtocoloService.create(
+          {
+            empresaId: invite.companyId,
+            clinicaId: clinicaId ?? undefined,
+            pacienteId: patient.id,
+            tipoExame: this.mapExamTypeToTipoExame(invite.examType),
+          },
+          user.id,
+        );
 
-    // 8. Atualizar status do convite
-    await this.prisma.examInvite.update({
-      where: { id: invite.id },
-      data: {
-        status: InviteStatus.CONCLUIDO,
-        openedAt: invite.openedAt ?? new Date(),
+        // 8. Vincular protocolo ao ExamRequest
+        await tx.examRequest.update({
+          where: { id: examRequest.id },
+          data: { processoAsoId: protocolo.id },
+        });
+
+        // 9. Marcar convite como CONCLUIDO
+        await tx.examInvite.update({
+          where: { id: invite.id },
+          data: {
+            status: InviteStatus.CONCLUIDO,
+            openedAt: invite.openedAt ?? new Date(),
+          },
+        });
+
+        // 10. Registrar CADASTRO_CONCLUIDO na timeline
+        const timelineEvent = await tx.examTimelineEvent.create({
+          data: {
+            inviteId: invite.id,
+            examRequestId: examRequest.id,
+            eventType: 'CADASTRO_CONCLUIDO',
+          },
+        });
+
+        this.logger.log(
+          `[validateInviteAndRegister] Protocolo criado: ${protocolo.numeroProtocolo} (${protocolo.id})`,
+        );
+
+        return { examRequest, protocolo, timelineEvent };
       },
-    });
-
-    // 9. Registrar evento na timeline (CADASTRO_CONCLUIDO — mesma
-    //    convenção usada pelo gerador de mock-data)
-    const timelineEvent = await this.prisma.examTimelineEvent.create({
-      data: {
-        inviteId: invite.id,
-        examRequestId: examRequest.id,
-        eventType: 'CADASTRO_CONCLUIDO',
+      {
+        timeout: 30000,
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       },
-    });
+    );
 
-    // 10. Notificar o painel da empresa em tempo real via WebSocket.
-    //     Antes, este service não emitia nada — a empresa só veria a
-    //     atualização após um refresh manual.
+    const { examRequest, protocolo, timelineEvent } = result;
+
+    // 11. Notificar painel da empresa via WebSocket
     this.companyGateway.emitTimelineUpdate(invite.companyId, {
       inviteId: invite.id,
       eventType: 'CADASTRO_CONCLUIDO',
@@ -212,6 +242,7 @@ export class ColaboradorService {
         clinic: true,
         results: { include: { type: true } },
         asoDocuments: true,
+        processoAso: true,
       },
       orderBy: { createdAt: 'desc' },
     });

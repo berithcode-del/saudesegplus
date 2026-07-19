@@ -8,8 +8,9 @@ export class CreateProtocoloDto {
   empresaId: string;
 
   @ApiProperty({ example: 'clinica_456' })
+  @IsOptional()
   @IsUUID()
-  clinicaId: string;
+  clinicaId?: string;
 
   @ApiProperty({ example: 'paciente_789' })
   @IsUUID()

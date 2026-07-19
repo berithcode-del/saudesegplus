@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowPathIcon, MagnifyingGlassIcon, FunnelIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { ProntuarioPopup } from '@/components/ProntuarioPopup';
 import { asoProtocoloApi } from '@/lib/api/aso-protocolo';
 import type { ProtocoloASO, StatusProtocolo, ProtocoloListResponse, ProtocoloQueryDto, TipoExame } from '@/lib/types/aso-protocolo';
 
@@ -40,6 +41,8 @@ export default function AdminProtocolosPage() {
     dataFim: '',
   });
   const [showFilters, setShowFilters] = useState(false);
+  // Prontuário popup state
+  const [prontuarioNumero, setProntuarioNumero] = useState<string | null>(null);
 
   const loadProtocolos = async () => {
     setLoading(true);
@@ -275,7 +278,7 @@ export default function AdminProtocolosPage() {
               <tbody>
                 {protocolos.map((p) => (
                   <tr key={p.id}>
-                    <td style={{ fontWeight: 700, color: '#4f46e5', fontSize: '12px', cursor: 'pointer' }} onClick={() => handleView(p)}>
+                    <td style={{ fontWeight: 700, color: '#4f46e5', fontSize: '12px', cursor: 'pointer' }} onClick={() => setProntuarioNumero(p.numeroProtocolo)}>
                       {p.numeroProtocolo}
                     </td>
                     <td style={{ fontWeight: 600 }}>{p.paciente?.name || '—'}</td>
@@ -331,6 +334,14 @@ export default function AdminProtocolosPage() {
           </>
         )}
       </div>
+
+      {prontuarioNumero && (
+        <ProntuarioPopup
+          numeroProtocolo={prontuarioNumero}
+          isOpen={true}
+          onClose={() => setProntuarioNumero(null)}
+        />
+      )}
     </>
   );
 }
