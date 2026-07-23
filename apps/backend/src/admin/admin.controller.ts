@@ -13,6 +13,9 @@ import { AdminService } from './admin.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import {
+  CreateAdminClinicDto,
+  CreateAdminCompanyDto,
+  CreateAdminDoctorDto,
   UpdateAdminClinicDto,
   UpdateAdminCompanyDto,
   UpdateAdminDoctorDto,
@@ -55,20 +58,7 @@ export class AdminController {
   }
 
   @Post('companies')
-  async createCompany(
-    @Body()
-    body: {
-      razaoSocial: string;
-      nomeFantasia?: string;
-      cnpj: string;
-      address?: string;
-      cep?: string;
-      city?: string;
-      state?: string;
-      email?: string;
-      environment?: DataEnvironment;
-    },
-  ) {
+  async createCompany(@Body() body: CreateAdminCompanyDto) {
     return this.adminService.createCompany({
       ...body,
       environment: this.parseEnvironment(body.environment),
@@ -110,18 +100,7 @@ export class AdminController {
   }
 
   @Post('clinics')
-  async createClinic(
-    @Body()
-    body: {
-      name: string;
-      cnpj: string;
-      city?: string;
-      state?: string;
-      address?: string;
-      email?: string;
-      environment?: DataEnvironment;
-    },
-  ) {
+  async createClinic(@Body() body: CreateAdminClinicDto) {
     return this.adminService.createClinic({
       ...body,
       environment: this.parseEnvironment(body.environment),
@@ -161,20 +140,7 @@ export class AdminController {
   }
 
   @Post('doctors')
-  async createDoctor(
-    @Body()
-    body: {
-      name: string;
-      gender?: string;
-      crmNumber: string;
-      crmState: string;
-      city?: string;
-      state?: string;
-      specialties?: string;
-      email?: string;
-      environment?: DataEnvironment;
-    },
-  ) {
+  async createDoctor(@Body() body: CreateAdminDoctorDto) {
     return this.adminService.createDoctor({
       ...body,
       environment: this.parseEnvironment(body.environment),

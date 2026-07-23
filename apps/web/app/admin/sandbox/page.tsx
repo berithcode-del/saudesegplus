@@ -20,6 +20,13 @@ import {
   apiAdminListDoctors,
   apiAdminListSandboxPatients,
 } from "@/app/lib/api";
+import {
+  BR_STATES,
+  FIELD_LIMITS,
+  maskCNPJ,
+  onlyDigits,
+  trimAndNormalize,
+} from "../../../lib/formatUtils";
 
 type SandboxTab = "clinics" | "doctors" | "companies" | "patients";
 
@@ -94,36 +101,6 @@ interface Credentials {
   email: string;
   tempPassword: string;
 }
-
-const states = [
-  "AC",
-  "AL",
-  "AP",
-  "AM",
-  "BA",
-  "CE",
-  "DF",
-  "ES",
-  "GO",
-  "MA",
-  "MT",
-  "MS",
-  "MG",
-  "PA",
-  "PB",
-  "PR",
-  "PE",
-  "PI",
-  "RJ",
-  "RN",
-  "RS",
-  "RO",
-  "RR",
-  "SC",
-  "SP",
-  "SE",
-  "TO",
-];
 
 const initialClinic = {
   name: "",
@@ -217,7 +194,11 @@ export default function AdminSandboxPage() {
     setError("");
     try {
       const result = await apiAdminCreateClinic({
-        ...clinicForm,
+        name: trimAndNormalize(clinicForm.name),
+        cnpj: onlyDigits(clinicForm.cnpj),
+        city: trimAndNormalize(clinicForm.city),
+        state: clinicForm.state,
+        email: clinicForm.email.trim().toLowerCase(),
         environment: "SANDBOX",
       });
       setClinicForm(initialClinic);
@@ -240,7 +221,12 @@ export default function AdminSandboxPage() {
     setError("");
     try {
       const result = await apiAdminCreateDoctor({
-        ...doctorForm,
+        name: trimAndNormalize(doctorForm.name),
+        crmNumber: onlyDigits(doctorForm.crmNumber),
+        crmState: doctorForm.crmState,
+        city: trimAndNormalize(doctorForm.city),
+        state: doctorForm.state,
+        email: doctorForm.email.trim().toLowerCase(),
         environment: "SANDBOX",
       });
       setDoctorForm(initialDoctor);
@@ -263,7 +249,13 @@ export default function AdminSandboxPage() {
     setError("");
     try {
       const result = await apiAdminCreateCompany({
-        ...companyForm,
+        razaoSocial: trimAndNormalize(companyForm.razaoSocial),
+        nomeFantasia:
+          trimAndNormalize(companyForm.nomeFantasia) || undefined,
+        cnpj: onlyDigits(companyForm.cnpj),
+        city: trimAndNormalize(companyForm.city),
+        state: companyForm.state,
+        email: companyForm.email.trim().toLowerCase(),
         environment: "SANDBOX",
       });
       setCompanyForm(initialCompany);
@@ -439,6 +431,7 @@ export default function AdminSandboxPage() {
               <TextField
                 label="Nome"
                 value={clinicForm.name}
+                maxLength={FIELD_LIMITS.NAME}
                 onChange={(name) =>
                   setClinicForm((current) => ({ ...current, name }))
                 }
@@ -446,6 +439,10 @@ export default function AdminSandboxPage() {
               <TextField
                 label="CNPJ fictício"
                 value={clinicForm.cnpj}
+                formatter={maskCNPJ}
+                inputMode="numeric"
+                maxLength={FIELD_LIMITS.CNPJ}
+                placeholder="00.000.000/0000-00"
                 onChange={(cnpj) =>
                   setClinicForm((current) => ({ ...current, cnpj }))
                 }
@@ -464,6 +461,8 @@ export default function AdminSandboxPage() {
                 label="E-mail de acesso"
                 type="email"
                 value={clinicForm.email}
+                maxLength={FIELD_LIMITS.EMAIL}
+                placeholder="clinica.teste@saudeseg.com"
                 onChange={(email) =>
                   setClinicForm((current) => ({ ...current, email }))
                 }
@@ -481,6 +480,7 @@ export default function AdminSandboxPage() {
               <TextField
                 label="Nome"
                 value={doctorForm.name}
+                maxLength={FIELD_LIMITS.NAME}
                 onChange={(name) =>
                   setDoctorForm((current) => ({ ...current, name }))
                 }
@@ -489,6 +489,12 @@ export default function AdminSandboxPage() {
                 <TextField
                   label="CRM fictício"
                   value={doctorForm.crmNumber}
+                  formatter={(value) =>
+                    onlyDigits(value).slice(0, FIELD_LIMITS.CRM_NUMBER)
+                  }
+                  inputMode="numeric"
+                  maxLength={FIELD_LIMITS.CRM_NUMBER}
+                  placeholder="123456"
                   onChange={(crmNumber) =>
                     setDoctorForm((current) => ({ ...current, crmNumber }))
                   }
@@ -515,6 +521,8 @@ export default function AdminSandboxPage() {
                 label="E-mail de acesso"
                 type="email"
                 value={doctorForm.email}
+                maxLength={FIELD_LIMITS.EMAIL}
+                placeholder="medico.teste@saudeseg.com"
                 onChange={(email) =>
                   setDoctorForm((current) => ({ ...current, email }))
                 }
@@ -532,6 +540,7 @@ export default function AdminSandboxPage() {
               <TextField
                 label="Razão social"
                 value={companyForm.razaoSocial}
+                maxLength={FIELD_LIMITS.RAZAO_SOCIAL}
                 onChange={(razaoSocial) =>
                   setCompanyForm((current) => ({ ...current, razaoSocial }))
                 }
@@ -540,6 +549,7 @@ export default function AdminSandboxPage() {
                 label="Nome fantasia"
                 required={false}
                 value={companyForm.nomeFantasia}
+                maxLength={FIELD_LIMITS.NOME_FANTASIA}
                 onChange={(nomeFantasia) =>
                   setCompanyForm((current) => ({ ...current, nomeFantasia }))
                 }
@@ -547,6 +557,10 @@ export default function AdminSandboxPage() {
               <TextField
                 label="CNPJ fictício"
                 value={companyForm.cnpj}
+                formatter={maskCNPJ}
+                inputMode="numeric"
+                maxLength={FIELD_LIMITS.CNPJ}
+                placeholder="00.000.000/0000-00"
                 onChange={(cnpj) =>
                   setCompanyForm((current) => ({ ...current, cnpj }))
                 }
@@ -565,6 +579,8 @@ export default function AdminSandboxPage() {
                 label="E-mail de acesso"
                 type="email"
                 value={companyForm.email}
+                maxLength={FIELD_LIMITS.EMAIL}
+                placeholder="empresa.teste@saudeseg.com"
                 onChange={(email) =>
                   setCompanyForm((current) => ({ ...current, email }))
                 }
@@ -637,6 +653,7 @@ export default function AdminSandboxPage() {
           cursor: pointer;
           font-size: 13px;
           font-weight: 750;
+          white-space: nowrap;
         }
         .sandbox-clear-button:hover:not(:disabled) {
           background: #fef2f2;
@@ -905,13 +922,28 @@ function TextField({
   onChange,
   type = "text",
   required = true,
+  maxLength,
+  placeholder,
+  inputMode,
+  formatter,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
+  maxLength?: number;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  formatter?: (value: string) => string;
 }) {
+  const handleChange = (rawValue: string) => {
+    const nextValue = formatter ? formatter(rawValue) : rawValue;
+    onChange(
+      typeof maxLength === "number" ? nextValue.slice(0, maxLength) : nextValue,
+    );
+  };
+
   return (
     <div className="form-group">
       <label className="form-label">
@@ -923,7 +955,10 @@ function TextField({
         type={type}
         value={value}
         required={required}
-        onChange={(event) => onChange(event.target.value)}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        onChange={(event) => handleChange(event.target.value)}
       />
     </div>
   );
@@ -948,7 +983,7 @@ function StateField({
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="">UF</option>
-        {states.map((state) => (
+        {BR_STATES.map((state) => (
           <option key={state} value={state}>
             {state}
           </option>
@@ -971,7 +1006,12 @@ function LocationFields({
 }) {
   return (
     <div className="field-row">
-      <TextField label="Cidade" value={city} onChange={onCityChange} />
+      <TextField
+        label="Cidade"
+        value={city}
+        maxLength={FIELD_LIMITS.CITY}
+        onChange={onCityChange}
+      />
       <StateField label="Estado" value={state} onChange={onStateChange} />
     </div>
   );

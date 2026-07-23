@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { BuildingOfficeIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import { ClipboardDocumentCheckIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 export default function QuickActionsAdmin() {
   return (
@@ -19,7 +19,7 @@ export default function QuickActionsAdmin() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <Link
-          href="/admin/empresas/nova"
+          href="/admin/empresas/pendentes"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -36,9 +36,9 @@ export default function QuickActionsAdmin() {
           }}
         >
           <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '8px' }}>
-            <BuildingOfficeIcon style={{ width: 18, height: 18 }} />
+            <ClipboardDocumentCheckIcon style={{ width: 18, height: 18 }} />
           </div>
-          Nova Empresa
+          Empresas Pendentes
         </Link>
 
         <Link

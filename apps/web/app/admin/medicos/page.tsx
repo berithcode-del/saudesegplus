@@ -3,7 +3,17 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowPathIcon, PlusIcon, CheckIcon, TrashIcon, XMarkIcon, ClipboardIcon } from '@heroicons/react/24/outline';
 import { apiAdminListDoctors, apiAdminCreateDoctor, apiAdminVerifyDoctor } from '../../../app/lib/api';
-import { maskPhone, maskCNPJ, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../lib/formatUtils';
+import { FIELD_LIMITS, BR_STATE_OPTIONS, onlyDigits } from '../../../lib/formatUtils';
+
+const EMAIL_DOMAIN = '@saudeseg.com';
+const EMAIL_LOCAL_LIMIT = FIELD_LIMITS.EMAIL - EMAIL_DOMAIN.length;
+
+function sanitizeEmailLocal(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '')
+    .slice(0, EMAIL_LOCAL_LIMIT);
+}
 
 interface Doctor {
   id: string;
@@ -67,7 +77,8 @@ const handleCopyPassword = async () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.crmNumber.trim() || !form.crmState.trim()) {
+    const crmNumber = onlyDigits(form.crmNumber);
+    if (!form.name.trim() || !crmNumber || !form.crmState.trim()) {
       setError('Preencha nome, CRM e estado do CRM.');
       return;
     }
@@ -77,12 +88,12 @@ const handleCopyPassword = async () => {
       const payload = {
         name: form.name.trim(),
         gender: form.gender,
-        crmNumber: form.crmNumber.trim(),
+        crmNumber,
         crmState: form.crmState.trim().toUpperCase(),
         city: form.city.trim() || undefined,
         state: form.state.trim() || undefined,
         specialties: form.specialties.trim() || undefined,
-        email: form.email.trim() ? form.email.trim() + '@saudeseg.com' : undefined,  // Only send if email was provided
+        email: form.email.trim() ? `${form.email.trim()}${EMAIL_DOMAIN}` : undefined,
       };
       const result = await apiAdminCreateDoctor(payload);
       setShowModal(false);
@@ -212,7 +223,7 @@ const handleCopyPassword = async () => {
           <div className="form-grid">
           <div className="form-group">
             <label className="form-label">Nome *</label>
-            <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" required />
+            <input className="form-input" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" required maxLength={FIELD_LIMITS.NAME} />
           </div>
           <div className="form-group">
             <label className="form-label">Sexo *</label>
@@ -223,23 +234,29 @@ const handleCopyPassword = async () => {
           </div>
           <div className="form-group">
             <label className="form-label">CRM *</label>
-            <input className="form-input" value={form.crmNumber} onChange={e => setForm(p => ({ ...p, crmNumber: e.target.value }))} placeholder="Número do CRM" required />
+            <input className="form-input" value={form.crmNumber} onChange={e => setForm(p => ({ ...p, crmNumber: onlyDigits(e.target.value).slice(0, FIELD_LIMITS.CRM_NUMBER) }))} placeholder="Número do CRM" inputMode="numeric" maxLength={FIELD_LIMITS.CRM_NUMBER} required />
           </div>
           <div className="form-group">
             <label className="form-label">Estado CRM *</label>
-            <input className="form-input" value={form.crmState} onChange={e => setForm(p => ({ ...p, crmState: e.target.value }))} placeholder="SP" maxLength={2} required />
+            <select className="form-input" value={form.crmState} onChange={e => setForm(p => ({ ...p, crmState: e.target.value }))} required>
+              <option value="">UF</option>
+              {BR_STATE_OPTIONS}
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Cidade</label>
-            <input className="form-input" value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="Cidade" />
+            <input className="form-input" value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="Cidade" maxLength={FIELD_LIMITS.CITY} />
           </div>
           <div className="form-group">
             <label className="form-label">Estado</label>
-            <input className="form-input" value={form.state} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} placeholder="UF" maxLength={2} />
+            <select className="form-input" value={form.state} onChange={e => setForm(p => ({ ...p, state: e.target.value }))}>
+              <option value="">UF</option>
+              {BR_STATE_OPTIONS}
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Especialidades</label>
-            <input className="form-input" value={form.specialties} onChange={e => setForm(p => ({ ...p, specialties: e.target.value }))} placeholder="Ex: Medicina do Trabalho" />
+            <input className="form-input" value={form.specialties} onChange={e => setForm(p => ({ ...p, specialties: e.target.value }))} placeholder="Ex: Medicina do Trabalho" maxLength={FIELD_LIMITS.SPECIALTIES} />
           </div>
           <div className="form-group">
             <label className="form-label">E-mail de Acesso</label>
@@ -248,8 +265,9 @@ const handleCopyPassword = async () => {
                 className="form-input"
                 type="text"
                 value={form.email}
-                onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                onChange={e => setForm(p => ({ ...p, email: sanitizeEmailLocal(e.target.value) }))}
                 placeholder="medico.crm"
+                maxLength={EMAIL_LOCAL_LIMIT}
                 style={{ flex: 1, borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
               />
               <span style={{
@@ -265,7 +283,7 @@ const handleCopyPassword = async () => {
                 color: '#6b7280',
                 fontSize: '14px'
               }}>
-                @saudeseg.com
+                {EMAIL_DOMAIN}
               </span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '6px' }}>Opcional — se não informado, será gerado automaticamente.</p>

@@ -265,4 +265,17 @@ describe('AdminService sandbox records', () => {
       data: expect.objectContaining({ environment: 'SANDBOX' }),
     });
   });
+
+  it('blocks real company creation through the admin flow', async () => {
+    const service = new AdminService({} as never);
+
+    await expect(
+      service.createCompany({
+        razaoSocial: 'Empresa Real',
+        cnpj: '00000000000353',
+      }),
+    ).rejects.toThrow(
+      'Empresas reais devem ser criadas pelo fluxo de inscrição.',
+    );
+  });
 });

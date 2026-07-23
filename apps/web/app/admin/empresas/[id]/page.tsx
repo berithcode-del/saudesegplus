@@ -53,7 +53,13 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchCompany(); }, [id]);
+  useEffect(() => {
+    if (isNew) {
+      router.replace('/admin/empresas/pendentes');
+      return;
+    }
+    fetchCompany();
+  }, [id, isNew, router]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -65,19 +71,15 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
                 phone: form.phone.replace(/\D/g, ''),
               };
               if (isNew) {
-                        await apiFetch('/api/admin/companies', {
-                          method: 'POST',
-                          body: JSON.stringify(payload),
-                        });
-                        router.push('/admin/empresas');
-                      } else {
-                        await apiFetch(`/api/admin/companies/${id}`, {
-                          method: 'PATCH',
-                          body: JSON.stringify(payload),
-                        });
-                        setEditing(false);
-                        fetchCompany();
-                      }
+                router.replace('/admin/empresas/pendentes');
+                return;
+              }
+              await apiFetch(`/api/admin/companies/${id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(payload),
+              });
+              setEditing(false);
+              fetchCompany();
     } catch (error) { alert(error instanceof Error ? error.message : 'Erro ao salvar.'); }
     finally { setSaving(false); }
   };
@@ -91,6 +93,16 @@ export default function AdminEmpresaDetailPage({ params }: { params: Promise<{ i
   };
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>;
+  if (isNew) {
+    return (
+      <div className="card" style={{ padding: 24 }}>
+        <h2 style={{ margin: '0 0 8px' }}>Cadastro de empresa pelo fluxo de inscrição</h2>
+        <p style={{ margin: 0, color: '#6b7280' }}>
+          Empresas reais entram pelo formulário público e aparecem para aprovação em empresas pendentes.
+        </p>
+      </div>
+    );
+  }
   if (!company) return <div style={{ padding: '40px', textAlign: 'center', color: '#dc2626' }}>Empresa não encontrada.</div>;
 
   const statusCfg = STATUS_CFG[company.status] ?? { label: company.status, color: '#6b7280' };

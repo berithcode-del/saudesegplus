@@ -2,7 +2,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/app/lib/api';
-import { maskPhone, maskCNPJ, FIELD_LIMITS, BR_STATE_OPTIONS } from '../../../../lib/formatUtils';
+import { maskPhone, FIELD_LIMITS, BR_STATE_OPTIONS, onlyDigits } from '../../../../lib/formatUtils';
 import {
   ArrowLeftIcon,
   TrashIcon,
@@ -51,16 +51,29 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
   const handleSave = async () => {
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        name: form.name?.trim(),
+        crmNumber: onlyDigits(form.crmNumber ?? ''),
+        crmState: form.crmState?.trim().toUpperCase(),
+        city: form.city?.trim() || undefined,
+        state: form.state?.trim().toUpperCase() || undefined,
+        specialties: form.specialties?.trim() || undefined,
+        rqeNumber: form.rqeNumber?.trim() || undefined,
+        phone: onlyDigits(form.phone ?? ''),
+        contactEmail: form.contactEmail?.trim().toLowerCase() || undefined,
+        accessEmail: form.accessEmail?.trim().toLowerCase() || undefined,
+      };
       if (isNew) {
         await apiFetch('/api/admin/doctors', {
           method: 'POST',
-          body: JSON.stringify({ ...form, gender: form.gender ?? 'male', email: form.accessEmail }),
+          body: JSON.stringify({ ...payload, gender: form.gender ?? 'male', email: payload.accessEmail }),
         });
         router.push('/admin/medicos');
       } else {
         await apiFetch(`/api/admin/doctors/${id}`, {
           method: 'PATCH',
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
         setEditing(false);
         fetchDoctor();
@@ -172,10 +185,25 @@ export default function AdminMedicoDetailPage({ params }: { params: Promise<{ id
                                     <option value="male">Masculino</option>
                                     <option value="female">Feminino</option>
                                   </select>
+                                ) : key === 'crmNumber' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: onlyDigits(e.target.value).slice(0, FIELD_LIMITS.CRM_NUMBER) }))} inputMode="numeric" maxLength={FIELD_LIMITS.CRM_NUMBER} />
+                                ) : key === 'crmState' || key === 'state' ? (
+                                  <select className="form-select" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))}>
+                                    <option value="">UF</option>
+                                    {BR_STATE_OPTIONS}
+                                  </select>
                                 ) : key === 'phone' ? (
                                   <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: maskPhone(e.target.value) }))} maxLength={FIELD_LIMITS.PHONE} />
                                 ) : (key === 'contactEmail' || key === 'accessEmail') ? (
-                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
+                                  <input className="form-input" type="email" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.EMAIL} />
+                                ) : key === 'name' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.NAME} />
+                                ) : key === 'city' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.CITY} />
+                                ) : key === 'specialties' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} maxLength={FIELD_LIMITS.SPECIALTIES} />
+                                ) : key === 'rqeNumber' ? (
+                                  <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value.slice(0, FIELD_LIMITS.CRM_NUMBER) }))} maxLength={FIELD_LIMITS.CRM_NUMBER} />
                                 ) : (
                                   <input className="form-input" value={form[key] ?? ''} onChange={e => setForm((p: any) => ({ ...p, [key]: e.target.value }))} />
                                 )}

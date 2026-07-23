@@ -431,10 +431,21 @@ export class AdminService {
     environment?: DataEnvironment;
   }) {
     const environment = data.environment ?? DataEnvironment.REAL;
+    if (environment !== DataEnvironment.SANDBOX) {
+      throw new BadRequestException(
+        'Empresas reais devem ser criadas pelo fluxo de inscrição.',
+      );
+    }
+
     const normalizedCnpj = data.cnpj.replace(/\D/g, '');
+    const razaoSocial = data.razaoSocial.trim();
+    if (!razaoSocial || normalizedCnpj.length !== 14) {
+      throw new BadRequestException('Dados obrigatórios da empresa inválidos.');
+    }
+
     const email =
       data.email?.trim().toLowerCase() ??
-      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}empresa.${normalizedCnpj.slice(0, 8)}@saudeseg.com`;
+      `sandbox.empresa.${normalizedCnpj.slice(0, 8)}@saudeseg.com`;
     const tempPassword = Math.random().toString(36).slice(-10);
     const passwordHash = await bcrypt.hash(tempPassword, 12);
     const validUntil = new Date();
@@ -452,7 +463,7 @@ export class AdminService {
         const company = await tx.company.create({
           data: {
             cnpj: normalizedCnpj,
-            razaoSocial: data.razaoSocial.trim(),
+            razaoSocial,
             nomeFantasia: data.nomeFantasia?.trim() || null,
             address: data.address?.trim() || null,
             cep: data.cep?.replace(/\D/g, '') || null,
@@ -608,12 +619,18 @@ export class AdminService {
     environment?: DataEnvironment;
   }) {
     const environment = data.environment ?? DataEnvironment.REAL;
+    const name = data.name.trim();
+    const cnpj = data.cnpj.replace(/\D/g, '');
+    if (!name || cnpj.length !== 14) {
+      throw new BadRequestException('Dados obrigatórios da clínica inválidos.');
+    }
+
     const tempPassword = Math.random().toString(36).slice(-10);
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
     const email =
-      data.email ??
-      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}clinica.${data.cnpj.replace(/\D/g, '').slice(0, 8)}@saudeseg.com`;
+      data.email?.trim().toLowerCase() ??
+      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}clinica.${cnpj.slice(0, 8)}@saudeseg.com`;
 
     // Check if the email already exists
     const existingUser = await this.prisma.userAccount.findUnique({
@@ -630,12 +647,12 @@ export class AdminService {
         role: 'CLINIC',
         clinicProfile: {
           create: {
-            name: data.name,
-            cnpj: data.cnpj,
+            name,
+            cnpj,
             environment,
-            city: data.city ?? null,
-            state: data.state ?? null,
-            address: data.address ?? null,
+            city: data.city?.trim() || null,
+            state: data.state?.trim().toUpperCase() || null,
+            address: data.address?.trim() || null,
           },
         },
       },
@@ -780,14 +797,21 @@ export class AdminService {
     environment?: DataEnvironment;
   }) {
     const environment = data.environment ?? DataEnvironment.REAL;
+    const name = data.name.trim();
+    const crmNumber = data.crmNumber.trim();
+    const crmState = data.crmState.trim().toUpperCase();
+    if (!name || !crmNumber || !/^[A-Z]{2}$/.test(crmState)) {
+      throw new BadRequestException('Dados obrigatórios do médico inválidos.');
+    }
+
     const existing = await this.prisma.doctor.findUnique({
-      where: { crmNumber: data.crmNumber },
+      where: { crmNumber },
     });
     if (existing) throw new ConflictException('CRM já cadastrado');
 
     const email =
-      data.email ??
-      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}${this.slugifyName(data.name)}@saudeseg.com`;
+      data.email?.trim().toLowerCase() ??
+      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}${this.slugifyName(name)}@saudeseg.com`;
     const gender = this.normalizeGender(data.gender);
 
     // Check if the email already exists
@@ -809,14 +833,14 @@ export class AdminService {
         role: 'DOCTOR',
         doctorProfile: {
           create: {
-            name: data.name,
+            name,
             environment,
             gender,
-            crmNumber: data.crmNumber,
-            crmState: data.crmState,
-            city: data.city ?? null,
-            state: data.state ?? null,
-            specialties: data.specialties ?? null,
+            crmNumber,
+            crmState,
+            city: data.city?.trim() || null,
+            state: data.state?.trim().toUpperCase() || null,
+            specialties: data.specialties?.trim() || null,
             verifiedAt:
               environment === DataEnvironment.SANDBOX ? new Date() : null,
           },
