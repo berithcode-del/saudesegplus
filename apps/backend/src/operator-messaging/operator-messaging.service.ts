@@ -1,14 +1,25 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { DataEnvironment, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import type { JwtPayload } from '../auth/jwt.strategy';
 
-const ALLOWED_ROLES: Role[] = [Role.ADMIN, Role.CLINIC, Role.DOCTOR, Role.OPERATOR];
+const ALLOWED_ROLES: Role[] = [
+  Role.ADMIN,
+  Role.CLINIC,
+  Role.DOCTOR,
+  Role.OPERATOR,
+];
 
 interface Principal {
   userId: string;
   role: Role;
   name: string;
+  environment: DataEnvironment | null;
 }
 
 @Injectable()
@@ -16,23 +27,43 @@ export class OperatorMessagingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listRecipients(user: JwtPayload, query = '') {
-    await this.resolvePrincipal(user);
+    const principal = await this.resolvePrincipal(user);
     const q = query.trim();
+    const filters: Prisma.UserAccountWhereInput[] = [];
+    if (q) {
+      filters.push({
+        OR: [
+          { email: { contains: q, mode: 'insensitive' } },
+          { doctorProfile: { name: { contains: q, mode: 'insensitive' } } },
+          { clinicProfile: { name: { contains: q, mode: 'insensitive' } } },
+          { operatorProfile: { name: { contains: q, mode: 'insensitive' } } },
+        ],
+      });
+    }
+    if (principal.environment) {
+      filters.push({
+        OR: [
+          { role: Role.ADMIN },
+          { doctorProfile: { environment: principal.environment } },
+          { clinicProfile: { environment: principal.environment } },
+          {
+            operatorProfile: {
+              clinic: { environment: principal.environment },
+            },
+          },
+        ],
+      });
+    }
     const users = await this.prisma.userAccount.findMany({
       where: {
         role: { in: ALLOWED_ROLES },
-        ...(q
-          ? {
-              OR: [
-                { email: { contains: q, mode: 'insensitive' } },
-                { doctorProfile: { name: { contains: q, mode: 'insensitive' } } },
-                { clinicProfile: { name: { contains: q, mode: 'insensitive' } } },
-                { operatorProfile: { name: { contains: q, mode: 'insensitive' } } },
-              ],
-            }
-          : {}),
+        ...(filters.length ? { AND: filters } : {}),
       },
-      include: { doctorProfile: true, clinicProfile: true, operatorProfile: true },
+      include: {
+        doctorProfile: true,
+        clinicProfile: true,
+        operatorProfile: { include: { clinic: true } },
+      },
       orderBy: { email: 'asc' },
       take: 20,
     });
@@ -65,27 +96,60 @@ export class OperatorMessagingService {
         (participant) =>
           participant.userId === principal.userId &&
           conversation.messages[0]?.sentAt &&
-          (!participant.lastReadAt || participant.lastReadAt < conversation.messages[0].sentAt),
+          (!participant.lastReadAt ||
+            participant.lastReadAt < conversation.messages[0].sentAt),
       ),
     }));
   }
 
-  async createConversation(user: JwtPayload, participantIds: string[], title?: string, isGroup = false) {
+  async createConversation(
+    user: JwtPayload,
+    participantIds: string[],
+    title?: string,
+    isGroup = false,
+  ) {
     const principal = await this.resolvePrincipal(user);
-    const uniqueIds = Array.from(new Set([principal.userId, ...participantIds]));
-    if (uniqueIds.length < 2) throw new BadRequestException('Informe pelo menos um destinatario');
-    if (uniqueIds.length > 10) throw new BadRequestException('A conversa pode ter no maximo 10 participantes');
+    const uniqueIds = Array.from(
+      new Set([principal.userId, ...participantIds]),
+    );
+    if (uniqueIds.length < 2)
+      throw new BadRequestException('Informe pelo menos um destinatario');
+    if (uniqueIds.length > 10)
+      throw new BadRequestException(
+        'A conversa pode ter no maximo 10 participantes',
+      );
     if (isGroup && principal.role !== Role.ADMIN) {
-      throw new ForbiddenException('Somente administradores podem criar grupos nesta etapa');
+      throw new ForbiddenException(
+        'Somente administradores podem criar grupos nesta etapa',
+      );
     }
-    if (isGroup && !title?.trim()) throw new BadRequestException('Informe um titulo para o grupo');
+    if (isGroup && !title?.trim())
+      throw new BadRequestException('Informe um titulo para o grupo');
 
     const users = await this.prisma.userAccount.findMany({
       where: { id: { in: uniqueIds }, role: { in: ALLOWED_ROLES } },
-      include: { doctorProfile: true, clinicProfile: true, operatorProfile: true },
+      include: {
+        doctorProfile: true,
+        clinicProfile: true,
+        operatorProfile: { include: { clinic: true } },
+      },
     });
     if (users.length !== uniqueIds.length) {
-      throw new BadRequestException('Algum participante informado nao existe ou nao pode receber mensagens');
+      throw new BadRequestException(
+        'Algum participante informado nao existe ou nao pode receber mensagens',
+      );
+    }
+    if (
+      principal.environment &&
+      users.some(
+        (participant) =>
+          participant.role !== Role.ADMIN &&
+          this.accountEnvironment(participant) !== principal.environment,
+      )
+    ) {
+      throw new BadRequestException(
+        'Perfis reais e sandbox nao podem participar da mesma conversa',
+      );
     }
 
     return this.prisma.operatorConversation.create({
@@ -112,11 +176,17 @@ export class OperatorMessagingService {
     const principal = await this.resolvePrincipal(user);
     await this.assertParticipant(conversationId, principal.userId);
     await this.prisma.operatorConversationParticipant.update({
-      where: { conversationId_userId: { conversationId, userId: principal.userId } },
+      where: {
+        conversationId_userId: { conversationId, userId: principal.userId },
+      },
       data: { lastReadAt: new Date() },
     });
     await this.prisma.notification.updateMany({
-      where: { userId: principal.userId, targetId: conversationId, readAt: null },
+      where: {
+        userId: principal.userId,
+        targetId: conversationId,
+        readAt: null,
+      },
       data: { readAt: new Date() },
     });
     return this.prisma.operatorMessage.findMany({
@@ -126,9 +196,17 @@ export class OperatorMessagingService {
     });
   }
 
-  async sendMessage(user: JwtPayload, conversationId: string, content: string, attachments: string[] = []) {
+  async sendMessage(
+    user: JwtPayload,
+    conversationId: string,
+    content: string,
+    attachments: string[] = [],
+  ) {
     const principal = await this.resolvePrincipal(user);
-    const conversation = await this.assertParticipant(conversationId, principal.userId);
+    const conversation = await this.assertParticipant(
+      conversationId,
+      principal.userId,
+    );
     if (!content.trim() && attachments.length === 0) {
       throw new BadRequestException('Digite uma mensagem ou informe um anexo');
     }
@@ -147,7 +225,9 @@ export class OperatorMessagingService {
       data: { updatedAt: new Date() },
     });
 
-    const recipients = conversation.participants.filter((participant) => participant.userId !== principal.userId);
+    const recipients = conversation.participants.filter(
+      (participant) => participant.userId !== principal.userId,
+    );
     await this.prisma.notification.createMany({
       data: recipients.map((recipient) => ({
         userId: recipient.userId,
@@ -164,7 +244,10 @@ export class OperatorMessagingService {
   async listNotifications(user: JwtPayload, unreadOnly = false) {
     const principal = await this.resolvePrincipal(user);
     return this.prisma.notification.findMany({
-      where: { userId: principal.userId, ...(unreadOnly ? { readAt: null } : {}) },
+      where: {
+        userId: principal.userId,
+        ...(unreadOnly ? { readAt: null } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
@@ -176,7 +259,8 @@ export class OperatorMessagingService {
       where: { id: notificationId, userId: principal.userId },
       data: { readAt: new Date() },
     });
-    if (!updated.count) throw new NotFoundException('Notificacao nao encontrada');
+    if (!updated.count)
+      throw new NotFoundException('Notificacao nao encontrada');
     return { success: true };
   }
 
@@ -186,7 +270,11 @@ export class OperatorMessagingService {
       include: { participants: true },
     });
     if (!conversation) throw new NotFoundException('Conversa nao encontrada');
-    if (!conversation.participants.some((participant) => participant.userId === userId)) {
+    if (
+      !conversation.participants.some(
+        (participant) => participant.userId === userId,
+      )
+    ) {
       throw new ForbiddenException('Voce nao participa desta conversa');
     }
     return conversation;
@@ -194,29 +282,79 @@ export class OperatorMessagingService {
 
   private async resolvePrincipal(user: JwtPayload): Promise<Principal> {
     if (!ALLOWED_ROLES.includes(user.role as Role)) {
-      throw new ForbiddenException('Mensagens operacionais nao estao disponiveis para este perfil');
+      throw new ForbiddenException(
+        'Mensagens operacionais nao estao disponiveis para este perfil',
+      );
     }
 
     if (user.role === Role.DOCTOR && user.profileId) {
-      const doctor = await this.prisma.doctor.findUnique({ where: { id: user.profileId } });
+      const doctor = await this.prisma.doctor.findUnique({
+        where: { id: user.profileId },
+      });
       if (!doctor) throw new ForbiddenException('Perfil medico nao encontrado');
-      return { userId: doctor.userId, role: Role.DOCTOR, name: doctor.name };
+      return {
+        userId: doctor.userId,
+        role: Role.DOCTOR,
+        name: doctor.name,
+        environment: doctor.environment,
+      };
     }
     if (user.role === Role.OPERATOR && user.profileId) {
-      const operator = await this.prisma.operator.findUnique({ where: { id: user.profileId } });
-      if (!operator) throw new ForbiddenException('Perfil operador nao encontrado');
-      return { userId: operator.userId, role: Role.OPERATOR, name: operator.name };
+      const operator = await this.prisma.operator.findUnique({
+        where: { id: user.profileId },
+        include: { clinic: { select: { environment: true } } },
+      });
+      if (!operator)
+        throw new ForbiddenException('Perfil operador nao encontrado');
+      return {
+        userId: operator.userId,
+        role: Role.OPERATOR,
+        name: operator.name,
+        environment: operator.clinic.environment,
+      };
     }
     if (user.role === Role.CLINIC && user.profileId) {
-      const clinic = await this.prisma.clinic.findUnique({ where: { id: user.profileId } });
-      if (!clinic?.userId) throw new ForbiddenException('Perfil da clinica nao encontrado');
-      return { userId: clinic.userId, role: Role.CLINIC, name: clinic.name };
+      const clinic = await this.prisma.clinic.findUnique({
+        where: { id: user.profileId },
+      });
+      if (!clinic?.userId)
+        throw new ForbiddenException('Perfil da clinica nao encontrado');
+      return {
+        userId: clinic.userId,
+        role: Role.CLINIC,
+        name: clinic.name,
+        environment: clinic.environment,
+      };
     }
 
-    const account = await this.prisma.userAccount.findUnique({ where: { id: user.sub } });
+    const account = await this.prisma.userAccount.findUnique({
+      where: { id: user.sub },
+    });
     if (!account || !ALLOWED_ROLES.includes(account.role)) {
-      throw new ForbiddenException('Perfil nao autorizado para mensagens operacionais');
+      throw new ForbiddenException(
+        'Perfil nao autorizado para mensagens operacionais',
+      );
     }
-    return { userId: account.id, role: account.role, name: account.email };
+    return {
+      userId: account.id,
+      role: account.role,
+      name: account.email,
+      environment: null,
+    };
+  }
+
+  private accountEnvironment(account: {
+    doctorProfile?: { environment: DataEnvironment } | null;
+    clinicProfile?: { environment: DataEnvironment } | null;
+    operatorProfile?: {
+      clinic?: { environment: DataEnvironment } | null;
+    } | null;
+  }) {
+    return (
+      account.doctorProfile?.environment ??
+      account.clinicProfile?.environment ??
+      account.operatorProfile?.clinic?.environment ??
+      null
+    );
   }
 }

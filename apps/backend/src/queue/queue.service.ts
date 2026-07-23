@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
 import { PresenceService } from '../presence/presence.service';
@@ -16,22 +20,59 @@ export class QueueService {
    * Quanto MENOR o score, MAIOR a prioridade.
    * Cidade = 0, Região = 1, Estado = 2, Nacional = 3
    */
-  private calcGeoPriority(doctorState: string, doctorCity: string, patientState: string, patientCity: string): number {
-    if (doctorCity && patientCity && doctorCity.toLowerCase() === patientCity.toLowerCase()) return 0;
+  private calcGeoPriority(
+    doctorState: string,
+    doctorCity: string,
+    patientState: string,
+    patientCity: string,
+  ): number {
+    if (
+      doctorCity &&
+      patientCity &&
+      doctorCity.toLowerCase() === patientCity.toLowerCase()
+    )
+      return 0;
 
     const regionMap: Record<string, string> = {
-      SP: 'SE', RJ: 'SE', MG: 'SE', ES: 'SE',
-      RS: 'S', SC: 'S', PR: 'S',
-      MT: 'CO', MS: 'CO', GO: 'CO', DF: 'CO',
-      AM: 'N', PA: 'N', AC: 'N', RO: 'N', RR: 'N', AP: 'N', TO: 'N',
-      BA: 'NE', SE: 'NE', AL: 'NE', PE: 'NE', PB: 'NE', RN: 'NE', CE: 'NE', PI: 'NE', MA: 'NE',
+      SP: 'SE',
+      RJ: 'SE',
+      MG: 'SE',
+      ES: 'SE',
+      RS: 'S',
+      SC: 'S',
+      PR: 'S',
+      MT: 'CO',
+      MS: 'CO',
+      GO: 'CO',
+      DF: 'CO',
+      AM: 'N',
+      PA: 'N',
+      AC: 'N',
+      RO: 'N',
+      RR: 'N',
+      AP: 'N',
+      TO: 'N',
+      BA: 'NE',
+      SE: 'NE',
+      AL: 'NE',
+      PE: 'NE',
+      PB: 'NE',
+      RN: 'NE',
+      CE: 'NE',
+      PI: 'NE',
+      MA: 'NE',
     };
 
     const dRegion = regionMap[doctorState?.toUpperCase()] ?? 'OTHER';
     const pRegion = regionMap[patientState?.toUpperCase()] ?? 'OTHER';
 
     if (dRegion !== 'OTHER' && dRegion === pRegion) return 1; // Mesma região
-    if (doctorState && patientState && doctorState.toUpperCase() === patientState.toUpperCase()) return 2; // Mesmo estado
+    if (
+      doctorState &&
+      patientState &&
+      doctorState.toUpperCase() === patientState.toUpperCase()
+    )
+      return 2; // Mesmo estado
     return 3; // Brasil/Nacional
   }
 
@@ -39,11 +80,15 @@ export class QueueService {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
     });
+    if (!doctor) throw new NotFoundException('Medico nao encontrado');
 
     const entries = await this.prisma.queueEntry.findMany({
       where: {
         status: 'WAITING',
-        ...(workspaceClinicId ? { request: { clinicId: workspaceClinicId } } : {}),
+        request: {
+          environment: doctor.environment,
+          ...(workspaceClinicId ? { clinicId: workspaceClinicId } : {}),
+        },
       },
       include: {
         request: {
@@ -69,8 +114,12 @@ export class QueueService {
         ),
       }))
       .sort((a, b) => {
-        if (a.priorityScore !== b.priorityScore) return a.priorityScore - b.priorityScore;
-        return new Date(a.enteredQueueAt).getTime() - new Date(b.enteredQueueAt).getTime();
+        if (a.priorityScore !== b.priorityScore)
+          return a.priorityScore - b.priorityScore;
+        return (
+          new Date(a.enteredQueueAt).getTime() -
+          new Date(b.enteredQueueAt).getTime()
+        );
       });
   }
 
@@ -97,29 +146,50 @@ export class QueueService {
     // But upsert doesn't tell us. For simplicity, we just log it.
     if (request.invite) {
       // Avoid inserting timeline event if it's already EXAME_INICIADO. We'll just let it create.
-      await this.recordTimelineEvent(request.invite.id, examRequestId, 'EXAME_INICIADO');
+      await this.recordTimelineEvent(
+        request.invite.id,
+        examRequestId,
+        'EXAME_INICIADO',
+      );
     }
 
     return entry;
   }
 
-  async acceptPatient(queueEntryId: string, doctorId: string, workspaceClinicId?: string | null) {
+  async acceptPatient(
+    queueEntryId: string,
+    doctorId: string,
+    workspaceClinicId?: string | null,
+  ) {
     const entry = await this.prisma.queueEntry.findUnique({
       where: { id: queueEntryId },
       include: { request: { include: { invite: true } } },
     });
 
     if (!entry) throw new NotFoundException('Atendimento nao encontrado');
+
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { environment: true },
+    });
+    if (!doctor || doctor.environment !== entry.request.environment) {
+      throw new NotFoundException(
+        'Atendimento nao disponivel para este medico',
+      );
+    }
+
     if (workspaceClinicId) {
-      const request = await this.prisma.examRequest.findUnique({
-        where: { id: entry.requestId },
-        select: { clinicId: true },
-      });
       const membership = await this.prisma.clinicDoctor.findUnique({
         where: { clinicId_doctorId: { clinicId: workspaceClinicId, doctorId } },
       });
-      if (request?.clinicId !== workspaceClinicId || !membership?.active || membership.endedAt) {
-        throw new NotFoundException('Atendimento nao disponivel para este medico');
+      if (
+        entry.request.clinicId !== workspaceClinicId ||
+        !membership?.active ||
+        membership.endedAt
+      ) {
+        throw new NotFoundException(
+          'Atendimento nao disponivel para este medico',
+        );
       }
     }
 
@@ -132,7 +202,9 @@ export class QueueService {
       },
     });
     if (claimed.count !== 1) {
-      throw new ConflictException('Atendimento ja foi assumido por outro medico');
+      throw new ConflictException(
+        'Atendimento ja foi assumido por outro medico',
+      );
     }
     const updated = await this.prisma.queueEntry.findUniqueOrThrow({
       where: { id: queueEntryId },

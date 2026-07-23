@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
-import { CompanyStatus, Prisma } from '@prisma/client';
+import { CompanyStatus, DataEnvironment, Prisma } from '@prisma/client';
 import {
   UpdateAdminClinicDto,
   UpdateAdminCompanyDto,
@@ -25,9 +25,15 @@ export class AdminService {
 
   // ─── Companies ──────────────────────────────────────────────────────────────
 
-  async getCompanies(status?: CompanyStatus) {
+  async getCompanies(
+    status?: CompanyStatus,
+    environment: DataEnvironment = DataEnvironment.REAL,
+  ) {
     return this.prisma.company.findMany({
-      where: status ? { status } : undefined,
+      where: {
+        environment,
+        ...(status ? { status } : {}),
+      },
       include: {
         clinic: true,
         admins: {
@@ -56,6 +62,83 @@ export class AdminService {
       ...company,
       accessEmail: company.admins[0]?.user.email ?? null,
     };
+  }
+
+  async createCompany(data: {
+    razaoSocial: string;
+    nomeFantasia?: string;
+    cnpj: string;
+    address?: string;
+    cep?: string;
+    city?: string;
+    state?: string;
+    email?: string;
+    environment?: DataEnvironment;
+  }) {
+    const environment = data.environment ?? DataEnvironment.REAL;
+    const normalizedCnpj = data.cnpj.replace(/\D/g, '');
+    const email =
+      data.email?.trim().toLowerCase() ??
+      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}empresa.${normalizedCnpj.slice(0, 8)}@saudeseg.com`;
+    const tempPassword = Math.random().toString(36).slice(-10);
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+    const validUntil = new Date();
+    validUntil.setFullYear(validUntil.getFullYear() + 1);
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const [existingCompany, existingUser] = await Promise.all([
+          tx.company.findUnique({ where: { cnpj: normalizedCnpj } }),
+          tx.userAccount.findUnique({ where: { email } }),
+        ]);
+        if (existingCompany) throw new ConflictException('CNPJ já cadastrado');
+        if (existingUser) throw new ConflictException('E-mail já cadastrado');
+
+        const company = await tx.company.create({
+          data: {
+            cnpj: normalizedCnpj,
+            razaoSocial: data.razaoSocial.trim(),
+            nomeFantasia: data.nomeFantasia?.trim() || null,
+            address: data.address?.trim() || null,
+            cep: data.cep?.replace(/\D/g, '') || null,
+            city: data.city?.trim() || null,
+            state: data.state?.trim().toUpperCase() || null,
+            contactEmail: email,
+            environment,
+            status:
+              environment === DataEnvironment.SANDBOX
+                ? CompanyStatus.LIBERADA
+                : CompanyStatus.CADASTRO_INCOMPLETO,
+            ...(environment === DataEnvironment.SANDBOX
+              ? {
+                  pcmsoValidUntil: validUntil,
+                  ppraValidUntil: validUntil,
+                }
+              : {}),
+          },
+        });
+        const user = await tx.userAccount.create({
+          data: {
+            email,
+            passwordHash,
+            role: 'COMPANY_ADMIN',
+          },
+        });
+        await tx.companyAdmin.create({
+          data: { userId: user.id, companyId: company.id },
+        });
+        return { company, user };
+      });
+
+      return {
+        ...result.company,
+        email: result.user.email,
+        tempPassword,
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      this.rethrowUniqueConflict(error, 'CNPJ ou e-mail já cadastrado');
+    }
   }
 
   async updateCompany(id: string, data: UpdateAdminCompanyDto) {
@@ -128,8 +211,9 @@ export class AdminService {
 
   // ─── Clinics ─────────────────────────────────────────────────────────────
 
-  async getClinics() {
+  async getClinics(environment: DataEnvironment = DataEnvironment.REAL) {
     return this.prisma.clinic.findMany({
+      where: { environment },
       include: {
         companies: true,
         operators: {
@@ -166,13 +250,15 @@ export class AdminService {
     state?: string;
     address?: string;
     email?: string;
+    environment?: DataEnvironment;
   }) {
+    const environment = data.environment ?? DataEnvironment.REAL;
     const tempPassword = Math.random().toString(36).slice(-10);
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
     const email =
       data.email ??
-      `clinica.${data.cnpj.replace(/\D/g, '').slice(0, 8)}@saudeseg.com`;
+      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}clinica.${data.cnpj.replace(/\D/g, '').slice(0, 8)}@saudeseg.com`;
 
     // Check if the email already exists
     const existingUser = await this.prisma.userAccount.findUnique({
@@ -191,6 +277,7 @@ export class AdminService {
           create: {
             name: data.name,
             cnpj: data.cnpj,
+            environment,
             city: data.city ?? null,
             state: data.state ?? null,
             address: data.address ?? null,
@@ -271,6 +358,7 @@ export class AdminService {
         where: {
           isMatriz: true,
           state: clinic.state,
+          environment: clinic.environment,
           NOT: { id },
         },
         data: { isMatriz: false },
@@ -301,8 +389,9 @@ export class AdminService {
       .replace(/\s+/g, '.'); // espaços viram pontos
   }
 
-  async getDoctors() {
+  async getDoctors(environment: DataEnvironment = DataEnvironment.REAL) {
     return this.prisma.doctor.findMany({
+      where: { environment },
       include: { user: { select: { email: true } } },
       orderBy: { name: 'asc' },
     });
@@ -333,13 +422,17 @@ export class AdminService {
     state?: string;
     specialties?: string;
     email?: string;
+    environment?: DataEnvironment;
   }) {
+    const environment = data.environment ?? DataEnvironment.REAL;
     const existing = await this.prisma.doctor.findUnique({
       where: { crmNumber: data.crmNumber },
     });
     if (existing) throw new ConflictException('CRM já cadastrado');
 
-    const email = data.email ?? `${this.slugifyName(data.name)}@saudeseg.com`;
+    const email =
+      data.email ??
+      `${environment === DataEnvironment.SANDBOX ? 'sandbox.' : ''}${this.slugifyName(data.name)}@saudeseg.com`;
     const gender = this.normalizeGender(data.gender);
 
     // Check if the email already exists
@@ -362,12 +455,15 @@ export class AdminService {
         doctorProfile: {
           create: {
             name: data.name,
+            environment,
             gender,
             crmNumber: data.crmNumber,
             crmState: data.crmState,
             city: data.city ?? null,
             state: data.state ?? null,
             specialties: data.specialties ?? null,
+            verifiedAt:
+              environment === DataEnvironment.SANDBOX ? new Date() : null,
           },
         },
       },
@@ -448,10 +544,18 @@ export class AdminService {
   async getStats() {
     const [companies, patients, examRequests, asos, financial] =
       await Promise.all([
-        this.prisma.company.count(),
-        this.prisma.patient.count(),
-        this.prisma.examRequest.count(),
-        this.prisma.asoDocument.count(),
+        this.prisma.company.count({
+          where: { environment: DataEnvironment.REAL },
+        }),
+        this.prisma.patient.count({
+          where: { environment: DataEnvironment.REAL },
+        }),
+        this.prisma.examRequest.count({
+          where: { environment: DataEnvironment.REAL },
+        }),
+        this.prisma.asoDocument.count({
+          where: { request: { environment: DataEnvironment.REAL } },
+        }),
         this.prisma.financialTransaction.groupBy({
           by: ['type', 'status'],
           _sum: { amount: true },
@@ -488,66 +592,66 @@ export class AdminService {
   // ─── Document Approval ─────────────────────────────────────────────────────
 
   async approveCompanyDocumentation(companyId: string, approvedBy: string) {
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: {
-          id: true,
-          status: true,
-          pcmsoValidUntil: true,
-          ppraValidUntil: true,
-          razaoSocial: true,
-        },
-      });
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        status: true,
+        pcmsoValidUntil: true,
+        ppraValidUntil: true,
+        razaoSocial: true,
+      },
+    });
 
-      if (!company) {
-        throw new NotFoundException('Empresa não encontrada');
-      }
-
-      const now = new Date();
-      const pcmsoValid =
-        company.pcmsoValidUntil && company.pcmsoValidUntil > now;
-      const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
-
-      if (!pcmsoValid || !ppraValid) {
-        throw new BadRequestException(
-          `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`,
-        );
-      }
-
-      await this.prisma.company.update({
-        where: { id: companyId },
-        data: {
-          status: 'LIBERADA',
-          updatedAt: now,
-        },
-      });
-
-      return {
-        success: true,
-        message: `Empresa ${company.razaoSocial} aprovada e liberada para operação.`,
-        companyId: company.id,
-        approvedAt: now,
-        approvedBy,
-      };
+    if (!company) {
+      throw new NotFoundException('Empresa não encontrada');
     }
 
-    async getCompaniesPendingApproval() {
-      return this.prisma.company.findMany({
-        where: {
-          status: { in: ['CADASTRO_INCOMPLETO', 'EM_ANALISE'] },
-        },
-        include: {
-          documents: {
-            where: {
-              type: { in: ['PCMSO', 'PPRA'] },
-            },
-            orderBy: { uploadedAt: 'desc' },
-          },
-          admins: {
-            include: { user: { select: { id: true, email: true, role: true } } },
-          },
-        },
-        orderBy: { updatedAt: 'desc' },
-      });
+    const now = new Date();
+    const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
+    const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
+
+    if (!pcmsoValid || !ppraValid) {
+      throw new BadRequestException(
+        `Documentação incompleta. PCMSO válido: ${pcmsoValid ? 'sim' : 'não'}, PPRA válido: ${ppraValid ? 'sim' : 'não'}`,
+      );
     }
+
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: {
+        status: 'LIBERADA',
+        updatedAt: now,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Empresa ${company.razaoSocial} aprovada e liberada para operação.`,
+      companyId: company.id,
+      approvedAt: now,
+      approvedBy,
+    };
   }
+
+  async getCompaniesPendingApproval() {
+    return this.prisma.company.findMany({
+      where: {
+        environment: DataEnvironment.REAL,
+        status: { in: ['CADASTRO_INCOMPLETO', 'EM_ANALISE'] },
+      },
+      include: {
+        documents: {
+          where: {
+            type: { in: ['PCMSO', 'PPRA'] },
+          },
+          orderBy: { uploadedAt: 'desc' },
+        },
+        admins: {
+          include: { user: { select: { id: true, email: true, role: true } } },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+}

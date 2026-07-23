@@ -13,15 +13,16 @@ import {
   ConflictException,
   BadRequestException,
   Res,
-} from '@nestjs/common'
-import type { Response } from 'express'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
-import { PrismaService } from '../prisma.service'
-import * as bcrypt from 'bcrypt'
-import { randomInt } from 'crypto'
-import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto'
-import { Roles } from '../auth/decorators/roles.decorator'
-import { ClinicProfileService } from './clinic-profile.service'
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PrismaService } from '../prisma.service';
+import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
+import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { ClinicProfileService } from './clinic-profile.service';
+import { DataEnvironment } from '@prisma/client';
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/clinic')
@@ -35,11 +36,18 @@ export class ClinicProfileController {
   // GET /api/clinics?state=XX&city=YY — List clinics (public endpoint for company config)
   @Get('clinics')
   @Roles('CLINIC', 'COMPANY_ADMIN', 'ADMIN')
-  async listClinics(@Query() query: { state: string; city?: string }) {
+  async listClinics(
+    @Request() req: any,
+    @Query() query: { state: string; city?: string },
+  ) {
     const { state, city } = query;
     if (!state) return { success: true, data: [] };
 
-    const where: any = { isActive: true, state };
+    const environment =
+      req.user.role === 'ADMIN'
+        ? DataEnvironment.REAL
+        : await this.getUserEnvironment(req.user.sub);
+    const where: any = { isActive: true, state, environment };
     if (city) where.city = city;
 
     const clinics = await this.prisma.clinic.findMany({
@@ -65,7 +73,10 @@ export class ClinicProfileController {
     const userId = req.user.sub;
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true, operatorProfile: { include: { clinic: true } } },
+      include: {
+        clinicProfile: true,
+        operatorProfile: { include: { clinic: true } },
+      },
     });
     const clinic = user?.clinicProfile ?? user?.operatorProfile?.clinic;
     if (!clinic) {
@@ -95,7 +106,10 @@ export class ClinicProfileController {
     const userId = req.user.sub;
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true, operatorProfile: { select: { clinicId: true } } },
+      include: {
+        clinicProfile: true,
+        operatorProfile: { select: { clinicId: true } },
+      },
     });
     if (!user?.clinicProfile) {
       return { success: false, message: 'Perfil de clínica não encontrado' };
@@ -120,9 +134,35 @@ export class ClinicProfileController {
   private async getOwnClinicId(userId: string): Promise<string | null> {
     const user = await this.prisma.userAccount.findUnique({
       where: { id: userId },
-      include: { clinicProfile: true, operatorProfile: { select: { clinicId: true } } },
+      include: {
+        clinicProfile: true,
+        operatorProfile: { select: { clinicId: true } },
+      },
     });
     return user?.clinicProfile?.id ?? user?.operatorProfile?.clinicId ?? null;
+  }
+
+  private async getUserEnvironment(userId: string): Promise<DataEnvironment> {
+    const user = await this.prisma.userAccount.findUnique({
+      where: { id: userId },
+      include: {
+        clinicProfile: { select: { environment: true } },
+        operatorProfile: {
+          select: { clinic: { select: { environment: true } } },
+        },
+        companyAdminProfile: {
+          select: { company: { select: { environment: true } } },
+        },
+        doctorProfile: { select: { environment: true } },
+      },
+    });
+    return (
+      user?.clinicProfile?.environment ??
+      user?.operatorProfile?.clinic.environment ??
+      user?.companyAdminProfile?.company.environment ??
+      user?.doctorProfile?.environment ??
+      DataEnvironment.REAL
+    );
   }
 
   // ─── Operators ───────────────────────────────────────────────────────────
@@ -229,7 +269,13 @@ export class ClinicProfileController {
   async updateOperator(
     @Request() req: any,
     @Param('id') operatorId: string,
-    @Body() body: { email?: string; password?: string; operationalPin?: string; resetOperationalPin?: boolean },
+    @Body()
+    body: {
+      email?: string;
+      password?: string;
+      operationalPin?: string;
+      resetOperationalPin?: boolean;
+    },
   ) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
     if (!clinicId)
@@ -268,7 +314,9 @@ export class ClinicProfileController {
       : body.operationalPin;
     if (nextOperationalPin) {
       if (!/^\d{6}$/.test(nextOperationalPin)) {
-        throw new BadRequestException('O PIN operacional deve conter 6 digitos');
+        throw new BadRequestException(
+          'O PIN operacional deve conter 6 digitos',
+        );
       }
       await this.prisma.operator.update({
         where: { id: operatorId },
@@ -276,23 +324,38 @@ export class ClinicProfileController {
       });
     }
 
-    return { success: true, ...(body.resetOperationalPin ? { operationalPin: nextOperationalPin } : {}) };
+    return {
+      success: true,
+      ...(body.resetOperationalPin
+        ? { operationalPin: nextOperationalPin }
+        : {}),
+    };
   }
 
   @Get('doctors/available')
   @Roles('CLINIC')
-  async availableDoctors(@Query('q') query = '') {
+  async availableDoctors(@Request() req: any, @Query('q') query = '') {
+    const clinicId = await this.getOwnClinicId(req.user.sub);
+    if (!clinicId) return { success: true, data: [] };
+    const clinic = await this.prisma.clinic.findUnique({
+      where: { id: clinicId },
+      select: { environment: true },
+    });
+    if (!clinic) return { success: true, data: [] };
     const q = query.trim();
     return {
       success: true,
       data: await this.prisma.doctor.findMany({
         where: {
+          environment: clinic.environment,
           verifiedAt: { not: null },
           ...(q
-            ? { OR: [
-                { name: { contains: q, mode: 'insensitive' } },
-                { crmNumber: { contains: q, mode: 'insensitive' } },
-              ] }
+            ? {
+                OR: [
+                  { name: { contains: q, mode: 'insensitive' } },
+                  { crmNumber: { contains: q, mode: 'insensitive' } },
+                ],
+              }
             : {}),
         },
         select: { id: true, name: true, crmNumber: true, crmState: true },
@@ -314,16 +377,18 @@ export class ClinicProfileController {
     });
     return {
       success: true,
-      data: memberships.map(({ doctor, operationalPinHash, ...membership }) => ({
-        ...membership,
-        doctor: {
-          id: doctor.id,
-          name: doctor.name,
-          crmNumber: doctor.crmNumber,
-          crmState: doctor.crmState,
-          pinConfigured: Boolean(operationalPinHash),
-        },
-      })),
+      data: memberships.map(
+        ({ doctor, operationalPinHash, ...membership }) => ({
+          ...membership,
+          doctor: {
+            id: doctor.id,
+            name: doctor.name,
+            crmNumber: doctor.crmNumber,
+            crmState: doctor.crmState,
+            pinConfigured: Boolean(operationalPinHash),
+          },
+        }),
+      ),
     };
   }
 
@@ -334,19 +399,34 @@ export class ClinicProfileController {
     @Body() body: { doctorId: string; operationalPin?: string },
   ) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
-    if (!clinicId) throw new NotFoundException('Perfil de clinica nao encontrado');
-    const doctor = await this.prisma.doctor.findUnique({ where: { id: body.doctorId } });
-    if (!doctor?.verifiedAt) throw new NotFoundException('Medico verificado nao encontrado');
-    const operationalPin = body.operationalPin || randomInt(0, 1_000_000).toString().padStart(6, '0');
+    if (!clinicId)
+      throw new NotFoundException('Perfil de clinica nao encontrado');
+    const [clinic, doctor] = await Promise.all([
+      this.prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { environment: true },
+      }),
+      this.prisma.doctor.findUnique({ where: { id: body.doctorId } }),
+    ]);
+    if (!doctor?.verifiedAt)
+      throw new NotFoundException('Medico verificado nao encontrado');
+    if (!clinic || clinic.environment !== doctor.environment) {
+      throw new BadRequestException(
+        'Clinica e medico precisam pertencer ao mesmo ambiente',
+      );
+    }
+    const operationalPin =
+      body.operationalPin ||
+      randomInt(0, 1_000_000).toString().padStart(6, '0');
     if (!/^\d{6}$/.test(operationalPin)) {
       throw new BadRequestException('O PIN operacional deve conter 6 digitos');
     }
     const operationalPinHash = await bcrypt.hash(operationalPin, 10);
     await this.prisma.clinicDoctor.upsert({
-        where: { clinicId_doctorId: { clinicId, doctorId: doctor.id } },
-        create: { clinicId, doctorId: doctor.id, operationalPinHash },
-        update: { active: true, endedAt: null, operationalPinHash },
-      });
+      where: { clinicId_doctorId: { clinicId, doctorId: doctor.id } },
+      create: { clinicId, doctorId: doctor.id, operationalPinHash },
+      update: { active: true, endedAt: null, operationalPinHash },
+    });
     return { success: true, data: { doctorId: doctor.id, operationalPin } };
   }
 
@@ -354,12 +434,14 @@ export class ClinicProfileController {
   @Roles('CLINIC')
   async removeDoctor(@Request() req: any, @Param('doctorId') doctorId: string) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
-    if (!clinicId) throw new NotFoundException('Perfil de clinica nao encontrado');
+    if (!clinicId)
+      throw new NotFoundException('Perfil de clinica nao encontrado');
     const updated = await this.prisma.clinicDoctor.updateMany({
       where: { clinicId, doctorId, active: true },
       data: { active: false, endedAt: new Date() },
     });
-    if (!updated.count) throw new NotFoundException('Vinculo medico nao encontrado');
+    if (!updated.count)
+      throw new NotFoundException('Vinculo medico nao encontrado');
     return { success: true };
   }
 
@@ -414,11 +496,21 @@ export class ClinicProfileController {
   // GET /api/clinic/asos/:asoId/file — Download/visualização protegida do PDF
   @Get('asos/:asoId/file')
   @Roles('CLINIC', 'OPERATOR')
-  async getClinicAsoFile(@Request() req: any, @Param('asoId') asoId: string, @Res() response: Response) {
+  async getClinicAsoFile(
+    @Request() req: any,
+    @Param('asoId') asoId: string,
+    @Res() response: Response,
+  ) {
     try {
-      const file = await this.clinicProfileService.getClinicAsoPdf(req.user.sub, asoId);
+      const file = await this.clinicProfileService.getClinicAsoPdf(
+        req.user.sub,
+        asoId,
+      );
       response.setHeader('Content-Type', 'application/pdf');
-      response.setHeader('Content-Disposition', `inline; filename="${file.fileName}"`);
+      response.setHeader(
+        'Content-Disposition',
+        `inline; filename="${file.fileName}"`,
+      );
       response.send(file.buffer);
     } catch (error) {
       if (error instanceof NotFoundException) {

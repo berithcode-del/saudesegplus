@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { OperatorMessagingService } from './operator-messaging.service';
 
@@ -18,15 +18,20 @@ describe('OperatorMessagingService permissions', () => {
 
   it('creates notifications for conversation recipients when a message is sent', async () => {
     const prisma = {
-      userAccount: { findUnique: jest.fn().mockResolvedValue({ id: 'admin-a', role: Role.ADMIN, email: 'admin@example.com' }) },
+      userAccount: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({
+            id: 'admin-a',
+            role: Role.ADMIN,
+            email: 'admin@example.com',
+          }),
+      },
       operatorConversation: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'conversation-a',
           title: null,
-          participants: [
-            { userId: 'admin-a' },
-            { userId: 'doctor-user-a' },
-          ],
+          participants: [{ userId: 'admin-a' }, { userId: 'doctor-user-a' }],
         }),
         update: jest.fn().mockResolvedValue({}),
       },
@@ -38,7 +43,12 @@ describe('OperatorMessagingService permissions', () => {
     const service = new OperatorMessagingService(prisma as never);
 
     await service.sendMessage(
-      { sub: 'admin-a', email: 'admin@example.com', role: 'ADMIN', profileId: null },
+      {
+        sub: 'admin-a',
+        email: 'admin@example.com',
+        role: 'ADMIN',
+        profileId: null,
+      },
       'conversation-a',
       'Oi',
     );
@@ -52,5 +62,53 @@ describe('OperatorMessagingService permissions', () => {
         }),
       ],
     });
+  });
+
+  it('rejects a conversation between real and sandbox profiles', async () => {
+    const prisma = {
+      doctor: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'doctor-real',
+          userId: 'doctor-user-real',
+          name: 'Medico Real',
+          environment: 'REAL',
+        }),
+      },
+      userAccount: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'doctor-user-real',
+            role: Role.DOCTOR,
+            email: 'real@saudeseg.com',
+            doctorProfile: { name: 'Medico Real', environment: 'REAL' },
+            clinicProfile: null,
+            operatorProfile: null,
+          },
+          {
+            id: 'clinic-user-sandbox',
+            role: Role.CLINIC,
+            email: 'sandbox@saudeseg.com',
+            doctorProfile: null,
+            clinicProfile: { name: 'Clinica Teste', environment: 'SANDBOX' },
+            operatorProfile: null,
+          },
+        ]),
+      },
+      operatorConversation: { create: jest.fn() },
+    };
+    const service = new OperatorMessagingService(prisma as never);
+
+    await expect(
+      service.createConversation(
+        {
+          sub: 'doctor-user-real',
+          email: 'real@saudeseg.com',
+          role: 'DOCTOR',
+          profileId: 'doctor-real',
+        },
+        ['clinic-user-sandbox'],
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.operatorConversation.create).not.toHaveBeenCalled();
   });
 });

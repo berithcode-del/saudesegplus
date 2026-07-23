@@ -4,7 +4,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InviteStatus, Prisma, Role, StatusProtocolo, TipoExame } from '@prisma/client';
+import {
+  InviteStatus,
+  Prisma,
+  Role,
+  StatusProtocolo,
+  TipoExame,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma.service';
 import { CompanyGateway } from '../company/company.gateway';
@@ -98,6 +104,7 @@ export class ColaboradorService {
         cpf: invite.expectedCpf.replace(/\D/g, ''),
         birthDate: invite.expectedBirthDate ?? undefined,
         phone: '',
+        environment: invite.company.environment,
         functionCboCode:
           invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
       },
@@ -124,6 +131,7 @@ export class ColaboradorService {
           data: {
             patientId: patient.id,
             clinicId: invite.company.clinicId ?? undefined,
+            environment: invite.company.environment,
             inviteId: invite.id,
             source: 'convite_empresa',
             examPurpose: invite.examType,
@@ -138,7 +146,10 @@ export class ColaboradorService {
 
         if (!clinicaId) {
           const fallbackClinic = await tx.clinic.findFirst({
-            where: { isActive: true },
+            where: {
+              isActive: true,
+              environment: invite.company.environment,
+            },
             orderBy: { createdAt: 'asc' },
           });
           if (fallbackClinic) {

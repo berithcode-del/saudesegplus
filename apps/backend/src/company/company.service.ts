@@ -1,4 +1,10 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -6,7 +12,15 @@ import { CreateInviteDto } from './dto/create-invite.dto';
 import { CompanyGateway } from './company.gateway';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { PaymentFlow, PaymentStatus, Prisma, TipoExame, CompanyStatus, TimelineEventType } from '@prisma/client';
+import {
+  CompanyStatus,
+  DataEnvironment,
+  PaymentFlow,
+  PaymentStatus,
+  Prisma,
+  TimelineEventType,
+  TipoExame,
+} from '@prisma/client';
 import { SupabaseStorageService } from '../upload/supabase-storage.service';
 import { basename } from 'path';
 import { AsoProtocoloService } from '../aso-protocolo/aso-protocolo.service';
@@ -16,11 +30,11 @@ export class CompanyService {
   private readonly logger = new Logger(CompanyService.name);
 
   constructor(
-        private prisma: PrismaService,
-        private companyGateway: CompanyGateway,
-        private storage: SupabaseStorageService,
-        private asoProtocoloService: AsoProtocoloService,
-      ) {}
+    private prisma: PrismaService,
+    private companyGateway: CompanyGateway,
+    private storage: SupabaseStorageService,
+    private asoProtocoloService: AsoProtocoloService,
+  ) {}
 
   private mapExamTypeToTipoExame(examType: string): TipoExame {
     const map: Record<string, TipoExame> = {
@@ -89,6 +103,7 @@ export class CompanyService {
                 lat: dto.lat,
                 lng: dto.lng,
                 status: 'CADASTRO_INCOMPLETO',
+                environment: DataEnvironment.REAL,
               },
             });
 
@@ -151,13 +166,18 @@ export class CompanyService {
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.contactEmail !== undefined) data.contactEmail = dto.contactEmail;
     const locationChanged =
-      dto.cep !== undefined || dto.city !== undefined || dto.state !== undefined;
+      dto.cep !== undefined ||
+      dto.city !== undefined ||
+      dto.state !== undefined;
     const updated = await this.prisma.company.update({
       where: { id: companyId },
       data,
     });
     if (locationChanged || !updated.clinicId) {
-      const clinic = await this.findBestClinicForCompany(companyId, locationChanged);
+      const clinic = await this.findBestClinicForCompany(
+        companyId,
+        locationChanged,
+      );
       if (clinic?.id !== updated.clinicId) {
         return this.prisma.company.update({
           where: { id: companyId },
@@ -169,129 +189,173 @@ export class CompanyService {
   }
 
   async updateCompanyStatus(companyId: string, status: string) {
-      return this.prisma.company.update({
-        where: { id: companyId },
-        data: { status: status as CompanyStatus },
-      });
-    }
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { status: status as CompanyStatus },
+    });
+  }
 
   async createInvite(companyId: string, dto: CreateInviteDto) {
-      this.logger.log(`[createInvite] Iniciando criação de convite para empresa=${companyId}, paymentId=${dto.paymentId}, examType=${dto.examType}`);
+    this.logger.log(
+      `[createInvite] Iniciando criação de convite para empresa=${companyId}, paymentId=${dto.paymentId}, examType=${dto.examType}`,
+    );
 
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: {
-          id: true,
-          status: true,
-          pcmsoValidUntil: true,
-          ppraValidUntil: true,
-          clinicId: true,
-          razaoSocial: true,
-        },
-      });
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        status: true,
+        pcmsoValidUntil: true,
+        ppraValidUntil: true,
+        clinicId: true,
+        razaoSocial: true,
+        environment: true,
+      },
+    });
 
-      if (!company) {
-        this.logger.error(`[createInvite] Empresa não encontrada: ${companyId}`);
-        throw new Error('Empresa não encontrada');
-      }
+    if (!company) {
+      this.logger.error(`[createInvite] Empresa não encontrada: ${companyId}`);
+      throw new Error('Empresa não encontrada');
+    }
 
-      this.logger.log(`[createInvite] Empresa=${companyId}, status=${company.status}, clinicId=${company.clinicId}, pcmsoValidUntil=${company.pcmsoValidUntil}, ppraValidUntil=${company.ppraValidUntil}`);
+    this.logger.log(
+      `[createInvite] Empresa=${companyId}, status=${company.status}, clinicId=${company.clinicId}, pcmsoValidUntil=${company.pcmsoValidUntil}, ppraValidUntil=${company.ppraValidUntil}`,
+    );
 
-      const now = new Date();
-      const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
-      const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
+    const now = new Date();
+    const pcmsoValid = company.pcmsoValidUntil && company.pcmsoValidUntil > now;
+    const ppraValid = company.ppraValidUntil && company.ppraValidUntil > now;
 
-      if (company.status !== 'LIBERADA') {
-        this.logger.warn(`[createInvite] Empresa não LIBERADA: ${companyId}, status=${company.status}`);
-        throw new Error(
-          `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
-        );
-      }
+    if (company.status !== 'LIBERADA') {
+      this.logger.warn(
+        `[createInvite] Empresa não LIBERADA: ${companyId}, status=${company.status}`,
+      );
+      throw new Error(
+        `Empresa com status '${company.status}'. É necessário ter documentação PCMSO e PPRA válidas para criar convites.`,
+      );
+    }
 
-      if (!pcmsoValid || !ppraValid) {
-        this.logger.warn(`[createInvite] Documentação vencida: empresa=${companyId}, pcmsoValid=${pcmsoValid}, ppraValid=${ppraValid}`);
-        throw new Error(
-          'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
-        );
-      }
+    if (!pcmsoValid || !ppraValid) {
+      this.logger.warn(
+        `[createInvite] Documentação vencida: empresa=${companyId}, pcmsoValid=${pcmsoValid}, ppraValid=${ppraValid}`,
+      );
+      throw new Error(
+        'Documentação PCMSO ou PPRA vencida. Por favor, renove os documentos antes de criar novos convites.',
+      );
+    }
 
-      const payment = await this.prisma.payment.findUnique({
-        where: { id: dto.paymentId },
-        select: {
-          id: true,
-          companyId: true,
-          flow: true,
-          status: true,
-          quoteSnapshot: true,
-          invite: { select: { id: true } },
-        },
-      });
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: dto.paymentId },
+      select: {
+        id: true,
+        companyId: true,
+        flow: true,
+        status: true,
+        quoteSnapshot: true,
+        invite: { select: { id: true } },
+      },
+    });
 
-      this.logger.log(`[createInvite] Payment=${dto.paymentId}, found=${!!payment}, flow=${payment?.flow}, status=${payment?.status}`);
+    this.logger.log(
+      `[createInvite] Payment=${dto.paymentId}, found=${!!payment}, flow=${payment?.flow}, status=${payment?.status}`,
+    );
+
+    if (
+      !payment ||
+      payment.companyId !== companyId ||
+      payment.flow !== PaymentFlow.COMPANY_INVITE ||
+      payment.status !== PaymentStatus.PAGO
+    ) {
+      this.logger.warn(
+        `[createInvite] Pagamento inválido: paymentId=${dto.paymentId}, paymentCompany=${payment?.companyId}, expectedCompany=${companyId}, flow=${payment?.flow}, status=${payment?.status}`,
+      );
+      throw new ConflictException(
+        'O convite exige um pagamento empresarial confirmado.',
+      );
+    }
+    if (payment.invite) {
+      this.logger.warn(
+        `[createInvite] Pagamento já usado: paymentId=${dto.paymentId}, existingInviteId=${payment.invite.id}`,
+      );
+      throw new ConflictException(
+        'Este pagamento ja foi usado para gerar um convite.',
+      );
+    }
+    try {
+      const quote = JSON.parse(payment.quoteSnapshot) as {
+        cboCode?: string;
+        examPurpose?: string;
+      };
+      this.logger.log(
+        `[createInvite] Quote do pagamento: cboCode=${quote.cboCode}, examPurpose=${quote.examPurpose}, dtoCboCode=${dto.roleFunctionCboCode}, dtoExamType=${dto.examType}`,
+      );
 
       if (
-        !payment ||
-        payment.companyId !== companyId ||
-        payment.flow !== PaymentFlow.COMPANY_INVITE ||
-        payment.status !== PaymentStatus.PAGO
+        quote.cboCode !== dto.roleFunctionCboCode ||
+        quote.examPurpose !== dto.examType
       ) {
-        this.logger.warn(`[createInvite] Pagamento inválido: paymentId=${dto.paymentId}, paymentCompany=${payment?.companyId}, expectedCompany=${companyId}, flow=${payment?.flow}, status=${payment?.status}`);
+        this.logger.warn(
+          `[createInvite] CBO/Tipo divergente: quote.cboCode=${quote.cboCode} !== dto.roleFunctionCboCode=${dto.roleFunctionCboCode} OU quote.examPurpose=${quote.examPurpose} !== dto.examType=${dto.examType}`,
+        );
         throw new ConflictException(
-          'O convite exige um pagamento empresarial confirmado.',
+          'O pagamento foi cotado para outro CBO ou tipo de exame.',
         );
       }
-      if (payment.invite) {
-        this.logger.warn(`[createInvite] Pagamento já usado: paymentId=${dto.paymentId}, existingInviteId=${payment.invite.id}`);
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      this.logger.error(
+        `[createInvite] Erro ao parsear quoteSnapshot: ${error}`,
+      );
+      throw new ConflictException(
+        'A cotacao vinculada ao pagamento e invalida.',
+      );
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
+
+    // Determine clinic: use provided clinicId, or find best clinic for company
+    let clinicId = dto.clinicId;
+    if (!clinicId) {
+      this.logger.log(
+        `[createInvite] ClinicId não fornecido, buscando melhor clínica para empresa=${companyId}`,
+      );
+      const bestClinic = await this.findBestClinicForCompany(companyId);
+      if (bestClinic) {
+        clinicId = bestClinic.id;
+        this.logger.log(
+          `[createInvite] Melhor clínica encontrada: ${bestClinic.id} (${bestClinic.name})`,
+        );
+      } else {
+        this.logger.error(
+          `[createInvite] NENHUMA clínica encontrada para empresa=${companyId}`,
+        );
         throw new ConflictException(
-          'Este pagamento ja foi usado para gerar um convite.',
+          'Nenhuma clínica disponível para esta empresa. Configure uma clínica antes de criar convites.',
         );
       }
-      try {
-        const quote = JSON.parse(payment.quoteSnapshot) as {
-          cboCode?: string;
-          examPurpose?: string;
-        };
-        this.logger.log(`[createInvite] Quote do pagamento: cboCode=${quote.cboCode}, examPurpose=${quote.examPurpose}, dtoCboCode=${dto.roleFunctionCboCode}, dtoExamType=${dto.examType}`);
-
-        if (
-          quote.cboCode !== dto.roleFunctionCboCode ||
-          quote.examPurpose !== dto.examType
-        ) {
-          this.logger.warn(`[createInvite] CBO/Tipo divergente: quote.cboCode=${quote.cboCode} !== dto.roleFunctionCboCode=${dto.roleFunctionCboCode} OU quote.examPurpose=${quote.examPurpose} !== dto.examType=${dto.examType}`);
-          throw new ConflictException(
-            'O pagamento foi cotado para outro CBO ou tipo de exame.',
-          );
-        }
-      } catch (error) {
-        if (error instanceof ConflictException) throw error;
-        this.logger.error(`[createInvite] Erro ao parsear quoteSnapshot: ${error}`);
+    } else {
+      this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
+      const selectedClinic = await this.prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: { environment: true },
+      });
+      if (
+        !selectedClinic ||
+        selectedClinic.environment !== company.environment
+      ) {
         throw new ConflictException(
-          'A cotacao vinculada ao pagamento e invalida.',
+          'A clínica precisa pertencer ao mesmo ambiente da empresa.',
         );
       }
+    }
 
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + (dto.expiresInDays ?? 7));
-
-      // Determine clinic: use provided clinicId, or find best clinic for company
-      let clinicId = dto.clinicId;
-      if (!clinicId) {
-        this.logger.log(`[createInvite] ClinicId não fornecido, buscando melhor clínica para empresa=${companyId}`);
-        const bestClinic = await this.findBestClinicForCompany(companyId);
-        if (bestClinic) {
-          clinicId = bestClinic.id;
-          this.logger.log(`[createInvite] Melhor clínica encontrada: ${bestClinic.id} (${bestClinic.name})`);
-        } else {
-                  this.logger.error(`[createInvite] NENHUMA clínica encontrada para empresa=${companyId}`);
-                  throw new ConflictException('Nenhuma clínica disponível para esta empresa. Configure uma clínica antes de criar convites.');
-                }
-              } else {
-                this.logger.log(`[createInvite] ClinicId fornecido no DTO: ${clinicId}`);
-              }
-
-              // Transação atômica: criar ExamInvite + ProcessoASO (status INICIADO)
-      const result = await this.prisma.$transaction(async (tx) => {
-        this.logger.log(`[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`);
+    // Transação atômica: criar ExamInvite + ProcessoASO (status INICIADO)
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        this.logger.log(
+          `[createInvite] Criando ExamInvite: companyId=${companyId}, clinicId=${clinicId}, collaboratorName=${dto.collaboratorName}, expectedEmail=${dto.expectedEmail}`,
+        );
 
         const invite = await tx.examInvite.create({
           data: {
@@ -313,22 +377,26 @@ export class CompanyService {
           include: { company: true },
         });
 
-        this.logger.log(`[createInvite] ExamInvite criado com sucesso: inviteId=${invite.id}, token=${invite.token}`);
+        this.logger.log(
+          `[createInvite] ExamInvite criado com sucesso: inviteId=${invite.id}, token=${invite.token}`,
+        );
 
         // Criar ProcessoASO (status INICIADO) acompanhando o convite desde o pagamento
-                const protocolo = await this.asoProtocoloService.create(
-                  {
-                    empresaId: companyId,
-                    clinicaId: clinicId ?? undefined,
-                    tipoExame: this.mapExamTypeToTipoExame(dto.examType),
-                    inviteId: invite.id,
-                    observacoes: `Protocolo gerado no pagamento para colaborador ${dto.collaboratorName}`,
-                  },
-                  'system',
-                  tx,
-                );
+        const protocolo = await this.asoProtocoloService.create(
+          {
+            empresaId: companyId,
+            clinicaId: clinicId ?? undefined,
+            tipoExame: this.mapExamTypeToTipoExame(dto.examType),
+            inviteId: invite.id,
+            observacoes: `Protocolo gerado no pagamento para colaborador ${dto.collaboratorName}`,
+          },
+          'system',
+          tx,
+        );
 
-        this.logger.log(`[createInvite] ProcessoASO criado: protocolo=${protocolo.numeroProtocolo}, id=${protocolo.id}`);
+        this.logger.log(
+          `[createInvite] ProcessoASO criado: protocolo=${protocolo.numeroProtocolo}, id=${protocolo.id}`,
+        );
 
         // Vincular protocolo ao convite
         await tx.examInvite.update({
@@ -344,34 +412,36 @@ export class CompanyService {
         });
 
         return { invite, protocolo };
-      }, {
+      },
+      {
         timeout: 30000,
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-      });
+      },
+    );
 
-      const { invite, protocolo } = result;
+    const { invite, protocolo } = result;
 
-            // Emitir WS após transação committada
-            this.companyGateway.emitTimelineUpdate(companyId, {
-              inviteId: invite.id,
-              eventType: 'LINK_ENVIADO',
-              occurredAt: invite.sentAt.toISOString(),
-            });
+    // Emitir WS após transação committada
+    this.companyGateway.emitTimelineUpdate(companyId, {
+      inviteId: invite.id,
+      eventType: 'LINK_ENVIADO',
+      occurredAt: invite.sentAt.toISOString(),
+    });
 
-            return invite;
+    return invite;
   }
 
   async listInvites(companyId: string) {
-      return this.prisma.examInvite.findMany({
-        where: { companyId },
-        include: {
-          timelineEvents: { orderBy: { occurredAt: 'asc' } },
-          examRequest: { include: { results: true } },
-          processoAso: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    }
+    return this.prisma.examInvite.findMany({
+      where: { companyId },
+      include: {
+        timelineEvents: { orderBy: { occurredAt: 'asc' } },
+        examRequest: { include: { results: true } },
+        processoAso: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   async listActiveAsos(companyId: string) {
     const now = new Date();
@@ -391,51 +461,51 @@ export class CompanyService {
         },
       },
       include: {
-              request: {
-                include: {
-                                  patient: true,
-                                  invite: true,
-                                  processoAso: true,
-                                },
-              },
-              doctor: true,
-            },
+        request: {
+          include: {
+            patient: true,
+            invite: true,
+            processoAso: true,
+          },
+        },
+        doctor: true,
+      },
       orderBy: { validUntil: 'asc' },
     });
 
     return asos.map((aso) => {
-              const validUntil = aso.validUntil as Date;
-              const signedAt = aso.signedAt ?? aso.request.createdAt;
-              const daysUntilExpiration = Math.ceil(
-                (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-              );
+      const validUntil = aso.validUntil as Date;
+      const signedAt = aso.signedAt ?? aso.request.createdAt;
+      const daysUntilExpiration = Math.ceil(
+        (validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
-              return {
-                id: aso.id,
-                requestId: aso.requestId,
-                numeroProtocolo: aso.request.processoAso?.numeroProtocolo ?? null,
-                processoAsoId: aso.request.processoAsoId ?? null,
-            collaborator: {
-              id: aso.request.patient.id,
-              name: aso.request.patient.name,
-              cpf: aso.request.patient.cpf,
-              functionCboCode: aso.request.patient.functionCboCode,
-            },
-            examType: aso.request.invite?.examType ?? aso.request.examPurpose,
-            examPurpose: aso.request.examPurpose,
-            issuedAt: signedAt.toISOString(),
-            validUntil: validUntil.toISOString(),
-            daysUntilExpiration,
-            decision: aso.decision,
-            restrictionNotes: aso.restrictionNotes,
-            pdfUrl: aso.pdfUrl,
-            doctor: {
-              id: aso.doctor.id,
-              name: aso.doctor.name,
-              crm: `${aso.doctor.crmNumber}/${aso.doctor.crmState}`,
-            },
-          };
-        });
+      return {
+        id: aso.id,
+        requestId: aso.requestId,
+        numeroProtocolo: aso.request.processoAso?.numeroProtocolo ?? null,
+        processoAsoId: aso.request.processoAsoId ?? null,
+        collaborator: {
+          id: aso.request.patient.id,
+          name: aso.request.patient.name,
+          cpf: aso.request.patient.cpf,
+          functionCboCode: aso.request.patient.functionCboCode,
+        },
+        examType: aso.request.invite?.examType ?? aso.request.examPurpose,
+        examPurpose: aso.request.examPurpose,
+        issuedAt: signedAt.toISOString(),
+        validUntil: validUntil.toISOString(),
+        daysUntilExpiration,
+        decision: aso.decision,
+        restrictionNotes: aso.restrictionNotes,
+        pdfUrl: aso.pdfUrl,
+        doctor: {
+          id: aso.doctor.id,
+          name: aso.doctor.name,
+          crm: `${aso.doctor.crmNumber}/${aso.doctor.crmState}`,
+        },
+      };
+    });
   }
 
   async getAsoPdf(companyId: string, asoId: string) {
@@ -515,18 +585,18 @@ export class CompanyService {
   }
 
   async recordTimelineEvent(data: {
-      inviteId: string;
-      examRequestId?: string;
-      eventType: TimelineEventType;
-    }) {
-      return this.prisma.examTimelineEvent.create({
-        data: {
-          inviteId: data.inviteId,
-          examRequestId: data.examRequestId,
-          eventType: data.eventType,
-        },
-      });
-    }
+    inviteId: string;
+    examRequestId?: string;
+    eventType: TimelineEventType;
+  }) {
+    return this.prisma.examTimelineEvent.create({
+      data: {
+        inviteId: data.inviteId,
+        examRequestId: data.examRequestId,
+        eventType: data.eventType,
+      },
+    });
+  }
 
   async getDashboardStats(companyId: string) {
     const invites = await this.prisma.examInvite.findMany({
@@ -628,18 +698,24 @@ export class CompanyService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return requests.map((r) => [
-      r.patient.name,
-      r.patient.cpf,
-      r.patient.functionCboCode ?? '',
-      r.examPurpose,
-      r.createdAt.toISOString().split('T')[0],
-      r.asoDocuments[0]?.decision ?? '',
-      r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
-    ].map((value) => {
-      const safeValue = String(value ?? '');
-      return /[",;\n\r]/.test(safeValue) ? `"${safeValue.replace(/"/g, '""')}"` : safeValue;
-    }).join(';'));
+    return requests.map((r) =>
+      [
+        r.patient.name,
+        r.patient.cpf,
+        r.patient.functionCboCode ?? '',
+        r.examPurpose,
+        r.createdAt.toISOString().split('T')[0],
+        r.asoDocuments[0]?.decision ?? '',
+        r.asoDocuments[0]?.validUntil?.toISOString().split('T')[0] ?? '',
+      ]
+        .map((value) => {
+          const safeValue = String(value ?? '');
+          return /[",;\n\r]/.test(safeValue)
+            ? `"${safeValue.replace(/"/g, '""')}"`
+            : safeValue;
+        })
+        .join(';'),
+    );
   }
 
   /**
@@ -649,7 +725,10 @@ export class CompanyService {
    * 3. Clínica Matriz no mesmo estado
    * 4. Qualquer clínica ativa
    */
-  async findBestClinicForCompany(companyId: string, ignoreCurrentAssignment = false) {
+  async findBestClinicForCompany(
+    companyId: string,
+    ignoreCurrentAssignment = false,
+  ) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -659,6 +738,7 @@ export class CompanyService {
         lat: true,
         lng: true,
         clinicId: true,
+        environment: true,
         clinic: {
           select: {
             id: true,
@@ -666,6 +746,7 @@ export class CompanyService {
             isMatriz: true,
             city: true,
             state: true,
+            environment: true,
           },
         },
       },
@@ -674,18 +755,33 @@ export class CompanyService {
     if (!company) throw new Error('Empresa não encontrada');
 
     // 1. Se empresa já tem clínica atribuída e é Matriz, usa ela
-    if (!ignoreCurrentAssignment && company.clinicId && company.clinic?.isMatriz) {
+    if (
+      !ignoreCurrentAssignment &&
+      company.clinicId &&
+      company.clinic?.isMatriz &&
+      company.clinic.environment === company.environment
+    ) {
       return company.clinic;
     }
 
     if (company.lat !== null && company.lng !== null) {
       const clinics = await this.prisma.clinic.findMany({
-        where: { isActive: true, lat: { not: null }, lng: { not: null } },
+        where: {
+          isActive: true,
+          environment: company.environment,
+          lat: { not: null },
+          lng: { not: null },
+        },
       });
       const nearest = clinics
         .map((clinic) => ({
           clinic,
-          distance: this.distanceKm(company.lat!, company.lng!, clinic.lat!, clinic.lng!),
+          distance: this.distanceKm(
+            company.lat!,
+            company.lng!,
+            clinic.lat!,
+            clinic.lng!,
+          ),
         }))
         .sort((a, b) => a.distance - b.distance)[0];
       if (nearest && nearest.distance <= 100) return nearest.clinic;
@@ -695,6 +791,7 @@ export class CompanyService {
     const matrizSameCity = await this.prisma.clinic.findFirst({
       where: {
         isActive: true,
+        environment: company.environment,
         isMatriz: true,
         city: company.city,
         state: company.state,
@@ -707,6 +804,7 @@ export class CompanyService {
     const sameCity = await this.prisma.clinic.findFirst({
       where: {
         isActive: true,
+        environment: company.environment,
         city: company.city,
         state: company.state,
       },
@@ -718,6 +816,7 @@ export class CompanyService {
     const matrizSameState = await this.prisma.clinic.findFirst({
       where: {
         isActive: true,
+        environment: company.environment,
         isMatriz: true,
         state: company.state,
       },
@@ -727,7 +826,7 @@ export class CompanyService {
 
     // 5. Qualquer clínica ativa (fallback)
     const anyClinic = await this.prisma.clinic.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, environment: company.environment },
       orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
     });
     if (anyClinic) return anyClinic;

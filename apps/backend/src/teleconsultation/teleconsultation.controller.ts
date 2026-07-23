@@ -1,4 +1,12 @@
-import { BadRequestException, Body, ConflictException, Controller, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  NotFoundException,
+  Post,
+  Req,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma.service';
 import { QueueGateway } from '../queue/queue.gateway';
@@ -13,33 +21,55 @@ export class TeleconsultationController {
   ) {}
 
   @Post('create-room')
-  async createRoom(@Req() req: Request, @Body() body: { examRequestId: string; doctorId?: string }) {
-    const user = (req as any).user as { role?: string; profileId?: string | null } | undefined;
-    const doctorId = user?.role === 'DOCTOR' && user.profileId ? user.profileId : null;
+  async createRoom(
+    @Req() req: Request,
+    @Body() body: { examRequestId: string; doctorId?: string },
+  ) {
+    const user = (req as any).user as
+      { role?: string; profileId?: string | null } | undefined;
+    const doctorId =
+      user?.role === 'DOCTOR' && user.profileId ? user.profileId : null;
 
     if (!body.examRequestId || !doctorId) {
-      throw new BadRequestException('Nao foi possivel identificar o medico autenticado.');
+      throw new BadRequestException(
+        'Nao foi possivel identificar o medico autenticado.',
+      );
     }
 
-    const doctor = await this.prisma.doctor.findUnique({ where: { id: doctorId } });
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { id: doctorId },
+    });
     if (!doctor) {
-      throw new BadRequestException('Medico nao encontrado. Verifique se o perfil medico esta correto.');
+      throw new BadRequestException(
+        'Medico nao encontrado. Verifique se o perfil medico esta correto.',
+      );
     }
 
     const examRequest = await this.prisma.examRequest.findUnique({
       where: { id: body.examRequestId },
       include: { invite: true },
     });
-    if (!examRequest) throw new BadRequestException('Solicitacao de exame nao encontrada.');
+    if (!examRequest)
+      throw new BadRequestException('Solicitacao de exame nao encontrada.');
+    if (doctor.environment !== examRequest.environment) {
+      throw new NotFoundException('Solicitacao de exame nao encontrada.');
+    }
 
-    if (!['AGUARDANDO_COLETA', 'EM_ATENDIMENTO_MEDICO'].includes(examRequest.status)) {
+    if (
+      !['AGUARDANDO_COLETA', 'EM_ATENDIMENTO_MEDICO'].includes(
+        examRequest.status,
+      )
+    ) {
       await this.prisma.examTimelineEvent.create({
         data: {
           inviteId: examRequest.inviteId ?? null,
           examRequestId: body.examRequestId,
           eventType: 'TELECONSULTA_BLOQUEADA',
           metadata: JSON.stringify({
-            reason: examRequest.status === 'CONCLUIDO' ? 'EXAM_CONCLUIDO' : 'EXAM_INDISPONIVEL',
+            reason:
+              examRequest.status === 'CONCLUIDO'
+                ? 'EXAM_CONCLUIDO'
+                : 'EXAM_INDISPONIVEL',
             status: examRequest.status,
             doctorId,
           }),
@@ -47,7 +77,10 @@ export class TeleconsultationController {
       });
       throw new ConflictException({
         error: 'TELECONSULTATION_BLOCKED',
-        code: examRequest.status === 'CONCLUIDO' ? 'EXAM_CONCLUIDO' : 'EXAM_INDISPONIVEL',
+        code:
+          examRequest.status === 'CONCLUIDO'
+            ? 'EXAM_CONCLUIDO'
+            : 'EXAM_INDISPONIVEL',
         message:
           examRequest.status === 'CONCLUIDO'
             ? 'Não é possível iniciar teleconsulta: atendimento já concluído.'
@@ -61,10 +94,15 @@ export class TeleconsultationController {
     });
 
     if (existingRoom) {
-      const videoSessionId = this.withEmbeddedJitsiConfig(existingRoom.videoSessionId);
-      const hostRoomUrl = this.withEmbeddedJitsiConfig(existingRoom.hostRoomUrl);
+      const videoSessionId = this.withEmbeddedJitsiConfig(
+        existingRoom.videoSessionId,
+      );
+      const hostRoomUrl = this.withEmbeddedJitsiConfig(
+        existingRoom.hostRoomUrl,
+      );
       const roomForReturn =
-        videoSessionId !== existingRoom.videoSessionId || hostRoomUrl !== existingRoom.hostRoomUrl
+        videoSessionId !== existingRoom.videoSessionId ||
+        hostRoomUrl !== existingRoom.hostRoomUrl
           ? await this.prisma.teleconsultation.update({
               where: { id: existingRoom.id },
               data: { videoSessionId, hostRoomUrl },
@@ -104,7 +142,9 @@ export class TeleconsultationController {
 
     const uniqueHash = Math.random().toString(36).substring(2, 10);
     const roomName = `SaudeSeg-Consulta-${body.examRequestId.slice(0, 8)}-${uniqueHash}`;
-    const videoSessionId = this.withEmbeddedJitsiConfig(`https://meet.jit.si/${roomName}`);
+    const videoSessionId = this.withEmbeddedJitsiConfig(
+      `https://meet.jit.si/${roomName}`,
+    );
     const hostRoomUrl = videoSessionId;
 
     const teleconsultation = await this.prisma.teleconsultation.create({
@@ -140,15 +180,24 @@ export class TeleconsultationController {
 
   private emitTeleconsultationStarted(
     examRequestId: string,
-    teleconsultation: { id: string; videoSessionId: string | null; hostRoomUrl: string | null; startedAt: Date },
+    teleconsultation: {
+      id: string;
+      videoSessionId: string | null;
+      hostRoomUrl: string | null;
+      startedAt: Date;
+    },
   ) {
-    this.queueGateway.emitProcessUpdate(examRequestId, 'teleconsulta_iniciada', {
+    this.queueGateway.emitProcessUpdate(
       examRequestId,
-      teleconsultationId: teleconsultation.id,
-      linkSala: teleconsultation.videoSessionId,
-      hostRoomUrl: teleconsultation.hostRoomUrl,
-      startedAt: teleconsultation.startedAt.toISOString(),
-    });
+      'teleconsulta_iniciada',
+      {
+        examRequestId,
+        teleconsultationId: teleconsultation.id,
+        linkSala: teleconsultation.videoSessionId,
+        hostRoomUrl: teleconsultation.hostRoomUrl,
+        startedAt: teleconsultation.startedAt.toISOString(),
+      },
+    );
   }
 
   private withEmbeddedJitsiConfig(url: string | null) {

@@ -18,7 +18,7 @@ import {
   UpdateAdminDoctorDto,
   SetMatrizClinicDto,
 } from './dto/update-admin-profiles.dto';
-import { CompanyStatus } from '@prisma/client';
+import { CompanyStatus, DataEnvironment } from '@prisma/client';
 
 @Controller('api/admin')
 @UseGuards(RolesGuard)
@@ -26,10 +26,43 @@ import { CompanyStatus } from '@prisma/client';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  private parseEnvironment(environment?: string): DataEnvironment {
+    return environment === DataEnvironment.SANDBOX
+      ? DataEnvironment.SANDBOX
+      : DataEnvironment.REAL;
+  }
+
   // ─── Companies ────────────────────────────────────────────────────────────
   @Get('companies')
-  async getCompanies(@Query('status') status?: CompanyStatus) {
-    return this.adminService.getCompanies(status);
+  async getCompanies(
+    @Query('status') status?: CompanyStatus,
+    @Query('environment') environment?: string,
+  ) {
+    return this.adminService.getCompanies(
+      status,
+      this.parseEnvironment(environment),
+    );
+  }
+
+  @Post('companies')
+  async createCompany(
+    @Body()
+    body: {
+      razaoSocial: string;
+      nomeFantasia?: string;
+      cnpj: string;
+      address?: string;
+      cep?: string;
+      city?: string;
+      state?: string;
+      email?: string;
+      environment?: DataEnvironment;
+    },
+  ) {
+    return this.adminService.createCompany({
+      ...body,
+      environment: this.parseEnvironment(body.environment),
+    });
   }
 
   @Get('companies/pending-approval')
@@ -57,8 +90,8 @@ export class AdminController {
 
   // ─── Clinics ─────────────────────────────────────────────────────────────
   @Get('clinics')
-  async getClinics() {
-    return this.adminService.getClinics();
+  async getClinics(@Query('environment') environment?: string) {
+    return this.adminService.getClinics(this.parseEnvironment(environment));
   }
 
   @Get('clinics/:id')
@@ -67,8 +100,22 @@ export class AdminController {
   }
 
   @Post('clinics')
-  async createClinic(@Body() body: any) {
-    return this.adminService.createClinic(body);
+  async createClinic(
+    @Body()
+    body: {
+      name: string;
+      cnpj: string;
+      city?: string;
+      state?: string;
+      address?: string;
+      email?: string;
+      environment?: DataEnvironment;
+    },
+  ) {
+    return this.adminService.createClinic({
+      ...body,
+      environment: this.parseEnvironment(body.environment),
+    });
   }
 
   @Patch('clinics/:id')
@@ -94,8 +141,8 @@ export class AdminController {
 
   // ─── Doctors ─────────────────────────────────────────────────────────────
   @Get('doctors')
-  async getDoctors() {
-    return this.adminService.getDoctors();
+  async getDoctors(@Query('environment') environment?: string) {
+    return this.adminService.getDoctors(this.parseEnvironment(environment));
   }
 
   @Get('doctors/:id')
@@ -115,9 +162,13 @@ export class AdminController {
       state?: string;
       specialties?: string;
       email?: string;
+      environment?: DataEnvironment;
     },
   ) {
-    return this.adminService.createDoctor(body);
+    return this.adminService.createDoctor({
+      ...body,
+      environment: this.parseEnvironment(body.environment),
+    });
   }
 
   @Patch('doctors/:id')

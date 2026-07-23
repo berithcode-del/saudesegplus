@@ -7,7 +7,8 @@ import type {
   FinancialCategory,
   PaymentStatus,
   SupportTicketStatus,
-} from '../enums/index.js';
+  DataEnvironment,
+} from "../enums/index.js";
 
 export interface UserAccount {
   id: string;
@@ -27,6 +28,7 @@ export interface Patient {
   functionCboCode?: string;
   status: string;
   createdAt: string;
+  environment: DataEnvironment;
 }
 
 export interface ExamInvite {
@@ -56,6 +58,7 @@ export interface ExamRequestModel {
   status: string;
   createdAt: string;
   updatedAt: string;
+  environment: DataEnvironment;
 }
 
 export interface ExamTypeModel {
@@ -74,7 +77,7 @@ export interface ExamResult {
   valueJson: string;
   attachmentUrl?: string;
   collectedById?: string;
-  performedByType: 'OPERATOR' | 'DOCTOR' | 'CLINIC_ADMIN';
+  performedByType: "OPERATOR" | "DOCTOR" | "CLINIC_ADMIN";
   performedById: string;
   performedByName: string;
   actorSessionId?: string;

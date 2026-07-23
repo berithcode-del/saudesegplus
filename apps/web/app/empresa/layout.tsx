@@ -1,6 +1,7 @@
-'use client';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Squares2X2Icon,
   ClipboardDocumentListIcon,
@@ -8,47 +9,65 @@ import {
   FolderOpenIcon,
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
-} from '@heroicons/react/24/outline';
-import ChatWidget from '../../components/ChatWidget';
+} from "@heroicons/react/24/outline";
+import ChatWidget from "../../components/ChatWidget";
+import SandboxSidebarBadge from "../../components/SandboxSidebarBadge";
+import { apiFetch } from "../lib/api";
 
 const navItems = [
-  { href: '/empresa', icon: Squares2X2Icon },
-  { href: '/empresa/solicitacoes', icon: ClipboardDocumentListIcon },
-  { href: '/empresa/asos', icon: DocumentCheckIcon },
-  { href: '/empresa/documentos', icon: FolderOpenIcon },
-  { href: '/empresa/configuracoes', icon: Cog6ToothIcon },
+  { href: "/empresa", icon: Squares2X2Icon },
+  { href: "/empresa/solicitacoes", icon: ClipboardDocumentListIcon },
+  { href: "/empresa/asos", icon: DocumentCheckIcon },
+  { href: "/empresa/documentos", icon: FolderOpenIcon },
+  { href: "/empresa/configuracoes", icon: Cog6ToothIcon },
 ];
 
-export default function EmpresaLayout({ children }: { children: React.ReactNode }) {
+export default function EmpresaLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
+  const [isSandbox, setIsSandbox] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/auth/me")
+      .then((result: any) => {
+        setIsSandbox(
+          result?.companyAdminProfile?.company?.environment === "SANDBOX",
+        );
+      })
+      .catch(() => setIsSandbox(false));
+  }, []);
 
   return (
-      <div className="app-shell">
-        <aside className="sidebar">
-          <div className="sidebar-logo">
-            <div className="sidebar-logo-mark">
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-mark">
             <img src="/LogoWhite.svg" alt="SaudeSeg+" />
-            </div>
           </div>
-          <nav className="nav-section">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-item ${pathname === item.href ? 'active' : ''}`}
-              >
-                <item.icon className="icon nav-icon" />
-              </Link>
-            ))}
-          </nav>
-          <div className="sidebar-footer">
-            <Link href="/">
-              <ArrowRightOnRectangleIcon className="icon" />
+        </div>
+        <SandboxSidebarBadge visible={isSandbox} />
+        <nav className="nav-section">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`nav-item ${pathname === item.href ? "active" : ""}`}
+            >
+              <item.icon className="icon nav-icon" />
             </Link>
-          </div>
-        </aside>
-        <main className="main-content">{children}</main>
-        <ChatWidget perfil="EMPRESA" />
-      </div>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <Link href="/">
+            <ArrowRightOnRectangleIcon className="icon" />
+          </Link>
+        </div>
+      </aside>
+      <main className="main-content">{children}</main>
+      <ChatWidget perfil="EMPRESA" />
+    </div>
   );
 }

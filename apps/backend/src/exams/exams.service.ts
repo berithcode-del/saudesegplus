@@ -43,8 +43,12 @@ export class ExamsService {
       throw new BadRequestException('Tipo de exame nao informado');
     }
 
-    if (!actor) throw new BadRequestException('Profissional ativo nao identificado');
-    const activeActor = await this.clinicActors.resolve(actor, request.clinicId);
+    if (!actor)
+      throw new BadRequestException('Profissional ativo nao identificado');
+    const activeActor = await this.clinicActors.resolve(
+      actor,
+      request.clinicId,
+    );
 
     if (examType === 'outros' && !String(valueJson?.nome_exame ?? '').trim()) {
       throw new BadRequestException('Nome do exame adicional nao informado');
@@ -120,7 +124,9 @@ export class ExamsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException('Este exame ja foi registrado para a solicitacao.');
+        throw new ConflictException(
+          'Este exame ja foi registrado para a solicitacao.',
+        );
       }
       throw error;
     }
@@ -224,27 +230,37 @@ export class ExamsService {
     });
   }
 
-  async createPatient(data: {
-    name: string;
-    cpf: string;
-    phone?: string;
-    functionCboCode?: string;
-    examPurpose: string;
-    clinicId?: string;
-    inviteId?: string;
-    paymentId: string;
-  }, requestUser: JwtPayload) {
+  async createPatient(
+    data: {
+      name: string;
+      cpf: string;
+      phone?: string;
+      functionCboCode?: string;
+      examPurpose: string;
+      clinicId?: string;
+      inviteId?: string;
+      paymentId: string;
+    },
+    requestUser: JwtPayload,
+  ) {
     const activeActor = await this.clinicActors.resolve(requestUser);
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: data.paymentId },
-      select: {
-        id: true,
-        flow: true,
-        status: true,
-        clinicId: true,
-        examRequest: { select: { id: true } },
-      },
-    });
+    const [clinic, payment] = await Promise.all([
+      this.prisma.clinic.findUnique({
+        where: { id: activeActor.clinicId },
+        select: { environment: true },
+      }),
+      this.prisma.payment.findUnique({
+        where: { id: data.paymentId },
+        select: {
+          id: true,
+          flow: true,
+          status: true,
+          clinicId: true,
+          examRequest: { select: { id: true } },
+        },
+      }),
+    ]);
+    if (!clinic) throw new BadRequestException('Clinica nao encontrada.');
     if (
       !payment ||
       payment.flow !== PaymentFlow.CLINIC_WALK_IN ||
@@ -254,10 +270,7 @@ export class ExamsService {
         'O atendimento exige um pagamento presencial confirmado.',
       );
     }
-    if (
-      payment.clinicId &&
-      payment.clinicId !== activeActor.clinicId
-    ) {
+    if (payment.clinicId && payment.clinicId !== activeActor.clinicId) {
       throw new BadRequestException('O pagamento pertence a outra clinica.');
     }
     if (payment.examRequest) {
@@ -265,8 +278,8 @@ export class ExamsService {
         'Este pagamento ja foi usado em outro atendimento.',
       );
     }
-    const existingPatient = await this.prisma.patient.findUnique({
-      where: { cpf: data.cpf },
+    const existingPatient = await this.prisma.patient.findFirst({
+      where: { cpf: data.cpf, environment: clinic.environment },
     });
 
     if (existingPatient) {
@@ -274,6 +287,7 @@ export class ExamsService {
         where: {
           patientId: existingPatient.id,
           clinicId: activeActor.clinicId,
+          environment: clinic.environment,
           status: { not: 'CONCLUIDO' },
         },
       });
@@ -289,6 +303,7 @@ export class ExamsService {
         data: {
           patientId: existingPatient.id,
           clinicId: activeActor.clinicId,
+          environment: clinic.environment,
           source: data.inviteId ? 'convite' : 'direto',
           examPurpose: data.examPurpose,
           status: 'AGUARDANDO_COLETA',
@@ -296,13 +311,18 @@ export class ExamsService {
           paymentId: payment.id,
         },
       });
-      await this.clinicActors.audit(activeActor, 'PATIENT_CHECKED_IN', 'EXAM_REQUEST', examRequest.id);
+      await this.clinicActors.audit(
+        activeActor,
+        'PATIENT_CHECKED_IN',
+        'EXAM_REQUEST',
+        examRequest.id,
+      );
       return { patient: existingPatient, examRequest };
     }
 
     const patientUser = await this.prisma.userAccount.create({
       data: {
-        email: `${data.cpf}@walkin.temp`,
+        email: `${clinic.environment.toLowerCase()}.${data.cpf}@walkin.temp`,
         passwordHash: await bcrypt.hash(randomUUID(), 12),
         role: 'PATIENT',
       },
@@ -315,6 +335,7 @@ export class ExamsService {
         name: data.name,
         phone: data.phone ?? '',
         functionCboCode: data.functionCboCode ?? '0000-00',
+        environment: clinic.environment,
       },
     });
 
@@ -322,6 +343,7 @@ export class ExamsService {
       data: {
         patientId: patient.id,
         clinicId: activeActor.clinicId,
+        environment: clinic.environment,
         source: data.inviteId ? 'convite' : 'direto',
         examPurpose: data.examPurpose,
         status: 'AGUARDANDO_COLETA',
@@ -330,7 +352,12 @@ export class ExamsService {
       },
     });
 
-    await this.clinicActors.audit(activeActor, 'PATIENT_CHECKED_IN', 'EXAM_REQUEST', examRequest.id);
+    await this.clinicActors.audit(
+      activeActor,
+      'PATIENT_CHECKED_IN',
+      'EXAM_REQUEST',
+      examRequest.id,
+    );
     return { patient, examRequest };
   }
 }

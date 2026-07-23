@@ -13,6 +13,12 @@ export class MedicalSearchService {
     const safeLimit = Math.min(Math.max(limit || 5, 1), 10);
     if (!doctorId || q.length < 3) return { patients: [], protocols: [] };
 
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { environment: true },
+    });
+    if (!doctor) throw new ForbiddenException('Perfil medico nao encontrado');
+
     const workspaceClinicId = user.workspaceClinicId ?? null;
     if (workspaceClinicId) {
       const membership = await this.prisma.clinicDoctor.findUnique({
@@ -31,6 +37,7 @@ export class MedicalSearchService {
 
     const patientMatches = await this.prisma.examRequest.findMany({
       where: {
+        environment: doctor.environment,
         OR: requestScope,
         patient: { name: { contains: q, mode: 'insensitive' } },
       },
@@ -60,11 +67,21 @@ export class MedicalSearchService {
       }));
 
     const protocolWhere: Prisma.ProcessoASOWhereInput = {
-      numeroProtocolo: { contains: q, mode: 'insensitive' },
-      OR: [
-        { medicoId: doctorId },
-        { examRequest: { queueEntry: { assignedDoctorId: doctorId } } },
-        ...(workspaceClinicId ? [{ clinicaId: workspaceClinicId }] : []),
+      AND: [
+        { numeroProtocolo: { contains: q, mode: 'insensitive' } },
+        {
+          OR: [
+            { medicoId: doctorId },
+            { examRequest: { queueEntry: { assignedDoctorId: doctorId } } },
+            ...(workspaceClinicId ? [{ clinicaId: workspaceClinicId }] : []),
+          ],
+        },
+        {
+          OR: [
+            { examRequest: { environment: doctor.environment } },
+            { paciente: { environment: doctor.environment } },
+          ],
+        },
       ],
     };
 
@@ -83,10 +100,12 @@ export class MedicalSearchService {
       protocols: protocols.map((protocol) => ({
         id: protocol.id,
         numeroProtocolo: protocol.numeroProtocolo,
-        patientName: protocol.paciente?.name ?? protocol.examRequest?.patient.name ?? null,
+        patientName:
+          protocol.paciente?.name ?? protocol.examRequest?.patient.name ?? null,
         status: protocol.status,
         dataAbertura: protocol.dataAbertura,
-        examRequestId: protocol.examRequestId ?? protocol.examRequest?.id ?? null,
+        examRequestId:
+          protocol.examRequestId ?? protocol.examRequest?.id ?? null,
       })),
     };
   }

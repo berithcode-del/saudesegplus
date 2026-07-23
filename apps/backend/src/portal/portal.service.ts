@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { getJwtSecret, getPortalJwtExpiresIn } from '../auth/jwt-secret';
 import * as bcrypt from 'bcrypt';
@@ -41,20 +46,28 @@ export class PortalService {
     }
 
     if (invite.expectedBirthDate) {
-      if (!this.birthDatesMatch(invite.expectedBirthDate, normalizedBirthDate)) {
+      if (
+        !this.birthDatesMatch(invite.expectedBirthDate, normalizedBirthDate)
+      ) {
         throw new UnauthorizedException('Dados não conferem ou link expirado.');
       }
     }
 
-    let patient = await this.prisma.patient.findUnique({
-      where: { cpf: normalizeCpf(invite.expectedCpf ?? cpf) },
+    let patient = await this.prisma.patient.findFirst({
+      where: {
+        cpf: normalizeCpf(invite.expectedCpf ?? cpf),
+        environment: invite.company.environment,
+      },
     });
     let examRequest: any = invite.examRequest ?? null;
 
     if (!patient) {
       // Garantir e-mail único para não dar erro se o RH usar o mesmo e-mail para todos
-      let uniqueEmail = invite.expectedEmail || `paciente-${invite.token}@temp.saudeseg.com`;
-      const emailExists = await this.prisma.userAccount.findUnique({ where: { email: uniqueEmail } });
+      let uniqueEmail =
+        invite.expectedEmail || `paciente-${invite.token}@temp.saudeseg.com`;
+      const emailExists = await this.prisma.userAccount.findUnique({
+        where: { email: uniqueEmail },
+      });
       if (emailExists) {
         uniqueEmail = `paciente-${invite.token}@temp.saudeseg.com`;
       }
@@ -74,7 +87,9 @@ export class PortalService {
           name: invite.collaboratorName ?? 'Paciente',
           birthDate: invite.expectedBirthDate ?? new Date(normalizedBirthDate),
           phone: '',
-          functionCboCode: invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
+          functionCboCode:
+            invite.roleFunctionCboCode || invite.roleFunction || '0000-00',
+          environment: invite.company.environment,
         },
       });
 
@@ -106,6 +121,7 @@ export class PortalService {
         data: {
           patientId: patient.id,
           clinicId: resolvedClinic?.id,
+          environment: invite.company.environment,
           inviteId: invite.id,
           source: 'convite_empresa',
           examPurpose: invite.examType,
@@ -186,7 +202,13 @@ export class PortalService {
   private birthDateCandidates(date: Date) {
     const candidates = new Set<string>();
     candidates.add(date.toISOString().slice(0, 10));
-    candidates.add(this.formatDateParts(date.getFullYear(), date.getMonth() + 1, date.getDate()));
+    candidates.add(
+      this.formatDateParts(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        date.getDate(),
+      ),
+    );
 
     const saoPauloParts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Sao_Paulo',
@@ -228,20 +250,31 @@ export class PortalService {
     const latestVideoSessionId = this.withEmbeddedJitsiConfig(
       request.teleconsultations[0]?.videoSessionId ?? null,
     );
-    const effectiveStatus = latestVideoSessionId && request.status !== 'CONCLUIDO'
-      ? 'EM_ATENDIMENTO_MEDICO'
-      : request.status;
+    const effectiveStatus =
+      latestVideoSessionId && request.status !== 'CONCLUIDO'
+        ? 'EM_ATENDIMENTO_MEDICO'
+        : request.status;
 
     const proximaAcao = this.calcularProximaAcao(effectiveStatus, {
       hasDocuments: request.documents.length > 0,
-      requiredDocsOk: await this.verificarDocumentosObrigatorios(patientId, processId),
-      hasAnamnese: await this.prisma.anamnese.findFirst({ where: { patientId }, orderBy: { createdAt: 'desc' } }),
+      requiredDocsOk: await this.verificarDocumentosObrigatorios(
+        patientId,
+        processId,
+      ),
+      hasAnamnese: await this.prisma.anamnese.findFirst({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+      }),
       clinicAddress: request.clinic?.address ?? null,
       videoSessionId: latestVideoSessionId,
       asoPdfUrl: request.asoDocuments[0]?.pdfUrl ?? null,
     });
 
-    const documentos: { tipo: string; enviado: boolean; fileUrl: string | null }[] = request.documents.map(d => ({
+    const documentos: {
+      tipo: string;
+      enviado: boolean;
+      fileUrl: string | null;
+    }[] = request.documents.map((d) => ({
       tipo: d.tipo,
       enviado: true,
       fileUrl: d.fileUrl,
@@ -249,7 +282,7 @@ export class PortalService {
 
     const requiredTypes = ['rg', 'foto'];
     for (const tipo of requiredTypes) {
-      if (!documentos.find(d => d.tipo === tipo)) {
+      if (!documentos.find((d) => d.tipo === tipo)) {
         documentos.push({ tipo, enviado: false, fileUrl: null });
       }
     }
@@ -261,7 +294,7 @@ export class PortalService {
 
     const aso = request.asoDocuments[0];
     const teleconsulta = request.teleconsultations[0];
-    const timeline = request.timelineEvents.map(e => ({
+    const timeline = request.timelineEvents.map((e) => ({
       eventType: e.eventType,
       occurredAt: e.occurredAt,
       metadata: e.metadata ? JSON.parse(e.metadata) : null,
@@ -277,7 +310,12 @@ export class PortalService {
       id: request.id,
       status: effectiveStatus,
       proximaAcao,
-      empresa: { nome: request.invite?.company?.nomeFantasia ?? request.invite?.company?.name ?? '' },
+      empresa: {
+        nome:
+          request.invite?.company?.nomeFantasia ??
+          request.invite?.company?.name ??
+          '',
+      },
       paciente: {
         nome: request.patient.name,
         cpf: request.patient.cpf,
@@ -299,101 +337,258 @@ export class PortalService {
       },
       timeline,
       examesSolicitados: occupationalRisk?.requiredExams ?? [],
-      progresso: this.calcularProgresso(effectiveStatus, !!questionario, documentos),
+      progresso: this.calcularProgresso(
+        effectiveStatus,
+        !!questionario,
+        documentos,
+      ),
     };
   }
 
-  private async verificarDocumentosObrigatorios(patientId: string, processId: string): Promise<boolean> {
+  private async verificarDocumentosObrigatorios(
+    patientId: string,
+    processId: string,
+  ): Promise<boolean> {
     const docs = await this.prisma.patientDocument.findMany({
       where: { patientId, requestId: processId },
     });
-    const tipos = new Set(docs.map(d => d.tipo));
+    const tipos = new Set(docs.map((d) => d.tipo));
     return tipos.has('rg') && tipos.has('foto');
   }
 
-  private calcularProximaAcao(status: string, extras: {
-    hasDocuments: boolean;
-    requiredDocsOk: boolean;
-    hasAnamnese: any;
-    clinicAddress: string | null;
-    videoSessionId: string | null;
-    asoPdfUrl: string | null;
-  }) {
+  private calcularProximaAcao(
+    status: string,
+    extras: {
+      hasDocuments: boolean;
+      requiredDocsOk: boolean;
+      hasAnamnese: any;
+      clinicAddress: string | null;
+      videoSessionId: string | null;
+      asoPdfUrl: string | null;
+    },
+  ) {
     if (status === 'AGUARDANDO_COLETA' && !extras.hasAnamnese) {
-      return { tipo: 'CONFIRMAR_DADOS', titulo: 'Confirmar Dados', descricao: 'Confirme seus dados cadastrais', cta: 'Confirmar Dados', ctaUrl: '/portal/dados', endereco: null };
+      return {
+        tipo: 'CONFIRMAR_DADOS',
+        titulo: 'Confirmar Dados',
+        descricao: 'Confirme seus dados cadastrais',
+        cta: 'Confirmar Dados',
+        ctaUrl: '/portal/dados',
+        endereco: null,
+      };
     }
 
-    if (status === 'AGUARDANDO_COLETA' && extras.hasAnamnese && !extras.requiredDocsOk) {
-      return { tipo: 'ENVIAR_DOCUMENTOS', titulo: 'Enviar Documentos', descricao: 'Envie RG e foto para dar continuidade', cta: 'Enviar Documentos', ctaUrl: '/portal/documentos', endereco: null };
+    if (
+      status === 'AGUARDANDO_COLETA' &&
+      extras.hasAnamnese &&
+      !extras.requiredDocsOk
+    ) {
+      return {
+        tipo: 'ENVIAR_DOCUMENTOS',
+        titulo: 'Enviar Documentos',
+        descricao: 'Envie RG e foto para dar continuidade',
+        cta: 'Enviar Documentos',
+        ctaUrl: '/portal/documentos',
+        endereco: null,
+      };
     }
 
     if (status === 'DOCUMENTOS_PENDENTES' && !extras.requiredDocsOk) {
-      return { tipo: 'ENVIAR_DOCUMENTOS', titulo: 'Enviar Documentos', descricao: 'Envie RG e foto para dar continuidade', cta: 'Enviar Documentos', ctaUrl: '/portal/documentos', endereco: null };
+      return {
+        tipo: 'ENVIAR_DOCUMENTOS',
+        titulo: 'Enviar Documentos',
+        descricao: 'Envie RG e foto para dar continuidade',
+        cta: 'Enviar Documentos',
+        ctaUrl: '/portal/documentos',
+        endereco: null,
+      };
     }
 
-    if (status === 'DOCUMENTOS_PENDENTES' && extras.requiredDocsOk && !extras.hasAnamnese) {
-      return { tipo: 'RESPONDER_QUESTIONARIO', titulo: 'Responder Questionário', descricao: 'Preencha o questionário de saúde', cta: 'Responder', ctaUrl: '/portal/questionario', endereco: null };
+    if (
+      status === 'DOCUMENTOS_PENDENTES' &&
+      extras.requiredDocsOk &&
+      !extras.hasAnamnese
+    ) {
+      return {
+        tipo: 'RESPONDER_QUESTIONARIO',
+        titulo: 'Responder Questionário',
+        descricao: 'Preencha o questionário de saúde',
+        cta: 'Responder',
+        ctaUrl: '/portal/questionario',
+        endereco: null,
+      };
     }
 
     // QUESTIONARIO_PENDENTE - validar docs antes de prosseguir
     if (status === 'QUESTIONARIO_PENDENTE' && !extras.requiredDocsOk) {
-      return { tipo: 'ENVIAR_DOCUMENTOS', titulo: 'Enviar Documentos', descricao: 'Envie RG e foto para dar continuidade', cta: 'Enviar Documentos', ctaUrl: '/portal/documentos', endereco: null };
+      return {
+        tipo: 'ENVIAR_DOCUMENTOS',
+        titulo: 'Enviar Documentos',
+        descricao: 'Envie RG e foto para dar continuidade',
+        cta: 'Enviar Documentos',
+        ctaUrl: '/portal/documentos',
+        endereco: null,
+      };
     }
 
     if (status === 'QUESTIONARIO_PENDENTE' && !extras.hasAnamnese) {
-      return { tipo: 'RESPONDER_QUESTIONARIO', titulo: 'Responder Questionário', descricao: 'Preencha o questionário de saúde', cta: 'Responder', ctaUrl: '/portal/questionario', endereco: null };
+      return {
+        tipo: 'RESPONDER_QUESTIONARIO',
+        titulo: 'Responder Questionário',
+        descricao: 'Preencha o questionário de saúde',
+        cta: 'Responder',
+        ctaUrl: '/portal/questionario',
+        endereco: null,
+      };
     }
 
     // QUESTIONARIO_PENDENTE com docs OK e anamnese OK -> prosseguir
-    if (status === 'QUESTIONARIO_PENDENTE' && extras.requiredDocsOk && extras.hasAnamnese) {
+    if (
+      status === 'QUESTIONARIO_PENDENTE' &&
+      extras.requiredDocsOk &&
+      extras.hasAnamnese
+    ) {
       // Determinar próximo status baseado no risco
-      return { tipo: 'AGUARDAR', titulo: 'Questionário concluído', descricao: 'Seus dados estão sendo processados', cta: null, ctaUrl: null, endereco: null };
+      return {
+        tipo: 'AGUARDAR',
+        titulo: 'Questionário concluído',
+        descricao: 'Seus dados estão sendo processados',
+        cta: null,
+        ctaUrl: null,
+        endereco: null,
+      };
     }
 
     if (status === 'AGUARDANDO_EXAMES') {
-      return { tipo: 'COMPARECER_CLINICA', titulo: 'Comparecer à Clínica', descricao: 'Dirija-se à clínica para realização dos exames', cta: 'Ver Endereço', ctaUrl: '/portal/clinica', endereco: extras.clinicAddress };
+      return {
+        tipo: 'COMPARECER_CLINICA',
+        titulo: 'Comparecer à Clínica',
+        descricao: 'Dirija-se à clínica para realização dos exames',
+        cta: 'Ver Endereço',
+        ctaUrl: '/portal/clinica',
+        endereco: extras.clinicAddress,
+      };
     }
 
     if (status === 'EM_COLETA') {
-      return { tipo: 'AGUARDAR_RESULTADOS', titulo: 'Aguardar Resultados', descricao: 'Seus exames estão sendo processados', cta: 'Acompanhar', ctaUrl: '/portal', endereco: null };
+      return {
+        tipo: 'AGUARDAR_RESULTADOS',
+        titulo: 'Aguardar Resultados',
+        descricao: 'Seus exames estão sendo processados',
+        cta: 'Acompanhar',
+        ctaUrl: '/portal',
+        endereco: null,
+      };
     }
 
     if (status === 'NA_FILA_MEDICA') {
-      return { tipo: 'AGUARDAR_MEDICO', titulo: 'Aguardar Médico', descricao: 'Seu caso será analisado por um médico', cta: 'Acompanhar', ctaUrl: '/portal', endereco: null };
+      return {
+        tipo: 'AGUARDAR_MEDICO',
+        titulo: 'Aguardar Médico',
+        descricao: 'Seu caso será analisado por um médico',
+        cta: 'Acompanhar',
+        ctaUrl: '/portal',
+        endereco: null,
+      };
     }
 
     if (status === 'EM_ATENDIMENTO_MEDICO' && extras.videoSessionId) {
-      return { tipo: 'ENTRAR_TELECONSULTA', titulo: 'Teleconsulta Disponível', descricao: 'Entre na sala de teleconsulta', cta: 'Entrar', ctaUrl: `/teleconsulta/${extras.videoSessionId}`, endereco: null };
+      return {
+        tipo: 'ENTRAR_TELECONSULTA',
+        titulo: 'Teleconsulta Disponível',
+        descricao: 'Entre na sala de teleconsulta',
+        cta: 'Entrar',
+        ctaUrl: `/teleconsulta/${extras.videoSessionId}`,
+        endereco: null,
+      };
     }
 
     if (status === 'CONCLUIDO' && extras.asoPdfUrl) {
-      return { tipo: 'BAIXAR_ASO', titulo: 'ASO Disponível', descricao: 'Seu ASO está pronto para download', cta: 'Baixar ASO', ctaUrl: extras.asoPdfUrl, endereco: null };
+      return {
+        tipo: 'BAIXAR_ASO',
+        titulo: 'ASO Disponível',
+        descricao: 'Seu ASO está pronto para download',
+        cta: 'Baixar ASO',
+        ctaUrl: extras.asoPdfUrl,
+        endereco: null,
+      };
     }
 
     if (status === 'CONCLUIDO') {
-      return { tipo: 'CONCLUIDO', titulo: 'Processo Concluído', descricao: 'Seu processo foi finalizado com sucesso', cta: 'Ver Detalhes', ctaUrl: '/portal/aso', endereco: null };
+      return {
+        tipo: 'CONCLUIDO',
+        titulo: 'Processo Concluído',
+        descricao: 'Seu processo foi finalizado com sucesso',
+        cta: 'Ver Detalhes',
+        ctaUrl: '/portal/aso',
+        endereco: null,
+      };
     }
 
-    return { tipo: 'AGUARDANDO', titulo: 'Aguardando', descricao: 'Seu processo está em andamento', cta: null, ctaUrl: null, endereco: null };
+    return {
+      tipo: 'AGUARDANDO',
+      titulo: 'Aguardando',
+      descricao: 'Seu processo está em andamento',
+      cta: null,
+      ctaUrl: null,
+      endereco: null,
+    };
   }
 
-  private calcularProgresso(status: string, hasAnamnese: boolean, documentos: any[]) {
-    const docsOk = documentos.filter(d => d.enviado).length >= 2;
+  private calcularProgresso(
+    status: string,
+    hasAnamnese: boolean,
+    documentos: any[],
+  ) {
+    const docsOk = documentos.filter((d) => d.enviado).length >= 2;
     const steps = [
       { label: 'Cadastro', concluido: true, ativo: true },
-      { label: 'Documentos', concluido: docsOk, ativo: status === 'AGUARDANDO_COLETA' || status === 'DOCUMENTOS_PENDENTES' },
-      { label: 'Questionário', concluido: hasAnamnese, ativo: status === 'DOCUMENTOS_PENDENTES' || status === 'QUESTIONARIO_PENDENTE' },
-      { label: 'Exames', concluido: ['EM_COLETA', 'NA_FILA_MEDICA', 'EM_ATENDIMENTO_MEDICO', 'CONCLUIDO'].includes(status), ativo: status === 'AGUARDANDO_EXAMES' },
-      { label: 'Médico', concluido: ['EM_ATENDIMENTO_MEDICO', 'CONCLUIDO'].includes(status), ativo: ['NA_FILA_MEDICA', 'EM_ATENDIMENTO_MEDICO'].includes(status) },
-      { label: 'ASO', concluido: status === 'CONCLUIDO', ativo: status === 'CONCLUIDO' },
+      {
+        label: 'Documentos',
+        concluido: docsOk,
+        ativo:
+          status === 'AGUARDANDO_COLETA' || status === 'DOCUMENTOS_PENDENTES',
+      },
+      {
+        label: 'Questionário',
+        concluido: hasAnamnese,
+        ativo:
+          status === 'DOCUMENTOS_PENDENTES' ||
+          status === 'QUESTIONARIO_PENDENTE',
+      },
+      {
+        label: 'Exames',
+        concluido: [
+          'EM_COLETA',
+          'NA_FILA_MEDICA',
+          'EM_ATENDIMENTO_MEDICO',
+          'CONCLUIDO',
+        ].includes(status),
+        ativo: status === 'AGUARDANDO_EXAMES',
+      },
+      {
+        label: 'Médico',
+        concluido: ['EM_ATENDIMENTO_MEDICO', 'CONCLUIDO'].includes(status),
+        ativo: ['NA_FILA_MEDICA', 'EM_ATENDIMENTO_MEDICO'].includes(status),
+      },
+      {
+        label: 'ASO',
+        concluido: status === 'CONCLUIDO',
+        ativo: status === 'CONCLUIDO',
+      },
     ];
-    return steps.map(s => ({
+    return steps.map((s) => ({
       ...s,
       ativo: s.ativo || !s.concluido,
     }));
   }
 
-  async confirmarDados(processId: string, patientId: string, phone?: string, email?: string) {
+  async confirmarDados(
+    processId: string,
+    patientId: string,
+    phone?: string,
+    email?: string,
+  ) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id: processId },
       include: { invite: true },
@@ -436,18 +631,23 @@ export class PortalService {
     });
 
     const tiposObrigatorios = ['rg', 'foto'];
-    return tiposObrigatorios.map(tipo => ({
+    return tiposObrigatorios.map((tipo) => ({
       tipo,
-      enviado: docs.some(d => d.tipo === tipo),
-      fileUrl: docs.find(d => d.tipo === tipo)?.fileUrl ?? null,
+      enviado: docs.some((d) => d.tipo === tipo),
+      fileUrl: docs.find((d) => d.tipo === tipo)?.fileUrl ?? null,
     }));
   }
 
-  async enviarDocumento(processId: string, patientId: string, tipo: string, fileUrl: string) {
-      const request = await this.prisma.examRequest.findUnique({
-        where: { id: processId },
-        include: { invite: true, patient: true },
-      });
+  async enviarDocumento(
+    processId: string,
+    patientId: string,
+    tipo: string,
+    fileUrl: string,
+  ) {
+    const request = await this.prisma.examRequest.findUnique({
+      where: { id: processId },
+      include: { invite: true, patient: true },
+    });
     if (!request || request.patientId !== patientId) {
       throw new NotFoundException('Processo não encontrado');
     }
@@ -471,10 +671,15 @@ export class PortalService {
       },
     });
 
-    const docsOk = await this.verificarDocumentosObrigatorios(patientId, processId);
+    const docsOk = await this.verificarDocumentosObrigatorios(
+      patientId,
+      processId,
+    );
     if (docsOk && request.status !== 'QUESTIONARIO_PENDENTE') {
       // Verificar se tem anamnese para definir próximo status
-      const hasAnamnese = await this.prisma.anamnese.findFirst({ where: { patientId } });
+      const hasAnamnese = await this.prisma.anamnese.findFirst({
+        where: { patientId },
+      });
 
       if (!hasAnamnese) {
         // Não tem anamnese -> deve ir para questionário
@@ -484,39 +689,50 @@ export class PortalService {
         });
       } else {
         // Tem anamnese -> determinar se vai para exames ou fila médica
-                const cboCode = request.patient.functionCboCode;
-                if (!cboCode) {
-                  // Se não tem CBO, vai para fila médica
-                  await this.prisma.examRequest.update({
-                    where: { id: processId },
-                    data: { status: 'NA_FILA_MEDICA' },
-                  });
-                  await this.queueService.enqueue(processId);
-                } else {
-                  const risk = await this.prisma.occupationalRisk.findUnique({
-                    where: { cboCode },
-                    select: { requiresInPerson: true, requiredExams: true }
-                  }).catch(() => null);
+        const cboCode = request.patient.functionCboCode;
+        if (!cboCode) {
+          // Se não tem CBO, vai para fila médica
+          await this.prisma.examRequest.update({
+            where: { id: processId },
+            data: { status: 'NA_FILA_MEDICA' },
+          });
+          await this.queueService.enqueue(processId);
+        } else {
+          const risk = await this.prisma.occupationalRisk
+            .findUnique({
+              where: { cboCode },
+              select: { requiresInPerson: true, requiredExams: true },
+            })
+            .catch(() => null);
 
-                  const riskRequiresExams = risk && (risk.requiresInPerson || (risk.requiredExams && risk.requiredExams.length > 0));
-                  const nextStatus = riskRequiresExams ? 'AGUARDANDO_EXAMES' : 'NA_FILA_MEDICA';
+          const riskRequiresExams =
+            risk &&
+            (risk.requiresInPerson ||
+              (risk.requiredExams && risk.requiredExams.length > 0));
+          const nextStatus = riskRequiresExams
+            ? 'AGUARDANDO_EXAMES'
+            : 'NA_FILA_MEDICA';
 
-                  await this.prisma.examRequest.update({
-                    where: { id: processId },
-                    data: { status: nextStatus },
-                  });
+          await this.prisma.examRequest.update({
+            where: { id: processId },
+            data: { status: nextStatus },
+          });
 
-                  if (nextStatus === 'NA_FILA_MEDICA') {
-                    await this.queueService.enqueue(processId);
-                  }
-                }
+          if (nextStatus === 'NA_FILA_MEDICA') {
+            await this.queueService.enqueue(processId);
+          }
+        }
       }
     }
 
     return { success: true };
   }
 
-  async responderQuestionario(processId: string, patientId: string, data: QuestionarioDto) {
+  async responderQuestionario(
+    processId: string,
+    patientId: string,
+    data: QuestionarioDto,
+  ) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id: processId },
       include: { invite: true, patient: true },
@@ -526,23 +742,32 @@ export class PortalService {
     }
 
     if (!data.declaracaoVeracidade) {
-      throw new BadRequestException('Confirme a veracidade das informações para continuar');
+      throw new BadRequestException(
+        'Confirme a veracidade das informações para continuar',
+      );
     }
 
     if (data.tabagismo !== 'nao' && !data.tabagismoDetalhe?.trim()) {
-      throw new BadRequestException('Informe o detalhe do tabagismo para continuar');
+      throw new BadRequestException(
+        'Informe o detalhe do tabagismo para continuar',
+      );
     }
 
     const anamneseData: any = {};
     if (data.queixas) anamneseData.queixas = data.queixas;
-    if (data.medicamentosEmUso) anamneseData.medicamentos = data.medicamentosEmUso;
+    if (data.medicamentosEmUso)
+      anamneseData.medicamentos = data.medicamentosEmUso;
     if (data.observacoes) anamneseData.historicoOcupacional = data.observacoes;
 
     const historicoParts: string[] = [];
-    if (data.doencasPrevias) historicoParts.push(`Doenças Prévias: ${data.doencasPrevias}`);
-    if (data.cirurgiasPrevias) historicoParts.push(`Cirurgias Prévias: ${data.cirurgiasPrevias}`);
-    if (data.alergiasConhecidas) historicoParts.push(`Alergias: ${data.alergiasConhecidas}`);
-    if (historicoParts.length > 0) anamneseData.historicoMedico = historicoParts.join('\n');
+    if (data.doencasPrevias)
+      historicoParts.push(`Doenças Prévias: ${data.doencasPrevias}`);
+    if (data.cirurgiasPrevias)
+      historicoParts.push(`Cirurgias Prévias: ${data.cirurgiasPrevias}`);
+    if (data.alergiasConhecidas)
+      historicoParts.push(`Alergias: ${data.alergiasConhecidas}`);
+    if (historicoParts.length > 0)
+      anamneseData.historicoMedico = historicoParts.join('\n');
 
     const tabagismoLabels: Record<string, string> = {
       nao: 'Não fuma',
@@ -561,15 +786,23 @@ export class PortalService {
     };
     const habitosParts: string[] = [];
     if (data.tabagismo) {
-      const detalhe = data.tabagismoDetalhe ? ` — ${data.tabagismoDetalhe}` : '';
-      habitosParts.push(`Tabagismo: ${tabagismoLabels[data.tabagismo] || data.tabagismo}${detalhe}`);
+      const detalhe = data.tabagismoDetalhe
+        ? ` — ${data.tabagismoDetalhe}`
+        : '';
+      habitosParts.push(
+        `Tabagismo: ${tabagismoLabels[data.tabagismo] || data.tabagismo}${detalhe}`,
+      );
     }
     if (data.alcool) {
       const detalhe = data.alcoolDetalhe ? ` — ${data.alcoolDetalhe}` : '';
-      habitosParts.push(`Álcool: ${alcoolLabels[data.alcool] || data.alcool}${detalhe}`);
+      habitosParts.push(
+        `Álcool: ${alcoolLabels[data.alcool] || data.alcool}${detalhe}`,
+      );
     }
     if (data.atividadeFisica && data.atividadeFisica !== 'nao_informado') {
-      habitosParts.push(`Atividade física: ${atividadeLabels[data.atividadeFisica] || data.atividadeFisica}`);
+      habitosParts.push(
+        `Atividade física: ${atividadeLabels[data.atividadeFisica] || data.atividadeFisica}`,
+      );
     }
     if (data.sono) habitosParts.push(`Sono: ${data.sono}`);
     if (habitosParts.length > 0) anamneseData.habitos = habitosParts.join('\n');
@@ -577,7 +810,9 @@ export class PortalService {
     const ocupacionalParts: string[] = [];
     if (data.observacoes) ocupacionalParts.push(data.observacoes);
     if (data.declaracaoVeracidade) {
-      ocupacionalParts.push('Declaração: paciente confirmou que as informações fornecidas são verdadeiras e completas.');
+      ocupacionalParts.push(
+        'Declaração: paciente confirmou que as informações fornecidas são verdadeiras e completas.',
+      );
     }
     if (ocupacionalParts.length > 0) {
       anamneseData.historicoOcupacional = ocupacionalParts.join('\n\n');
@@ -619,7 +854,11 @@ export class PortalService {
       const risk = await this.prisma.occupationalRisk.findUnique({
         where: { cboCode: request.patient.functionCboCode },
       });
-      if (risk && (risk.requiresInPerson || (risk.requiredExams && risk.requiredExams.length > 0))) {
+      if (
+        risk &&
+        (risk.requiresInPerson ||
+          (risk.requiredExams && risk.requiredExams.length > 0))
+      ) {
         nextStatus = 'AGUARDANDO_EXAMES';
       }
     }
@@ -669,16 +908,10 @@ export class PortalService {
     };
   }
 
-  private async findBestClinicForInvite(companyId: string, preferredClinicId: string | null) {
-    if (preferredClinicId) {
-      const preferredClinic = await this.prisma.clinic.findFirst({
-        where: { id: preferredClinicId, isActive: true },
-      });
-      if (preferredClinic) {
-        return preferredClinic;
-      }
-    }
-
+  private async findBestClinicForInvite(
+    companyId: string,
+    preferredClinicId: string | null,
+  ) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: {
@@ -686,17 +919,41 @@ export class PortalService {
         state: true,
         lat: true,
         lng: true,
+        environment: true,
       },
     });
 
-    if (company?.lat != null && company?.lng != null) {
+    if (!company) return null;
+
+    if (preferredClinicId) {
+      const preferredClinic = await this.prisma.clinic.findFirst({
+        where: {
+          id: preferredClinicId,
+          isActive: true,
+          environment: company.environment,
+        },
+      });
+      if (preferredClinic) return preferredClinic;
+    }
+
+    if (company.lat != null && company.lng != null) {
       const clinics = await this.prisma.clinic.findMany({
-        where: { isActive: true, lat: { not: null }, lng: { not: null } },
+        where: {
+          isActive: true,
+          environment: company.environment,
+          lat: { not: null },
+          lng: { not: null },
+        },
       });
       const nearest = clinics
         .map((clinic) => ({
           clinic,
-          distance: this.distanceKm(company.lat!, company.lng!, clinic.lat!, clinic.lng!),
+          distance: this.distanceKm(
+            company.lat!,
+            company.lng!,
+            clinic.lat!,
+            clinic.lng!,
+          ),
         }))
         .sort((a, b) => a.distance - b.distance)[0];
 
@@ -705,10 +962,11 @@ export class PortalService {
       }
     }
 
-    if (company?.city && company?.state) {
+    if (company.city && company.state) {
       const sameCity = await this.prisma.clinic.findFirst({
         where: {
           isActive: true,
+          environment: company.environment,
           city: company.city,
           state: company.state,
         },
@@ -719,10 +977,11 @@ export class PortalService {
       }
     }
 
-    if (company?.state) {
+    if (company.state) {
       const sameState = await this.prisma.clinic.findFirst({
         where: {
           isActive: true,
+          environment: company.environment,
           state: company.state,
         },
         orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
@@ -733,7 +992,7 @@ export class PortalService {
     }
 
     return this.prisma.clinic.findFirst({
-      where: { isActive: true },
+      where: { isActive: true, environment: company.environment },
       orderBy: [{ isMatriz: 'desc' }, { createdAt: 'asc' }],
     });
   }
@@ -766,7 +1025,12 @@ export class PortalService {
     if (!invite) {
       return { expirado: true, empresaNome: null, tipoExame: null };
     }
-    const expirado = invite.expiresAt < new Date() || invite.status === 'EXPIRADO';
-    return { expirado, empresaNome: invite.company?.nomeFantasia ?? invite.company?.name ?? '', tipoExame: invite.examType };
+    const expirado =
+      invite.expiresAt < new Date() || invite.status === 'EXPIRADO';
+    return {
+      expirado,
+      empresaNome: invite.company?.nomeFantasia ?? invite.company?.name ?? '',
+      tipoExame: invite.examType,
+    };
   }
 }

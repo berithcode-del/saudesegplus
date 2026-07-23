@@ -1,13 +1,23 @@
-'use client';
+"use client";
 
-export { useQueue } from '@repo/api-client';
+export { useQueue } from "@repo/api-client";
 
-import { getAuthToken as _getToken, getProfileIdFromToken as _getProfileId, clearSession as _clearSession } from '@repo/api-client';
-import { ApiClient, localStorageAdapter } from '@repo/api-client';
+import {
+  getAuthToken as _getToken,
+  getProfileIdFromToken as _getProfileId,
+  clearSession as _clearSession,
+} from "@repo/api-client";
+import { ApiClient, localStorageAdapter } from "@repo/api-client";
 
-export function getAuthToken(): string | null { return _getToken(localStorageAdapter); }
-export function getProfileIdFromToken(): string | null { return _getProfileId(localStorageAdapter); }
-export function clearSession(): void { return _clearSession(localStorageAdapter); }
+export function getAuthToken(): string | null {
+  return _getToken(localStorageAdapter);
+}
+export function getProfileIdFromToken(): string | null {
+  return _getProfileId(localStorageAdapter);
+}
+export function clearSession(): void {
+  return _clearSession(localStorageAdapter);
+}
 
 const apiClient = new ApiClient({ storage: localStorageAdapter });
 
@@ -20,23 +30,23 @@ export async function apiGetQueue(doctorId: string) {
 }
 
 export async function apiEnqueue(examRequestId: string) {
-  return apiFetch('/api/queue/enqueue', {
-    method: 'POST',
+  return apiFetch("/api/queue/enqueue", {
+    method: "POST",
     body: JSON.stringify({ examRequestId }),
   });
 }
 
 export async function apiAcceptPatient(queueEntryId: string, doctorId: string) {
   return apiFetch(`/api/queue/${queueEntryId}/accept`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ doctorId }),
   });
 }
 
 export async function apiLogin(email: string, password: string) {
   const res = await fetch(`${apiClient.getBaseUrl()}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   return res.json();
@@ -45,14 +55,14 @@ export async function apiLogin(email: string, password: string) {
 export async function apiListSolicitacoes(
   filters: { status?: string; companyId?: string; patientId?: string } = {},
   page = 1,
-  limit = 20
+  limit = 20,
 ) {
   const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.companyId) params.set('companyId', filters.companyId);
-  if (filters.patientId) params.set('patientId', filters.patientId);
-  params.set('page', String(page));
-  params.set('limit', String(limit));
+  if (filters.status) params.set("status", filters.status);
+  if (filters.companyId) params.set("companyId", filters.companyId);
+  if (filters.patientId) params.set("patientId", filters.patientId);
+  params.set("page", String(page));
+  params.set("limit", String(limit));
   return apiFetch(`/api/solicitacoes?${params.toString()}`);
 }
 
@@ -60,27 +70,43 @@ export async function apiGetSolicitacao(id: string) {
   return apiFetch(`/api/solicitacoes/${id}`);
 }
 
-export async function apiUpdateSolicitacao(id: string, body: { status: string; laudoTexto?: string; decision: string; restrictionNotes?: string }) {
+export async function apiUpdateSolicitacao(
+  id: string,
+  body: {
+    status: string;
+    laudoTexto?: string;
+    decision: string;
+    restrictionNotes?: string;
+  },
+) {
   return apiFetch(`/api/solicitacoes/${id}`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify(body),
   });
 }
 
-export async function apiValidateInvite(data: { token: string; name: string; password: string }) {
+export async function apiValidateInvite(data: {
+  token: string;
+  name: string;
+  password: string;
+}) {
   const url = `${apiClient.getBaseUrl()}/api/colaboradores`;
   const token = apiClient.getAuthToken();
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(data),
   });
   const result = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error((result as { message?: string | string[] })?.message?.[0] ?? (result as { message?: string })?.message ?? 'Token inválido ou expirado.');
+    throw new Error(
+      (result as { message?: string | string[] })?.message?.[0] ??
+        (result as { message?: string })?.message ??
+        "Token inválido ou expirado.",
+    );
   }
   return result;
 }
@@ -93,25 +119,39 @@ export async function apiGetMedicoSolicitacoes(doctorId: string) {
   return apiFetch(`/api/medicos/${doctorId}/solicitacoes`);
 }
 
-export async function apiListMedicos(filters: { search?: string; city?: string; state?: string } = {}) {
+export async function apiListMedicos(
+  filters: { search?: string; city?: string; state?: string } = {},
+) {
   const params = new URLSearchParams();
-  if (filters.search) params.set('search', filters.search);
-  if (filters.city) params.set('city', filters.city);
-  if (filters.state) params.set('state', filters.state);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.city) params.set("city", filters.city);
+  if (filters.state) params.set("state", filters.state);
   const r = await apiFetch(`/api/medicos?${params.toString()}`);
-  const raw = (r as { data?: { data?: unknown[] } })?.data?.data ?? (r as { data?: unknown[] })?.data ?? [];
+  const raw =
+    (r as { data?: { data?: unknown[] } })?.data?.data ??
+    (r as { data?: unknown[] })?.data ??
+    [];
   return { data: Array.isArray(raw) ? raw : [] };
 }
 
 export async function apiGetExamTypes() {
-  const r = await apiFetch('/api/exams/types');
-  const arr = (r as { data?: unknown[] })?.data ?? (r as { types?: unknown[] })?.types ?? r ?? [];
+  const r = await apiFetch("/api/exams/types");
+  const arr =
+    (r as { data?: unknown[] })?.data ??
+    (r as { types?: unknown[] })?.types ??
+    r ??
+    [];
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
 export async function apiGetRequiredExams(cboCode: string) {
-  const r = await apiFetch(`/api/exams/required?cboCode=${encodeURIComponent(cboCode)}`);
-  const arr = (r as { data?: { requiredExams?: unknown[] } })?.data?.requiredExams ?? (r as { requiredExams?: unknown[] })?.requiredExams ?? [];
+  const r = await apiFetch(
+    `/api/exams/required?cboCode=${encodeURIComponent(cboCode)}`,
+  );
+  const arr =
+    (r as { data?: { requiredExams?: unknown[] } })?.data?.requiredExams ??
+    (r as { requiredExams?: unknown[] })?.requiredExams ??
+    [];
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
@@ -134,14 +174,14 @@ export async function apiQuotePayment(payload: {
   examPurpose?: string;
   specialClearances?: string[];
 }) {
-  return apiFetch('/api/financial/quotes', {
-    method: 'POST',
+  return apiFetch("/api/financial/quotes", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function apiCreatePayment(payload: {
-  flow: 'COMPANY_INVITE' | 'CLINIC_WALK_IN';
+  flow: "COMPANY_INVITE" | "CLINIC_WALK_IN";
   companyId?: string;
   clinicId?: string;
   method?: string;
@@ -151,15 +191,15 @@ export async function apiCreatePayment(payload: {
   checkoutPayload?: Record<string, unknown>;
   externalId?: string;
 }) {
-  return apiFetch('/api/financial/payments', {
-    method: 'POST',
+  return apiFetch("/api/financial/payments", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function apiConfirmPayment(id: string, method = 'SIMULADO') {
+export async function apiConfirmPayment(id: string, method = "SIMULADO") {
   return apiFetch(`/api/financial/payments/${id}/confirm`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify({ method }),
   });
 }
@@ -168,8 +208,11 @@ export async function apiGetDocumentos(companyId: string) {
   return apiFetch(`/api/upload/documents/${companyId}`);
 }
 
-export async function apiUploadDocumento(_companyId: string, formData: FormData) {
-  return apiClient.fetchWithFormData('/api/upload/document', formData);
+export async function apiUploadDocumento(
+  _companyId: string,
+  formData: FormData,
+) {
+  return apiClient.fetchWithFormData("/api/upload/document", formData);
 }
 
 export async function apiGetCompanyStatusCheck(companyId: string) {
@@ -184,159 +227,221 @@ export async function apiListClinicAsos() {
   return apiFetch(`/api/clinic/asos`);
 }
 
-export async function apiCreateVideoRoom(examRequestId: string, doctorId?: string) {
-  return apiFetch('/api/teleconsultation/create-room', {
-    method: 'POST',
+export async function apiCreateVideoRoom(
+  examRequestId: string,
+  doctorId?: string,
+) {
+  return apiFetch("/api/teleconsultation/create-room", {
+    method: "POST",
     body: JSON.stringify({ examRequestId, ...(doctorId ? { doctorId } : {}) }),
   });
 }
 
 export async function apiMedicalSearch(query: string, limit = 5) {
-  return apiFetch(`/api/medical/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  return apiFetch(
+    `/api/medical/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  );
 }
 
-export async function apiMessagingRecipients(query = '') {
-  const qs = query ? `?q=${encodeURIComponent(query)}` : '';
+export async function apiMessagingRecipients(query = "") {
+  const qs = query ? `?q=${encodeURIComponent(query)}` : "";
   return apiFetch(`/api/operator-messaging/recipients${qs}`);
 }
 
 export async function apiMessagingConversations() {
-  return apiFetch('/api/operator-messaging/conversations');
+  return apiFetch("/api/operator-messaging/conversations");
 }
 
-export async function apiMessagingCreateConversation(participantIds: string[], title?: string) {
-  return apiFetch('/api/operator-messaging/conversations', {
-    method: 'POST',
+export async function apiMessagingCreateConversation(
+  participantIds: string[],
+  title?: string,
+) {
+  return apiFetch("/api/operator-messaging/conversations", {
+    method: "POST",
     body: JSON.stringify({ participantIds, title }),
   });
 }
 
 export async function apiMessagingMessages(conversationId: string) {
-  return apiFetch(`/api/operator-messaging/conversations/${conversationId}/messages`);
+  return apiFetch(
+    `/api/operator-messaging/conversations/${conversationId}/messages`,
+  );
 }
 
-export async function apiMessagingSend(conversationId: string, content: string) {
-  return apiFetch(`/api/operator-messaging/conversations/${conversationId}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ content }),
-  });
+export async function apiMessagingSend(
+  conversationId: string,
+  content: string,
+) {
+  return apiFetch(
+    `/api/operator-messaging/conversations/${conversationId}/messages`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    },
+  );
 }
 
 export async function apiMessagingNotifications(unreadOnly = false) {
-  return apiFetch(`/api/operator-messaging/notifications?unreadOnly=${unreadOnly ? 'true' : 'false'}`);
+  return apiFetch(
+    `/api/operator-messaging/notifications?unreadOnly=${unreadOnly ? "true" : "false"}`,
+  );
 }
 
 export async function apiAdminStats() {
-  return apiFetch('/api/admin/stats');
+  return apiFetch("/api/admin/stats");
 }
 
-export async function apiAdminListCompanies(filters: Record<string, string> = {}) {
+export async function apiAdminListCompanies(
+  filters: Record<string, string> = {},
+) {
   const params = new URLSearchParams(filters);
   const qs = params.toString();
-  const r = await apiFetch(`/api/admin/companies${qs ? '?' + qs : ''}`);
-  const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
+  const r = await apiFetch(`/api/admin/companies${qs ? "?" + qs : ""}`);
+  const arr = Array.isArray(r) ? r : ((r as { data?: unknown[] })?.data ?? []);
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
 export async function apiAdminUpdateCompanyStatus(id: string, status: string) {
   return apiFetch(`/api/admin/companies/${id}/status`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify({ status }),
   });
 }
 
-export async function apiAdminListClinics() {
+export type DataEnvironment = "REAL" | "SANDBOX";
+
+export async function apiAdminListClinics(environment?: DataEnvironment) {
   let r: unknown;
+  const query = environment ? `?environment=${environment}` : "";
   try {
-    r = await apiFetch('/api/admin/clinics');
+    r = await apiFetch(`/api/admin/clinics${query}`);
   } catch (adminError) {
+    if (environment) throw adminError;
     try {
-      r = await apiFetch('/api/clinics');
+      r = await apiFetch("/api/clinics");
     } catch {
       throw adminError;
     }
   }
 
-  let arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
-  if (arr.length === 0) {
-    const publicResult = await apiFetch('/api/clinics').catch(() => null);
+  let arr = Array.isArray(r) ? r : ((r as { data?: unknown[] })?.data ?? []);
+  if (arr.length === 0 && !environment) {
+    const publicResult = await apiFetch("/api/clinics").catch(() => null);
     const publicArr = Array.isArray(publicResult)
       ? publicResult
-      : (publicResult as { data?: unknown[] } | null)?.data ?? [];
+      : ((publicResult as { data?: unknown[] } | null)?.data ?? []);
     if (Array.isArray(publicArr) && publicArr.length > 0) arr = publicArr;
   }
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
 export async function apiAdminCreateClinic(data: Record<string, unknown>) {
-  return apiFetch('/api/admin/clinics', {
-    method: 'POST',
+  return apiFetch("/api/admin/clinics", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }
 
-export async function apiAdminSetClinicMatriz(id: string, setAsMatriz: boolean) {
+export async function apiAdminSetClinicMatriz(
+  id: string,
+  setAsMatriz: boolean,
+) {
   return apiFetch(`/api/admin/clinics/${id}/matriz`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify({ setAsMatriz }),
   });
 }
 
-export async function apiAdminListDoctors() {
-  const r = await apiFetch('/api/admin/doctors');
-  const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
+export async function apiAdminListDoctors(environment?: DataEnvironment) {
+  const query = environment ? `?environment=${environment}` : "";
+  const r = await apiFetch(`/api/admin/doctors${query}`);
+  const arr = Array.isArray(r) ? r : ((r as { data?: unknown[] })?.data ?? []);
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
-export async function apiAdminCreateDoctor(data: { name: string; gender?: string; crmNumber: string; crmState: string; city?: string; state?: string; specialties?: string }) {
-  return apiFetch('/api/admin/doctors', {
-    method: 'POST',
+export async function apiAdminCreateDoctor(data: {
+  name: string;
+  gender?: string;
+  crmNumber: string;
+  crmState: string;
+  city?: string;
+  state?: string;
+  specialties?: string;
+  email?: string;
+  environment?: DataEnvironment;
+}) {
+  return apiFetch("/api/admin/doctors", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiAdminCreateCompany(data: {
+  razaoSocial: string;
+  nomeFantasia?: string;
+  cnpj: string;
+  address?: string;
+  cep?: string;
+  city?: string;
+  state?: string;
+  email?: string;
+  environment?: DataEnvironment;
+}) {
+  return apiFetch("/api/admin/companies", {
+    method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export async function apiAdminVerifyDoctor(id: string) {
   return apiFetch(`/api/admin/doctors/${id}/verify`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
 export async function apiAdminGetCompaniesPendingApproval() {
-  const r = await apiFetch('/api/admin/companies/pending-approval');
-  const arr = Array.isArray(r) ? r : (r as { data?: unknown[] })?.data ?? [];
+  const r = await apiFetch("/api/admin/companies/pending-approval");
+  const arr = Array.isArray(r) ? r : ((r as { data?: unknown[] })?.data ?? []);
   return { data: Array.isArray(arr) ? arr : [] };
 }
 
 export async function apiAdminApproveCompany(id: string, approvedBy: string) {
   return apiFetch(`/api/admin/companies/${id}/approve`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ approvedBy }),
   });
 }
 
-export async function apiSearchCbo(query: string): Promise<{ cboCode: string; functionName: string }[]> {
+export async function apiSearchCbo(
+  query: string,
+): Promise<{ cboCode: string; functionName: string }[]> {
   if (!query || query.length < 2) return [];
-  const r = await apiFetch(`/api/exams/cbo-search?q=${encodeURIComponent(query)}`);
+  const r = await apiFetch(
+    `/api/exams/cbo-search?q=${encodeURIComponent(query)}`,
+  );
   const raw = ((r as { data?: any[] })?.data ?? []) as any[];
-  return raw.map((item: any) => ({ cboCode: item.code ?? item.cboCode ?? '', functionName: item.name ?? item.functionName ?? '' }));
+  return raw.map((item: any) => ({
+    cboCode: item.code ?? item.cboCode ?? "",
+    functionName: item.name ?? item.functionName ?? "",
+  }));
 }
 
-export async function apiCreateInvite(companyId: string, payload: Record<string, unknown>) {
+export async function apiCreateInvite(
+  companyId: string,
+  payload: Record<string, unknown>,
+) {
   return apiFetch(`/api/company/${companyId}/invite`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function apiCancelInvite(inviteId: string) {
   return apiFetch(`/api/company/invite/${inviteId}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
 export async function apiListInvites(companyId: string) {
   return apiFetch(`/api/company/${companyId}/invites`);
 }
-
-
-

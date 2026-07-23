@@ -27,6 +27,7 @@ model Clinic {
   id                    String                 @id @default(uuid())
   name                  String
   cnpj                  String                 @unique
+  environment           DataEnvironment        @default(REAL)
   address               String?
   city                  String?
   state                 String?
@@ -49,34 +50,36 @@ model Clinic {
   examInvites           ExamInvite[]
   financialTransactions FinancialTransaction[]
   payments              Payment[]
-    operators             Operator[]
-    parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
-    childClinics          Clinic[]               @relation("ClinicHierarchy")
-    processosAso          ProcessoASO[]
-    doctorMemberships     ClinicDoctor[]
-    actorSessions         ClinicActorSession[]
-    auditEvents           ClinicAuditEvent[]
+  operators             Operator[]
+  parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
+  childClinics          Clinic[]               @relation("ClinicHierarchy")
+  processosAso          ProcessoASO[]
+  doctorMemberships     ClinicDoctor[]
+  actorSessions         ClinicActorSession[]
+  auditEvents           ClinicAuditEvent[]
 
-    @@index([isMatriz])
-    @@index([parentClinicId])
-  }
+  @@index([isMatriz])
+  @@index([parentClinicId])
+  @@index([environment, isActive])
+}
 
 model Operator {
-  id          String       @id @default(uuid())
-  userId      String       @unique
-  clinicId    String
-  name        String
+  id                 String       @id @default(uuid())
+  userId             String       @unique
+  clinicId           String
+  name               String
   operationalPinHash String?
-  isActive    Boolean      @default(true)
-  examResults ExamResult[]
-  clinic      Clinic       @relation(fields: [clinicId], references: [id])
-  user        UserAccount  @relation(fields: [userId], references: [id])
+  isActive           Boolean      @default(true)
+  examResults        ExamResult[]
+  clinic             Clinic       @relation(fields: [clinicId], references: [id])
+  user               UserAccount  @relation(fields: [userId], references: [id])
 }
 
 model Doctor {
   id                    String                 @id @default(uuid())
   userId                String                 @unique
   name                  String
+  environment           DataEnvironment        @default(REAL)
   gender                String?
   crmNumber             String                 @unique
   crmState              String
@@ -100,18 +103,20 @@ model Doctor {
   clinicMemberships     ClinicDoctor[]
   certificates          DoctorCertificate[]
   signatureAudits       SignatureAudit[]
+
+  @@index([environment, verifiedAt])
 }
 
 model ClinicDoctor {
-  id        String   @id @default(uuid())
-  clinicId  String
-  doctorId  String
-  active    Boolean  @default(true)
-  startedAt DateTime @default(now())
-  endedAt   DateTime?
+  id                 String    @id @default(uuid())
+  clinicId           String
+  doctorId           String
+  active             Boolean   @default(true)
+  startedAt          DateTime  @default(now())
+  endedAt            DateTime?
   operationalPinHash String?
-  clinic    Clinic   @relation(fields: [clinicId], references: [id])
-  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  clinic             Clinic    @relation(fields: [clinicId], references: [id])
+  doctor             Doctor    @relation(fields: [doctorId], references: [id])
 
   @@unique([clinicId, doctorId])
   @@index([clinicId, active])
@@ -119,17 +124,17 @@ model ClinicDoctor {
 }
 
 model ClinicActorSession {
-  id           String          @id @default(uuid())
-  clinicId     String
-  actorType    ClinicActorType
-  actorId      String
-  actorName    String
-  startedAt    DateTime        @default(now())
-  lastSeenAt   DateTime        @default(now())
-  expiresAt    DateTime
-  endedAt      DateTime?
-  clinic       Clinic          @relation(fields: [clinicId], references: [id])
-  auditEvents  ClinicAuditEvent[]
+  id          String             @id @default(uuid())
+  clinicId    String
+  actorType   ClinicActorType
+  actorId     String
+  actorName   String
+  startedAt   DateTime           @default(now())
+  lastSeenAt  DateTime           @default(now())
+  expiresAt   DateTime
+  endedAt     DateTime?
+  clinic      Clinic             @relation(fields: [clinicId], references: [id])
+  auditEvents ClinicAuditEvent[]
 
   @@index([clinicId, endedAt])
   @@index([actorType, actorId])
@@ -158,6 +163,7 @@ model ClinicAuditEvent {
 model Company {
   id                    String                   @id @default(uuid())
   cnpj                  String                   @unique
+  environment           DataEnvironment          @default(REAL)
   razaoSocial           String                   @default("")
   nomeFantasia          String?
   /// Campos legados mantidos para compatibilidade com seed existente
@@ -192,6 +198,8 @@ model Company {
   financialTransactions FinancialTransaction[]
   payments              Payment[]
   processosAso          ProcessoASO[]
+
+  @@index([environment, status])
 }
 
 /// Papel "Cadastrador" — único papel por empresa nesta fase
@@ -228,14 +236,14 @@ model ExamInvite {
   collaboratorName    String?
   expectedBirthDate   DateTime?
   company             Company             @relation(fields: [companyId], references: [id])
-    clinic              Clinic?             @relation(fields: [clinicId], references: [id])
-    examRequest         ExamRequest?
-    processoAso         ProcessoASO?
-    processoAsoId       String?             @unique
-    timelineEvents      ExamTimelineEvent[]
-    payment             Payment?            @relation(fields: [paymentId], references: [id])
-    paymentId           String?             @unique
-  }
+  clinic              Clinic?             @relation(fields: [clinicId], references: [id])
+  examRequest         ExamRequest?
+  processoAso         ProcessoASO?
+  processoAsoId       String?             @unique
+  timelineEvents      ExamTimelineEvent[]
+  payment             Payment?            @relation(fields: [paymentId], references: [id])
+  paymentId           String?             @unique
+}
 
 /// Eventos append-only — apenas progresso operacional, nunca dado clínico
 model ExamTimelineEvent {
@@ -253,6 +261,7 @@ model Patient {
   id              String                   @id @default(uuid())
   userId          String                   @unique
   cpf             String                   @unique
+  environment     DataEnvironment          @default(REAL)
   name            String
   birthDate       DateTime?
   phone           String?
@@ -267,6 +276,7 @@ model Patient {
   processoAsos    ProcessoASO[]
 
   @@index([name])
+  @@index([environment, name])
 }
 
 /// Vínculo entre Empresa e Paciente/Colaborador (suporta múltiplos vínculos)
@@ -304,6 +314,7 @@ model ExamRequest {
   id                    String                 @id @default(uuid())
   patientId             String
   clinicId              String?
+  environment           DataEnvironment        @default(REAL)
   /// Convite de origem (preenchido quando o paciente chegou via link da empresa)
   inviteId              String?                @unique
   /// Origem do cadastro: 'direto' | 'convite_empresa'
@@ -325,26 +336,28 @@ model ExamRequest {
   payment               Payment?               @relation(fields: [paymentId], references: [id])
   paymentId             String?                @unique
   /// Protocolo ASO associado (opcional para compatibilidade com dados legados)
-      processoAsoId         String?                @unique @map("processo_aso_id")
-      processoAso           ProcessoASO?           @relation("ProcessoASOExamRequest", fields: [processoAsoId], references: [id])
-    }
+  processoAsoId         String?                @unique @map("processo_aso_id")
+  processoAso           ProcessoASO?           @relation("ProcessoASOExamRequest", fields: [processoAsoId], references: [id])
+
+  @@index([environment, status])
+}
 
 model ExamResult {
-  id            String      @id @default(uuid())
-  requestId     String
-  typeId        String
-  valueJson     String
-  attachmentUrl String?
+  id              String          @id @default(uuid())
+  requestId       String
+  typeId          String
+  valueJson       String
+  attachmentUrl   String?
   collectedById   String?
   performedByType ClinicActorType @default(OPERATOR)
   performedById   String
   performedByName String
   actorSessionId  String?
-  collectedAt   DateTime    @default(now())
-  source        String      @default("manual")
-  collectedBy   Operator?   @relation(fields: [collectedById], references: [id])
-  request       ExamRequest @relation(fields: [requestId], references: [id])
-  type          ExamType    @relation(fields: [typeId], references: [id])
+  collectedAt     DateTime        @default(now())
+  source          String          @default("manual")
+  collectedBy     Operator?       @relation(fields: [collectedById], references: [id])
+  request         ExamRequest     @relation(fields: [requestId], references: [id])
+  type            ExamType        @relation(fields: [typeId], references: [id])
 
   @@unique([requestId, typeId])
 }
@@ -414,21 +427,21 @@ model PatientDocument {
 }
 
 model AsoDocument {
-  id                  String      @id @default(uuid())
-  requestId           String
-  doctorId            String
-  decision            String
-  restrictionNotes    String?
-  pdfUrl              String?
-  signatureProviderId String?
-  signatureProvider   String?
+  id                    String      @id @default(uuid())
+  requestId             String
+  doctorId              String
+  decision              String
+  restrictionNotes      String?
+  pdfUrl                String?
+  signatureProviderId   String?
+  signatureProvider     String?
   certificateThumbprint String?
-  signaturePolicy     String?
-  signatureTimestamp  DateTime?
-  signedAt            DateTime?
-  validUntil          DateTime?
-  doctor              Doctor      @relation(fields: [doctorId], references: [id])
-  request             ExamRequest @relation(fields: [requestId], references: [id])
+  signaturePolicy       String?
+  signatureTimestamp    DateTime?
+  signedAt              DateTime?
+  validUntil            DateTime?
+  doctor                Doctor      @relation(fields: [doctorId], references: [id])
+  request               ExamRequest @relation(fields: [requestId], references: [id])
 }
 
 model DoctorCertificate {
@@ -608,7 +621,7 @@ model SupportMessage {
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
-  }
+}
 
 model OperatorConversation {
   id           String                            @id @default(uuid())
@@ -662,64 +675,69 @@ model Notification {
   @@index([userId, readAt])
 }
 
-  /// Protocolo único que acompanha todo o processo de ASO — da abertura à emissão
-    model ProcessoASO {
-      id              String       @id @default(uuid())
-      numeroProtocolo String       @unique @map("numero_protocolo")
-      empresaId       String       @map("empresa_id")
-      empresa         Company      @relation(fields: [empresaId], references: [id])
-      clinicaId       String?      @map("clinica_id")
-      clinica         Clinic?      @relation(fields: [clinicaId], references: [id])
-      pacienteId      String?      @map("paciente_id")
-            paciente        Patient?     @relation(fields: [pacienteId], references: [id])
-            medicoId        String?      @map("medico_id")
-            medico          Doctor?      @relation(fields: [medicoId], references: [id])
-            examRequestId   String?      @unique @map("exam_request_id")
-            examRequest     ExamRequest? @relation("ProcessoASOExamRequest")
-            inviteId        String?      @unique @map("invite_id")
-            invite          ExamInvite?  @relation(fields: [inviteId], references: [id])
-            status          StatusProtocolo @default(INICIADO)
-      tipoExame       TipoExame @map("tipo_exame")
-      dataAbertura    DateTime  @default(now()) @map("data_abertura")
-      dataConclusao   DateTime? @map("data_conclusao")
-      documentos      Json      @default("[]")
-      historico       Json      @default("[]")
-      observacoes     String?
-      createdAt       DateTime  @default(now()) @map("created_at")
-      updatedAt       DateTime  @updatedAt @map("updated_at")
+/// Protocolo único que acompanha todo o processo de ASO — da abertura à emissão
+model ProcessoASO {
+  id              String          @id @default(uuid())
+  numeroProtocolo String          @unique @map("numero_protocolo")
+  empresaId       String          @map("empresa_id")
+  empresa         Company         @relation(fields: [empresaId], references: [id])
+  clinicaId       String?         @map("clinica_id")
+  clinica         Clinic?         @relation(fields: [clinicaId], references: [id])
+  pacienteId      String?         @map("paciente_id")
+  paciente        Patient?        @relation(fields: [pacienteId], references: [id])
+  medicoId        String?         @map("medico_id")
+  medico          Doctor?         @relation(fields: [medicoId], references: [id])
+  examRequestId   String?         @unique @map("exam_request_id")
+  examRequest     ExamRequest?    @relation("ProcessoASOExamRequest")
+  inviteId        String?         @unique @map("invite_id")
+  invite          ExamInvite?     @relation(fields: [inviteId], references: [id])
+  status          StatusProtocolo @default(INICIADO)
+  tipoExame       TipoExame       @map("tipo_exame")
+  dataAbertura    DateTime        @default(now()) @map("data_abertura")
+  dataConclusao   DateTime?       @map("data_conclusao")
+  documentos      Json            @default("[]")
+  historico       Json            @default("[]")
+  observacoes     String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
-      @@index([empresaId])
-      @@index([clinicaId])
-      @@index([pacienteId])
-      @@index([medicoId])
-      @@index([status])
-      @@index([numeroProtocolo])
-      @@map("processos_aso")
-    }
+  @@index([empresaId])
+  @@index([clinicaId])
+  @@index([pacienteId])
+  @@index([medicoId])
+  @@index([status])
+  @@index([numeroProtocolo])
+  @@map("processos_aso")
+}
 
-  enum StatusProtocolo {
-    INICIADO
-    EM_PROGRESSO
-    FINALIZADO
-  }
+enum StatusProtocolo {
+  INICIADO
+  EM_PROGRESSO
+  FINALIZADO
+}
 
-  enum TipoExame {
-    ADMISSIONAL
-    PERIODICO
-    DEMISSIONAL
-    MUDANCA_FUNCAO
-    RETORNO_TRABALHO
-  }
+enum TipoExame {
+  ADMISSIONAL
+  PERIODICO
+  DEMISSIONAL
+  MUDANCA_FUNCAO
+  RETORNO_TRABALHO
+}
 
-  /// Papel do usuário na plataforma
-    enum Role {
-    OPERATOR
-    DOCTOR
-    PATIENT
-    COMPANY_ADMIN
-    CLINIC
-    ADMIN
-  }
+/// Papel do usuário na plataforma
+enum Role {
+  OPERATOR
+  DOCTOR
+  PATIENT
+  COMPANY_ADMIN
+  CLINIC
+  ADMIN
+}
+
+enum DataEnvironment {
+  REAL
+  SANDBOX
+}
 
 enum CompanyStatus {
   CADASTRO_INCOMPLETO
