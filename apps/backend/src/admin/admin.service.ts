@@ -23,6 +23,361 @@ export class AdminService {
     return null;
   }
 
+  async getSandboxPatients() {
+    return this.prisma.patient.findMany({
+      where: { environment: DataEnvironment.SANDBOX },
+      select: {
+        id: true,
+        name: true,
+        cpf: true,
+        status: true,
+        createdAt: true,
+        companies: {
+          select: {
+            company: {
+              select: {
+                id: true,
+                razaoSocial: true,
+                nomeFantasia: true,
+              },
+            },
+          },
+        },
+        processoAsos: {
+          select: {
+            id: true,
+            numeroProtocolo: true,
+            status: true,
+            tipoExame: true,
+            dataAbertura: true,
+            clinica: { select: { id: true, name: true } },
+            empresa: {
+              select: {
+                id: true,
+                razaoSocial: true,
+                nomeFantasia: true,
+              },
+            },
+          },
+          orderBy: { dataAbertura: 'desc' },
+        },
+        examRequests: {
+          select: {
+            id: true,
+            status: true,
+            examPurpose: true,
+            createdAt: true,
+            clinic: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async clearSandbox() {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const [
+        clinics,
+        doctors,
+        companies,
+        patients,
+        examRequests,
+        examInvites,
+        processos,
+        payments,
+      ] = await Promise.all([
+        tx.clinic.findMany({
+          where: { environment: DataEnvironment.SANDBOX },
+          select: {
+            id: true,
+            userId: true,
+            operators: { select: { id: true, userId: true } },
+          },
+        }),
+        tx.doctor.findMany({
+          where: { environment: DataEnvironment.SANDBOX },
+          select: { id: true, userId: true },
+        }),
+        tx.company.findMany({
+          where: { environment: DataEnvironment.SANDBOX },
+          select: {
+            id: true,
+            admins: { select: { userId: true } },
+          },
+        }),
+        tx.patient.findMany({
+          where: { environment: DataEnvironment.SANDBOX },
+          select: { id: true, userId: true },
+        }),
+        tx.examRequest.findMany({
+          where: { environment: DataEnvironment.SANDBOX },
+          select: { id: true },
+        }),
+        tx.examInvite.findMany({
+          where: { company: { environment: DataEnvironment.SANDBOX } },
+          select: { id: true },
+        }),
+        tx.processoASO.findMany({
+          where: { empresa: { environment: DataEnvironment.SANDBOX } },
+          select: { id: true },
+        }),
+        tx.payment.findMany({
+          where: {
+            OR: [
+              { company: { environment: DataEnvironment.SANDBOX } },
+              { clinic: { environment: DataEnvironment.SANDBOX } },
+            ],
+          },
+          select: { id: true },
+        }),
+      ]);
+
+      const clinicIds = clinics.map(({ id }) => id);
+      const doctorIds = doctors.map(({ id }) => id);
+      const companyIds = companies.map(({ id }) => id);
+      const patientIds = patients.map(({ id }) => id);
+      const requestIds = examRequests.map(({ id }) => id);
+      const inviteIds = examInvites.map(({ id }) => id);
+      const processoIds = processos.map(({ id }) => id);
+      const paymentIds = payments.map(({ id }) => id);
+      const operatorIds = clinics.flatMap(({ operators }) =>
+        operators.map(({ id }) => id),
+      );
+      const userIds = [
+        ...clinics.flatMap(({ userId }) => (userId ? [userId] : [])),
+        ...clinics.flatMap(({ operators }) =>
+          operators.map(({ userId }) => userId),
+        ),
+        ...doctors.map(({ userId }) => userId),
+        ...companies.flatMap(({ admins }) =>
+          admins.map(({ userId }) => userId),
+        ),
+        ...patients.map(({ userId }) => userId),
+      ];
+
+      const crossEnvironmentReferences = await Promise.all([
+        tx.company.count({
+          where: {
+            environment: DataEnvironment.REAL,
+            clinicId: { in: clinicIds },
+          },
+        }),
+        tx.examRequest.count({
+          where: {
+            environment: DataEnvironment.REAL,
+            OR: [
+              { clinicId: { in: clinicIds } },
+              { patientId: { in: patientIds } },
+            ],
+          },
+        }),
+        tx.examInvite.count({
+          where: {
+            company: { environment: DataEnvironment.REAL },
+            clinicId: { in: clinicIds },
+          },
+        }),
+        tx.processoASO.count({
+          where: {
+            empresa: { environment: DataEnvironment.REAL },
+            OR: [
+              { clinicaId: { in: clinicIds } },
+              { pacienteId: { in: patientIds } },
+              { medicoId: { in: doctorIds } },
+            ],
+          },
+        }),
+        tx.clinic.count({
+          where: {
+            environment: DataEnvironment.REAL,
+            parentClinicId: { in: clinicIds },
+          },
+        }),
+      ]);
+      if (crossEnvironmentReferences.some((count) => count > 0)) {
+        throw new BadRequestException(
+          'A limpeza foi bloqueada porque existe um vínculo inválido entre dados reais e Sandbox.',
+        );
+      }
+
+      await tx.examTimelineEvent.deleteMany({
+        where: {
+          OR: [
+            { examRequestId: { in: requestIds } },
+            { inviteId: { in: inviteIds } },
+          ],
+        },
+      });
+      await tx.asoDocument.deleteMany({
+        where: { requestId: { in: requestIds } },
+      });
+      await tx.patientDocument.deleteMany({
+        where: { requestId: { in: requestIds } },
+      });
+      await tx.queueEntry.deleteMany({
+        where: { requestId: { in: requestIds } },
+      });
+      await tx.teleconsultation.deleteMany({
+        where: { requestId: { in: requestIds } },
+      });
+      await tx.examResult.deleteMany({
+        where: { requestId: { in: requestIds } },
+      });
+      await tx.financialTransaction.deleteMany({
+        where: {
+          OR: [
+            { examRequestId: { in: requestIds } },
+            { clinicId: { in: clinicIds } },
+            { doctorId: { in: doctorIds } },
+            { companyId: { in: companyIds } },
+            { paymentId: { in: paymentIds } },
+          ],
+        },
+      });
+
+      await tx.examRequest.updateMany({
+        where: { id: { in: requestIds } },
+        data: { processoAsoId: null, inviteId: null, paymentId: null },
+      });
+      await tx.examInvite.updateMany({
+        where: { id: { in: inviteIds } },
+        data: { processoAsoId: null, clinicId: null, paymentId: null },
+      });
+      await tx.processoASO.updateMany({
+        where: { id: { in: processoIds } },
+        data: {
+          examRequestId: null,
+          inviteId: null,
+          pacienteId: null,
+          clinicaId: null,
+          medicoId: null,
+        },
+      });
+
+      const deletedProtocols = await tx.processoASO.deleteMany({
+        where: { id: { in: processoIds } },
+      });
+      const deletedExamRequests = await tx.examRequest.deleteMany({
+        where: { id: { in: requestIds } },
+      });
+      const deletedInvites = await tx.examInvite.deleteMany({
+        where: { id: { in: inviteIds } },
+      });
+      await tx.payment.deleteMany({ where: { id: { in: paymentIds } } });
+
+      await tx.anamnese.deleteMany({
+        where: { patientId: { in: patientIds } },
+      });
+      await tx.companyPatientRelation.deleteMany({
+        where: {
+          AND: [
+            { patientId: { in: patientIds } },
+            { companyId: { in: companyIds } },
+          ],
+        },
+      });
+      await tx.companyDocument.deleteMany({
+        where: { companyId: { in: companyIds } },
+      });
+      await tx.calendarEvent.deleteMany({
+        where: {
+          OR: [
+            { clinicId: { in: clinicIds } },
+            { doctorId: { in: doctorIds } },
+            { companyId: { in: companyIds } },
+          ],
+        },
+      });
+      await tx.clinicAuditEvent.deleteMany({
+        where: { clinicId: { in: clinicIds } },
+      });
+      await tx.clinicActorSession.deleteMany({
+        where: { clinicId: { in: clinicIds } },
+      });
+      await tx.clinicDoctor.deleteMany({
+        where: {
+          OR: [
+            { clinicId: { in: clinicIds } },
+            { doctorId: { in: doctorIds } },
+          ],
+        },
+      });
+      await tx.doctorCertificate.deleteMany({
+        where: { doctorId: { in: doctorIds } },
+      });
+      await tx.signatureAudit.deleteMany({
+        where: { doctorId: { in: doctorIds } },
+      });
+      await tx.operator.deleteMany({
+        where: { id: { in: operatorIds } },
+      });
+      await tx.companyAdmin.deleteMany({
+        where: { companyId: { in: companyIds } },
+      });
+
+      await tx.supportTicket.deleteMany({
+        where: { userId: { in: userIds } },
+      });
+      await tx.notification.deleteMany({
+        where: { userId: { in: userIds } },
+      });
+      await tx.operatorMessage.deleteMany({
+        where: { authorId: { in: userIds } },
+      });
+      await tx.operatorConversationParticipant.deleteMany({
+        where: { userId: { in: userIds } },
+      });
+      await tx.operatorConversation.deleteMany({
+        where: { participants: { none: {} } },
+      });
+
+      const deletedPatients = await tx.patient.deleteMany({
+        where: { id: { in: patientIds } },
+      });
+      const deletedDoctors = await tx.doctor.deleteMany({
+        where: { id: { in: doctorIds } },
+      });
+      const deletedCompanies = await tx.company.deleteMany({
+        where: { id: { in: companyIds } },
+      });
+      await tx.clinic.updateMany({
+        where: { id: { in: clinicIds } },
+        data: { parentClinicId: null },
+      });
+      const deletedClinics = await tx.clinic.deleteMany({
+        where: { id: { in: clinicIds } },
+      });
+      await tx.userAccount.deleteMany({
+        where: {
+          id: { in: userIds },
+          role: { not: 'ADMIN' },
+        },
+      });
+
+        return {
+          success: true,
+          deleted: {
+            clinics: deletedClinics.count,
+            doctors: deletedDoctors.count,
+            companies: deletedCompanies.count,
+            patients: deletedPatients.count,
+            examRequests: deletedExamRequests.count,
+            protocols: deletedProtocols.count,
+            invites: deletedInvites.count,
+          },
+        };
+      },
+      {
+        maxWait: 10_000,
+        timeout: 60_000,
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
   // ─── Companies ──────────────────────────────────────────────────────────────
 
   async getCompanies(

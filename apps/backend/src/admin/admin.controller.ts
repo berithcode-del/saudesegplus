@@ -32,6 +32,16 @@ export class AdminController {
       : DataEnvironment.REAL;
   }
 
+  @Get('sandbox/patients')
+  async getSandboxPatients() {
+    return this.adminService.getSandboxPatients();
+  }
+
+  @Delete('sandbox')
+  async clearSandbox() {
+    return this.adminService.clearSandbox();
+  }
+
   // ─── Companies ────────────────────────────────────────────────────────────
   @Get('companies')
   async getCompanies(

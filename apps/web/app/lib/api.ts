@@ -393,6 +393,20 @@ export async function apiAdminCreateCompany(data: {
   });
 }
 
+export async function apiAdminListSandboxPatients() {
+  const result = await apiFetch("/api/admin/sandbox/patients");
+  const data = Array.isArray(result)
+    ? result
+    : ((result as { data?: unknown[] })?.data ?? []);
+  return { data: Array.isArray(data) ? data : [] };
+}
+
+export async function apiAdminClearSandbox() {
+  return apiFetch("/api/admin/sandbox", {
+    method: "DELETE",
+  });
+}
+
 export async function apiAdminVerifyDoctor(id: string) {
   return apiFetch(`/api/admin/doctors/${id}/verify`, {
     method: "POST",

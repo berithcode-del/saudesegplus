@@ -13,7 +13,7 @@ import {
 import ChatWidget from "../../components/ChatWidget";
 import MedicalCommandPalette from "../../components/MedicalCommandPalette";
 import OperatorInboxButton from "../../components/OperatorInboxButton";
-import SandboxSidebarBadge from "../../components/SandboxSidebarBadge";
+import SandboxWorkspaceBadge from "../../components/SandboxWorkspaceBadge";
 import { apiGetMedicoProfile, getProfileIdFromToken } from "../../lib/api";
 
 interface DoctorProfileSummary {
@@ -75,7 +75,6 @@ export default function MedicoLayout({
             <img src="/LogoWhite.svg" alt="SaudeSeg+" />
           </div>
         </div>
-        <SandboxSidebarBadge visible={isSandbox} />
         <nav className="nav-section">
           {navItems.map((item) => (
             <Link
@@ -99,6 +98,7 @@ export default function MedicoLayout({
       </aside>
 
       <main className="main-content">
+        <SandboxWorkspaceBadge visible={isSandbox} />
         <div
           style={{
             display: "flex",

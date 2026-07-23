@@ -6,18 +6,22 @@ import {
   BuildingOffice2Icon,
   BuildingStorefrontIcon,
   ClipboardIcon,
+  IdentificationIcon,
+  TrashIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import {
+  apiAdminClearSandbox,
   apiAdminCreateClinic,
   apiAdminCreateCompany,
   apiAdminCreateDoctor,
   apiAdminListClinics,
   apiAdminListCompanies,
   apiAdminListDoctors,
+  apiAdminListSandboxPatients,
 } from "@/app/lib/api";
 
-type SandboxTab = "clinics" | "doctors" | "companies";
+type SandboxTab = "clinics" | "doctors" | "companies" | "patients";
 
 interface SandboxClinic {
   id: string;
@@ -48,6 +52,41 @@ interface SandboxCompany {
   state?: string | null;
   status: string;
   environment: "SANDBOX";
+}
+
+interface SandboxPatient {
+  id: string;
+  name: string;
+  cpf: string;
+  status: string;
+  createdAt: string;
+  companies: Array<{
+    company: {
+      id: string;
+      razaoSocial: string;
+      nomeFantasia?: string | null;
+    };
+  }>;
+  processoAsos: Array<{
+    id: string;
+    numeroProtocolo: string;
+    status: string;
+    tipoExame: string;
+    dataAbertura: string;
+    clinica?: { id: string; name: string } | null;
+    empresa: {
+      id: string;
+      razaoSocial: string;
+      nomeFantasia?: string | null;
+    };
+  }>;
+  examRequests: Array<{
+    id: string;
+    status: string;
+    examPurpose: string;
+    createdAt: string;
+    clinic?: { id: string; name: string } | null;
+  }>;
 }
 
 interface Credentials {
@@ -117,12 +156,15 @@ export default function AdminSandboxPage() {
   const [clinics, setClinics] = useState<SandboxClinic[]>([]);
   const [doctors, setDoctors] = useState<SandboxDoctor[]>([]);
   const [companies, setCompanies] = useState<SandboxCompany[]>([]);
+  const [patients, setPatients] = useState<SandboxPatient[]>([]);
   const [clinicForm, setClinicForm] = useState(initialClinic);
   const [doctorForm, setDoctorForm] = useState(initialDoctor);
   const [companyForm, setCompanyForm] = useState(initialCompany);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -130,14 +172,17 @@ export default function AdminSandboxPage() {
     setLoading(true);
     setError("");
     try {
-      const [clinicResult, doctorResult, companyResult] = await Promise.all([
-        apiAdminListClinics("SANDBOX"),
-        apiAdminListDoctors("SANDBOX"),
-        apiAdminListCompanies({ environment: "SANDBOX" }),
-      ]);
+      const [clinicResult, doctorResult, companyResult, patientResult] =
+        await Promise.all([
+          apiAdminListClinics("SANDBOX"),
+          apiAdminListDoctors("SANDBOX"),
+          apiAdminListCompanies({ environment: "SANDBOX" }),
+          apiAdminListSandboxPatients(),
+        ]);
       setClinics(clinicResult.data as SandboxClinic[]);
       setDoctors(doctorResult.data as SandboxDoctor[]);
       setCompanies(companyResult.data as SandboxCompany[]);
+      setPatients(patientResult.data as SandboxPatient[]);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -243,6 +288,44 @@ export default function AdminSandboxPage() {
     setCopied(true);
   };
 
+  const clearSandbox = async () => {
+    const confirmed = window.confirm(
+      "Excluir todos os cadastros, pacientes, protocolos, exames e históricos do Sandbox? Os dados reais não serão alterados.",
+    );
+    if (!confirmed) return;
+
+    setClearing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const result = (await apiAdminClearSandbox()) as {
+        deleted?: {
+          clinics?: number;
+          doctors?: number;
+          companies?: number;
+          patients?: number;
+          protocols?: number;
+        };
+      };
+      const deleted = result.deleted;
+      setCredentials(null);
+      setSuccess(
+        deleted
+          ? `Sandbox limpo: ${deleted.clinics ?? 0} clínicas, ${deleted.doctors ?? 0} médicos, ${deleted.companies ?? 0} empresas, ${deleted.patients ?? 0} pacientes e ${deleted.protocols ?? 0} protocolos excluídos.`
+          : "Todos os dados do Sandbox foram excluídos.",
+      );
+      await loadSandbox();
+    } catch (clearError) {
+      setError(
+        clearError instanceof Error
+          ? clearError.message
+          : "Não foi possível limpar o Sandbox.",
+      );
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -258,6 +341,15 @@ export default function AdminSandboxPage() {
             </p>
           </div>
         </div>
+        <button
+          type="button"
+          className="sandbox-clear-button"
+          disabled={clearing || loading}
+          onClick={() => void clearSandbox()}
+        >
+          <TrashIcon />
+          {clearing ? "Limpando..." : "Limpar dados de teste"}
+        </button>
       </div>
 
       <div className="sandbox-notice">
@@ -281,6 +373,11 @@ export default function AdminSandboxPage() {
           icon={<BuildingOffice2Icon />}
           label="Empresas de teste"
           value={companies.length}
+        />
+        <SummaryCard
+          icon={<IdentificationIcon />}
+          label="Pacientes de teste"
+          value={patients.length}
         />
       </div>
 
@@ -318,13 +415,22 @@ export default function AdminSandboxPage() {
           onClick={() => setTab("companies")}
           label="Empresas"
         />
+        <TabButton
+          active={tab === "patients"}
+          onClick={() => setTab("patients")}
+          label="Pacientes e protocolos"
+        />
       </div>
 
       {error && <div className="sandbox-error">{error}</div>}
+      {success && <div className="sandbox-success">{success}</div>}
 
-      <div className="sandbox-workspace">
-        <div className="card sandbox-form-card">
-          {tab === "clinics" && (
+      <div
+        className={`sandbox-workspace ${tab === "patients" ? "list-only" : ""}`}
+      >
+        {tab !== "patients" && (
+          <div className="card sandbox-form-card">
+            {tab === "clinics" && (
             <form onSubmit={createClinic}>
               <FormHeader
                 title="Nova clínica de teste"
@@ -364,9 +470,9 @@ export default function AdminSandboxPage() {
               />
               <SubmitButton saving={saving} />
             </form>
-          )}
+            )}
 
-          {tab === "doctors" && (
+            {tab === "doctors" && (
             <form onSubmit={createDoctor}>
               <FormHeader
                 title="Novo médico de teste"
@@ -415,9 +521,9 @@ export default function AdminSandboxPage() {
               />
               <SubmitButton saving={saving} />
             </form>
-          )}
+            )}
 
-          {tab === "companies" && (
+            {tab === "companies" && (
             <form onSubmit={createCompany}>
               <FormHeader
                 title="Nova empresa de teste"
@@ -465,14 +571,23 @@ export default function AdminSandboxPage() {
               />
               <SubmitButton saving={saving} />
             </form>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <div className="card sandbox-list-card">
           <div className="list-header">
             <div>
-              <strong>Cadastros no sandbox</strong>
-              <span>Somente dados de teste aparecem nesta lista.</span>
+              <strong>
+                {tab === "patients"
+                  ? "Pacientes e protocolos no Sandbox"
+                  : "Cadastros no Sandbox"}
+              </strong>
+              <span>
+                {tab === "patients"
+                  ? "Cada paciente aparece com os protocolos gerados no fluxo de teste."
+                  : "Somente dados de teste aparecem nesta lista."}
+              </span>
             </div>
             <button
               className="btn btn-ghost"
@@ -490,6 +605,7 @@ export default function AdminSandboxPage() {
               clinics={clinics}
               doctors={doctors}
               companies={companies}
+              patients={patients}
             />
           )}
         </div>
@@ -500,6 +616,38 @@ export default function AdminSandboxPage() {
           display: flex;
           align-items: center;
           gap: 16px;
+        }
+        .page-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+        }
+        .sandbox-clear-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          min-height: 40px;
+          padding: 9px 14px;
+          border: 1px solid #fecaca;
+          border-radius: 10px;
+          color: #b91c1c;
+          background: #fff;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 750;
+        }
+        .sandbox-clear-button:hover:not(:disabled) {
+          background: #fef2f2;
+        }
+        .sandbox-clear-button:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+        .sandbox-clear-button :global(svg) {
+          width: 17px;
+          height: 17px;
         }
         .sandbox-mark {
           width: 52px;
@@ -533,7 +681,7 @@ export default function AdminSandboxPage() {
         }
         .summary-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 14px;
           margin-bottom: 18px;
         }
@@ -581,11 +729,22 @@ export default function AdminSandboxPage() {
           background: #fef2f2;
           border: 1px solid #fecaca;
         }
+        .sandbox-success {
+          margin-bottom: 14px;
+          padding: 12px 14px;
+          border: 1px solid #bbf7d0;
+          border-radius: 10px;
+          color: #166534;
+          background: #f0fdf4;
+        }
         .sandbox-workspace {
           display: grid;
           grid-template-columns: minmax(300px, 0.8fr) minmax(480px, 1.4fr);
           gap: 18px;
           align-items: start;
+        }
+        .sandbox-workspace.list-only {
+          grid-template-columns: minmax(0, 1fr);
         }
         .sandbox-form-card {
           padding: 22px;
@@ -621,11 +780,24 @@ export default function AdminSandboxPage() {
           color: var(--text-muted);
         }
         @media (max-width: 980px) {
+          .page-header {
+            align-items: flex-start;
+            flex-direction: column;
+          }
           .summary-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
           .sandbox-workspace {
             grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 600px) {
+          .summary-grid {
+            grid-template-columns: 1fr;
+          }
+          .sandbox-tabs {
+            width: 100%;
+            overflow-x: auto;
           }
         }
       `}</style>
@@ -823,14 +995,22 @@ function SandboxTable({
   clinics,
   doctors,
   companies,
+  patients,
 }: {
   tab: SandboxTab;
   clinics: SandboxClinic[];
   doctors: SandboxDoctor[];
   companies: SandboxCompany[];
+  patients: SandboxPatient[];
 }) {
   const items =
-    tab === "clinics" ? clinics : tab === "doctors" ? doctors : companies;
+    tab === "clinics"
+      ? clinics
+      : tab === "doctors"
+        ? doctors
+        : tab === "companies"
+          ? companies
+          : patients;
   if (items.length === 0) {
     return (
       <div className="empty-state">
@@ -864,6 +1044,16 @@ function SandboxTable({
               <th>Empresa</th>
               <th>CNPJ</th>
               <th>Local</th>
+              <th>Status</th>
+            </tr>
+          )}
+          {tab === "patients" && (
+            <tr>
+              <th>Paciente</th>
+              <th>CPF</th>
+              <th>Empresa</th>
+              <th>Protocolos</th>
+              <th>Clínica</th>
               <th>Status</th>
             </tr>
           )}
@@ -914,8 +1104,70 @@ function SandboxTable({
                 </td>
               </tr>
             ))}
+          {tab === "patients" &&
+            patients.map((patient) => {
+              const companyNames = patient.companies.map(
+                ({ company }) =>
+                  company.nomeFantasia || company.razaoSocial,
+              );
+              const clinicNames = patient.processoAsos
+                .map(({ clinica }) => clinica?.name)
+                .filter((name): name is string => Boolean(name));
+
+              return (
+                <tr key={patient.id}>
+                  <td style={{ fontWeight: 700 }}>{patient.name}</td>
+                  <td>{formatCpf(patient.cpf)}</td>
+                  <td>{unique(companyNames).join(", ") || "—"}</td>
+                  <td>
+                    {patient.processoAsos.length > 0 ? (
+                      <div className="protocol-list">
+                        {patient.processoAsos.map((processo) => (
+                          <span key={processo.id}>
+                            {processo.numeroProtocolo}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      "Sem protocolo"
+                    )}
+                  </td>
+                  <td>{unique(clinicNames).join(", ") || "—"}</td>
+                  <td>
+                    <span
+                      style={{
+                        color: "#15803d",
+                        fontWeight: 700,
+                        fontSize: 12,
+                      }}
+                    >
+                      {patient.status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
+      <style>{`
+        .protocol-list {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 5px;
+        }
+        .protocol-list span {
+          display: inline-flex;
+          padding: 4px 7px;
+          border-radius: 7px;
+          color: #5b21b6;
+          background: #f3e8ff;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-size: 11px;
+          font-weight: 750;
+          white-space: nowrap;
+        }
+      `}</style>
     </div>
   );
 }
@@ -940,4 +1192,14 @@ function SandboxBadge() {
 
 function formatLocation(city?: string | null, state?: string | null) {
   return [city, state].filter(Boolean).join(" / ") || "—";
+}
+
+function formatCpf(cpf: string) {
+  const digits = cpf.replace(/\D/g, "");
+  if (digits.length !== 11) return cpf;
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
+function unique(values: string[]) {
+  return [...new Set(values)];
 }

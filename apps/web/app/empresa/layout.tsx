@@ -11,7 +11,7 @@ import {
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
 import ChatWidget from "../../components/ChatWidget";
-import SandboxSidebarBadge from "../../components/SandboxSidebarBadge";
+import SandboxWorkspaceBadge from "../../components/SandboxWorkspaceBadge";
 import { apiFetch } from "../lib/api";
 
 const navItems = [
@@ -48,7 +48,6 @@ export default function EmpresaLayout({
             <img src="/LogoWhite.svg" alt="SaudeSeg+" />
           </div>
         </div>
-        <SandboxSidebarBadge visible={isSandbox} />
         <nav className="nav-section">
           {navItems.map((item) => (
             <Link
@@ -66,7 +65,10 @@ export default function EmpresaLayout({
           </Link>
         </div>
       </aside>
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        <SandboxWorkspaceBadge visible={isSandbox} />
+        {children}
+      </main>
       <ChatWidget perfil="EMPRESA" />
     </div>
   );

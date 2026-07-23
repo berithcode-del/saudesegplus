@@ -12,7 +12,7 @@ import {
   ClipboardDocumentListIcon,
   BeakerIcon,
 } from "@heroicons/react/24/outline";
-import SandboxSidebarBadge from "../../components/SandboxSidebarBadge";
+import SandboxWorkspaceBadge from "../../components/SandboxWorkspaceBadge";
 
 const navItems = [
   { href: "/admin", icon: ChartBarSquareIcon, label: "Dashboard" },
@@ -44,7 +44,6 @@ export default function AdminLayout({
             <img src="/LogoWhite.svg" alt="SaudeSeg+" />
           </div>
         </div>
-        <SandboxSidebarBadge visible={pathname.startsWith("/admin/sandbox")} />
         <nav className="nav-section">
           {navItems.map((item) => {
             const isActive =
@@ -68,7 +67,12 @@ export default function AdminLayout({
           </Link>
         </div>
       </aside>
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        <SandboxWorkspaceBadge
+          visible={pathname.startsWith("/admin/sandbox")}
+        />
+        {children}
+      </main>
     </div>
   );
 }
