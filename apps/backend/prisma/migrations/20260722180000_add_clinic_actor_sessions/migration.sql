@@ -1,10 +1,15 @@
-CREATE TYPE "ClinicActorType" AS ENUM ('OPERATOR', 'DOCTOR', 'CLINIC_ADMIN');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ClinicActorType') THEN
+    CREATE TYPE "ClinicActorType" AS ENUM ('OPERATOR', 'DOCTOR', 'CLINIC_ADMIN');
+  END IF;
+END $$;
 
 ALTER TABLE "Operator"
-  ADD COLUMN "operationalPinHash" TEXT,
-  ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;
+  ADD COLUMN IF NOT EXISTS "operationalPinHash" TEXT,
+  ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true;
 
-CREATE TABLE "ClinicDoctor" (
+CREATE TABLE IF NOT EXISTS "ClinicDoctor" (
   "id" TEXT NOT NULL,
   "clinicId" TEXT NOT NULL,
   "doctorId" TEXT NOT NULL,
@@ -15,7 +20,7 @@ CREATE TABLE "ClinicDoctor" (
   CONSTRAINT "ClinicDoctor_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "ClinicActorSession" (
+CREATE TABLE IF NOT EXISTS "ClinicActorSession" (
   "id" TEXT NOT NULL,
   "clinicId" TEXT NOT NULL,
   "actorType" "ClinicActorType" NOT NULL,
@@ -28,7 +33,7 @@ CREATE TABLE "ClinicActorSession" (
   CONSTRAINT "ClinicActorSession_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "ClinicAuditEvent" (
+CREATE TABLE IF NOT EXISTS "ClinicAuditEvent" (
   "id" TEXT NOT NULL,
   "clinicId" TEXT NOT NULL,
   "actorSessionId" TEXT,
@@ -44,10 +49,10 @@ CREATE TABLE "ClinicAuditEvent" (
 );
 
 ALTER TABLE "ExamResult"
-  ADD COLUMN "performedByType" "ClinicActorType",
-  ADD COLUMN "performedById" TEXT,
-  ADD COLUMN "performedByName" TEXT,
-  ADD COLUMN "actorSessionId" TEXT,
+  ADD COLUMN IF NOT EXISTS "performedByType" "ClinicActorType",
+  ADD COLUMN IF NOT EXISTS "performedById" TEXT,
+  ADD COLUMN IF NOT EXISTS "performedByName" TEXT,
+  ADD COLUMN IF NOT EXISTS "actorSessionId" TEXT,
   ALTER COLUMN "collectedById" DROP NOT NULL;
 
 ALTER TABLE "ExamResult"
@@ -56,21 +61,34 @@ ALTER TABLE "ExamResult"
   ALTER COLUMN "performedById" SET NOT NULL,
   ALTER COLUMN "performedByName" SET NOT NULL;
 
-CREATE UNIQUE INDEX "ClinicDoctor_clinicId_doctorId_key" ON "ClinicDoctor"("clinicId", "doctorId");
-CREATE INDEX "ClinicDoctor_clinicId_active_idx" ON "ClinicDoctor"("clinicId", "active");
-CREATE INDEX "ClinicDoctor_doctorId_active_idx" ON "ClinicDoctor"("doctorId", "active");
-CREATE INDEX "ClinicActorSession_clinicId_endedAt_idx" ON "ClinicActorSession"("clinicId", "endedAt");
-CREATE INDEX "ClinicActorSession_actorType_actorId_idx" ON "ClinicActorSession"("actorType", "actorId");
-CREATE INDEX "ClinicAuditEvent_clinicId_createdAt_idx" ON "ClinicAuditEvent"("clinicId", "createdAt");
-CREATE INDEX "ClinicAuditEvent_resourceType_resourceId_idx" ON "ClinicAuditEvent"("resourceType", "resourceId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ClinicDoctor_clinicId_doctorId_key" ON "ClinicDoctor"("clinicId", "doctorId");
+CREATE INDEX IF NOT EXISTS "ClinicDoctor_clinicId_active_idx" ON "ClinicDoctor"("clinicId", "active");
+CREATE INDEX IF NOT EXISTS "ClinicDoctor_doctorId_active_idx" ON "ClinicDoctor"("doctorId", "active");
+CREATE INDEX IF NOT EXISTS "ClinicActorSession_clinicId_endedAt_idx" ON "ClinicActorSession"("clinicId", "endedAt");
+CREATE INDEX IF NOT EXISTS "ClinicActorSession_actorType_actorId_idx" ON "ClinicActorSession"("actorType", "actorId");
+CREATE INDEX IF NOT EXISTS "ClinicAuditEvent_clinicId_createdAt_idx" ON "ClinicAuditEvent"("clinicId", "createdAt");
+CREATE INDEX IF NOT EXISTS "ClinicAuditEvent_resourceType_resourceId_idx" ON "ClinicAuditEvent"("resourceType", "resourceId");
 
-ALTER TABLE "ClinicDoctor" ADD CONSTRAINT "ClinicDoctor_clinicId_fkey"
-  FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ClinicDoctor" ADD CONSTRAINT "ClinicDoctor_doctorId_fkey"
-  FOREIGN KEY ("doctorId") REFERENCES "Doctor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ClinicActorSession" ADD CONSTRAINT "ClinicActorSession_clinicId_fkey"
-  FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ClinicAuditEvent" ADD CONSTRAINT "ClinicAuditEvent_clinicId_fkey"
-  FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "ClinicAuditEvent" ADD CONSTRAINT "ClinicAuditEvent_actorSessionId_fkey"
-  FOREIGN KEY ("actorSessionId") REFERENCES "ClinicActorSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClinicDoctor_clinicId_fkey') THEN
+    ALTER TABLE "ClinicDoctor" ADD CONSTRAINT "ClinicDoctor_clinicId_fkey"
+      FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClinicDoctor_doctorId_fkey') THEN
+    ALTER TABLE "ClinicDoctor" ADD CONSTRAINT "ClinicDoctor_doctorId_fkey"
+      FOREIGN KEY ("doctorId") REFERENCES "Doctor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClinicActorSession_clinicId_fkey') THEN
+    ALTER TABLE "ClinicActorSession" ADD CONSTRAINT "ClinicActorSession_clinicId_fkey"
+      FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClinicAuditEvent_clinicId_fkey') THEN
+    ALTER TABLE "ClinicAuditEvent" ADD CONSTRAINT "ClinicAuditEvent_clinicId_fkey"
+      FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ClinicAuditEvent_actorSessionId_fkey') THEN
+    ALTER TABLE "ClinicAuditEvent" ADD CONSTRAINT "ClinicAuditEvent_actorSessionId_fkey"
+      FOREIGN KEY ("actorSessionId") REFERENCES "ClinicActorSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
