@@ -191,6 +191,41 @@ export async function apiCreateVideoRoom(examRequestId: string, doctorId?: strin
   });
 }
 
+export async function apiMedicalSearch(query: string, limit = 5) {
+  return apiFetch(`/api/medical/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+
+export async function apiMessagingRecipients(query = '') {
+  const qs = query ? `?q=${encodeURIComponent(query)}` : '';
+  return apiFetch(`/api/operator-messaging/recipients${qs}`);
+}
+
+export async function apiMessagingConversations() {
+  return apiFetch('/api/operator-messaging/conversations');
+}
+
+export async function apiMessagingCreateConversation(participantIds: string[], title?: string) {
+  return apiFetch('/api/operator-messaging/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ participantIds, title }),
+  });
+}
+
+export async function apiMessagingMessages(conversationId: string) {
+  return apiFetch(`/api/operator-messaging/conversations/${conversationId}/messages`);
+}
+
+export async function apiMessagingSend(conversationId: string, content: string) {
+  return apiFetch(`/api/operator-messaging/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function apiMessagingNotifications(unreadOnly = false) {
+  return apiFetch(`/api/operator-messaging/notifications?unreadOnly=${unreadOnly ? 'true' : 'false'}`);
+}
+
 export async function apiAdminStats() {
   return apiFetch('/api/admin/stats');
 }

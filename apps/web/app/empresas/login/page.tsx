@@ -141,7 +141,11 @@ export default function EmpresaLoginPage() {
       }
       if (role === 'ADMIN') router.push('/admin');
       else if (role === 'DOCTOR') router.push('/medico');
-      else if (role === 'OPERATOR' || role === 'CLINIC') router.push('/consultorio');
+      else if (role === 'CLINIC') {
+        localStorage.setItem('clinicWorkspaceToken', data.token);
+        router.push('/consultorio/selecionar-perfil');
+      }
+      else if (role === 'OPERATOR') router.push('/consultorio');
       else router.push('/');
     } catch (err: any) {
       setError(err.message || 'Erro ao realizar login');

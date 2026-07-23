@@ -11,6 +11,8 @@ import { CompanyGateway } from '../company/company.gateway';
 import { QueueService } from '../queue/queue.service';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { ClinicActorService } from '../auth/clinic-actor.service';
+import { JwtPayload } from '../auth/jwt.strategy';
 
 @Injectable()
 export class ExamsService {
@@ -18,6 +20,7 @@ export class ExamsService {
     private readonly prisma: PrismaService,
     private readonly companyGateway: CompanyGateway,
     private readonly queueService: QueueService,
+    private readonly clinicActors: ClinicActorService,
   ) {}
 
   async createExam(
@@ -25,8 +28,7 @@ export class ExamsService {
     examType: string,
     valueJson: Record<string, any>,
     attachmentUrl?: string,
-    actor?: { role: string; profileId?: string | null },
-    selectedOperatorId?: string,
+    actor?: JwtPayload,
   ) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id: examRequestId },
@@ -41,16 +43,8 @@ export class ExamsService {
       throw new BadRequestException('Tipo de exame nao informado');
     }
 
-    const operator = await this.resolveOperatorForCollection(
-      request.clinicId,
-      actor,
-      selectedOperatorId,
-    );
-    if (!operator) {
-      throw new BadRequestException(
-        'Nenhum operador cadastrado para a clínica informada. Cadastre um operador antes de registrar exames.',
-      );
-    }
+    if (!actor) throw new BadRequestException('Profissional ativo nao identificado');
+    const activeActor = await this.clinicActors.resolve(actor, request.clinicId);
 
     if (examType === 'outros' && !String(valueJson?.nome_exame ?? '').trim()) {
       throw new BadRequestException('Nome do exame adicional nao informado');
@@ -113,7 +107,11 @@ export class ExamsService {
           typeId: examTypeRecord.id,
           valueJson: JSON.stringify(valueJson),
           attachmentUrl: attachmentUrl || null,
-          collectedById: operator.id,
+          collectedById: activeActor.operatorId ?? null,
+          performedByType: activeActor.actorType,
+          performedById: activeActor.actorId,
+          performedByName: activeActor.actorName,
+          actorSessionId: activeActor.actorSessionId ?? null,
           source: 'manual',
         },
       });
@@ -131,11 +129,18 @@ export class ExamsService {
       where: { id: examRequestId },
       data: { status: 'EM_COLETA' },
     });
+    await this.clinicActors.audit(
+      activeActor,
+      'EXAM_RESULT_RECORDED',
+      'EXAM_REQUEST',
+      examRequestId,
+      { examType, examResultId: result.id },
+    );
 
     return result;
   }
 
-  async sendToMedicalQueue(examRequestId: string) {
+  async sendToMedicalQueue(examRequestId: string, user: JwtPayload) {
     const request = await this.prisma.examRequest.findUnique({
       where: { id: examRequestId },
       include: { invite: { include: { company: true } }, clinic: true },
@@ -144,6 +149,7 @@ export class ExamsService {
     if (!request) {
       throw new NotFoundException('ExamRequest não encontrado');
     }
+    const activeActor = await this.clinicActors.resolve(user, request.clinicId);
 
     await this.prisma.examRequest.update({
       where: { id: examRequestId },
@@ -151,6 +157,12 @@ export class ExamsService {
     });
 
     await this.queueService.enqueue(examRequestId);
+    await this.clinicActors.audit(
+      activeActor,
+      'PATIENT_SENT_TO_MEDICAL_QUEUE',
+      'EXAM_REQUEST',
+      examRequestId,
+    );
 
     return { success: true };
   }
@@ -212,21 +224,6 @@ export class ExamsService {
     });
   }
 
-  async resolveOperatorForCollection(
-    clinicId: string | null | undefined,
-    actor?: { role: string; profileId?: string | null },
-    selectedOperatorId?: string,
-  ) {
-    if (!clinicId) throw new BadRequestException('Clinica da solicitacao nao informada.');
-    const operatorId = actor?.role === 'OPERATOR' ? actor.profileId : selectedOperatorId;
-    if (!operatorId) throw new BadRequestException('Informe o operador responsavel pela coleta.');
-    const operator = await this.prisma.operator.findUnique({ where: { id: operatorId } });
-    if (!operator || operator.clinicId !== clinicId) {
-      throw new BadRequestException('Operador nao pertence a clinica desta solicitacao.');
-    }
-    return operator;
-  }
-
   async createPatient(data: {
     name: string;
     cpf: string;
@@ -236,7 +233,8 @@ export class ExamsService {
     clinicId?: string;
     inviteId?: string;
     paymentId: string;
-  }) {
+  }, requestUser: JwtPayload) {
+    const activeActor = await this.clinicActors.resolve(requestUser);
     const payment = await this.prisma.payment.findUnique({
       where: { id: data.paymentId },
       select: {
@@ -258,8 +256,7 @@ export class ExamsService {
     }
     if (
       payment.clinicId &&
-      data.clinicId &&
-      payment.clinicId !== data.clinicId
+      payment.clinicId !== activeActor.clinicId
     ) {
       throw new BadRequestException('O pagamento pertence a outra clinica.');
     }
@@ -274,7 +271,11 @@ export class ExamsService {
 
     if (existingPatient) {
       const existingRequest = await this.prisma.examRequest.findFirst({
-        where: { patientId: existingPatient.id, status: { not: 'CONCLUIDO' } },
+        where: {
+          patientId: existingPatient.id,
+          clinicId: activeActor.clinicId,
+          status: { not: 'CONCLUIDO' },
+        },
       });
       if (existingRequest) {
         return {
@@ -287,7 +288,7 @@ export class ExamsService {
       const examRequest = await this.prisma.examRequest.create({
         data: {
           patientId: existingPatient.id,
-          clinicId: data.clinicId,
+          clinicId: activeActor.clinicId,
           source: data.inviteId ? 'convite' : 'direto',
           examPurpose: data.examPurpose,
           status: 'AGUARDANDO_COLETA',
@@ -295,10 +296,11 @@ export class ExamsService {
           paymentId: payment.id,
         },
       });
+      await this.clinicActors.audit(activeActor, 'PATIENT_CHECKED_IN', 'EXAM_REQUEST', examRequest.id);
       return { patient: existingPatient, examRequest };
     }
 
-    const user = await this.prisma.userAccount.create({
+    const patientUser = await this.prisma.userAccount.create({
       data: {
         email: `${data.cpf}@walkin.temp`,
         passwordHash: await bcrypt.hash(randomUUID(), 12),
@@ -308,7 +310,7 @@ export class ExamsService {
 
     const patient = await this.prisma.patient.create({
       data: {
-        userId: user.id,
+        userId: patientUser.id,
         cpf: data.cpf,
         name: data.name,
         phone: data.phone ?? '',
@@ -319,7 +321,7 @@ export class ExamsService {
     const examRequest = await this.prisma.examRequest.create({
       data: {
         patientId: patient.id,
-        clinicId: data.clinicId,
+        clinicId: activeActor.clinicId,
         source: data.inviteId ? 'convite' : 'direto',
         examPurpose: data.examPurpose,
         status: 'AGUARDANDO_COLETA',
@@ -328,6 +330,7 @@ export class ExamsService {
       },
     });
 
+    await this.clinicActors.audit(activeActor, 'PATIENT_CHECKED_IN', 'EXAM_REQUEST', examRequest.id);
     return { patient, examRequest };
   }
 }

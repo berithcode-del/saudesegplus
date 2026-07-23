@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { PrismaService } from '../prisma.service';
 import { getJwtExpiresIn, getJwtSecret } from './jwt-secret';
+import { ClinicActorService } from './clinic-actor.service';
 
 @Module({
   imports: [
@@ -23,9 +24,10 @@ import { getJwtExpiresIn, getJwtSecret } from './jwt-secret';
     AuthService,
     JwtStrategy,
     PrismaService,
+    ClinicActorService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, ClinicActorService, JwtModule],
 })
 export class AuthModule {}

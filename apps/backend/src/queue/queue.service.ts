@@ -35,13 +35,16 @@ export class QueueService {
     return 3; // Brasil/Nacional
   }
 
-  async getQueueForDoctor(doctorId: string) {
+  async getQueueForDoctor(doctorId: string, workspaceClinicId?: string | null) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
     });
 
     const entries = await this.prisma.queueEntry.findMany({
-      where: { status: 'WAITING' },
+      where: {
+        status: 'WAITING',
+        ...(workspaceClinicId ? { request: { clinicId: workspaceClinicId } } : {}),
+      },
       include: {
         request: {
           include: {
@@ -100,13 +103,25 @@ export class QueueService {
     return entry;
   }
 
-  async acceptPatient(queueEntryId: string, doctorId: string) {
+  async acceptPatient(queueEntryId: string, doctorId: string, workspaceClinicId?: string | null) {
     const entry = await this.prisma.queueEntry.findUnique({
       where: { id: queueEntryId },
       include: { request: { include: { invite: true } } },
     });
 
     if (!entry) throw new NotFoundException('Atendimento nao encontrado');
+    if (workspaceClinicId) {
+      const request = await this.prisma.examRequest.findUnique({
+        where: { id: entry.requestId },
+        select: { clinicId: true },
+      });
+      const membership = await this.prisma.clinicDoctor.findUnique({
+        where: { clinicId_doctorId: { clinicId: workspaceClinicId, doctorId } },
+      });
+      if (request?.clinicId !== workspaceClinicId || !membership?.active || membership.endedAt) {
+        throw new NotFoundException('Atendimento nao disponivel para este medico');
+      }
+    }
 
     const claimed = await this.prisma.queueEntry.updateMany({
       where: { id: queueEntryId, status: 'WAITING', assignedDoctorId: null },

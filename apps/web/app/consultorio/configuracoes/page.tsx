@@ -4,6 +4,7 @@ import { CheckCircleIcon, ClockIcon, XMarkIcon, PlusCircleIcon } from '@heroicon
 import { apiFetch } from '../../lib/api';
 import FaqHelp from '../../../components/FaqHelp';
 import React from 'react';
+import Link from 'next/link';
 import { maskPhone, maskCNPJ as maskCnpjUtil, FIELD_LIMITS } from '../../../lib/formatUtils';
 
 interface ClinicData {
@@ -21,6 +22,8 @@ interface ClinicData {
 
 interface ApiOperator {
   id: string;
+  name: string;
+  pinConfigured: boolean;
   email: string;
   user: {
     email: string;
@@ -61,6 +64,18 @@ const OpCard = ({ id, email, onRemove, onError }: { id: string; email: string; o
     }
   };
 
+  const resetPin = async () => {
+    try {
+      const result = await apiFetch(`/api/clinic/operators/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ resetOperationalPin: true }),
+      });
+      alert(`Novo PIN operacional: ${result.operationalPin}\n\nAnote e entregue somente ao profissional.`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Não foi possível redefinir o PIN.');
+    }
+  };
+
   return (
     <div className="operator-card" style={{ padding: '12px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
@@ -81,6 +96,9 @@ const OpCard = ({ id, email, onRemove, onError }: { id: string; email: string; o
           </button>
           {dropdownOpen && (
             <div className="dropdown-menu" style={{ position: 'absolute', right: 0, top: '40px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px 0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', minWidth: '140px', zIndex: 10 }}>
+              <button className="dropdown-item" onClick={() => { setDropdownOpen(false); resetPin(); }} style={{ display: 'block', padding: '6px 16px', width: '100%', fontSize: '14px', color: '#4338ca', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                Redefinir PIN
+              </button>
               <button
                 className="dropdown-item"
                 onClick={() => {
@@ -182,8 +200,9 @@ export default function ConsultorioConfiguracoesPage() {
       });
       if (result.success && result.data?.tempPassword) {
         const tempPassword = result.data.tempPassword;
+        const operationalPin = result.data.operationalPin;
         const email = result.data.email;
-        alert(`Operador cadastrado com sucesso!\n\nE-mail: ${email}\nSenha provisória: ${tempPassword}\n\nAtenção: anote esta senha imediatamente.\nEla só é exibida uma vez.`);
+        alert(`Operador cadastrado com sucesso!\n\nE-mail: ${email}\nSenha provisória: ${tempPassword}\nPIN operacional: ${operationalPin}\n\nAnote o PIN. Ele será usado na antessala da clínica.`);
 
         await navigator.clipboard.writeText(tempPassword);
         
@@ -467,6 +486,9 @@ export default function ConsultorioConfiguracoesPage() {
           <button className="btn btn-primary" onClick={() => setOperatorModalOpen(true)}>
             <PlusCircleIcon className="icon" /> Cadastrar Operador
           </button>
+          <Link href="/consultorio/configuracoes/medicos" className="btn btn-outline" style={{ marginLeft: 10, textDecoration: 'none' }}>
+            Gerenciar médicos da clínica
+          </Link>
         </div>
       )}
 

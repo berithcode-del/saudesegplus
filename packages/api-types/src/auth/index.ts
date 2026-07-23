@@ -32,6 +32,10 @@ export interface JWTPayload {
   email: string;
   role: Role;
   profileId?: string | null;
+  workspaceClinicId?: string | null;
+  actorSessionId?: string | null;
+  actorName?: string | null;
+  baseRole?: string | null;
   iat?: number;
   exp?: number;
 }

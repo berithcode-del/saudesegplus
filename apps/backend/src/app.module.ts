@@ -25,6 +25,8 @@ import { TeleconsultationModule } from './teleconsultation/teleconsultation.modu
 import { FinancialModule } from './financial/financial.module';
 import { SupportModule } from './support/support.module';
 import { ClinicProfileModule } from './clinic-profile/clinic-profile.module';
+import { MedicalSearchModule } from './medical-search/medical-search.module';
+import { OperatorMessagingModule } from './operator-messaging/operator-messaging.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { ClinicProfileModule } from './clinic-profile/clinic-profile.module';
     FinancialModule,
     SupportModule,
     ClinicProfileModule,
+    MedicalSearchModule,
+    OperatorMessagingModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
