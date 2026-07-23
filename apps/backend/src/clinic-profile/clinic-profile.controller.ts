@@ -18,6 +18,7 @@ import type { Response } from 'express'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PrismaService } from '../prisma.service'
 import * as bcrypt from 'bcrypt'
+import { randomInt } from 'crypto'
 import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { ClinicProfileService } from './clinic-profile.service'
@@ -134,14 +135,24 @@ export class ClinicProfileController {
     if (!clinicId) return { success: true, data: [] };
     const operators = await this.prisma.operator.findMany({
       where: { clinicId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        operationalPinHash: true,
         user: {
           select: { id: true, email: true, role: true, createdAt: true },
         },
       },
       orderBy: { user: { email: 'asc' } },
     });
-    return { success: true, data: operators };
+    return {
+      success: true,
+      data: operators.map(({ operationalPinHash, ...operator }) => ({
+        ...operator,
+        pinConfigured: Boolean(operationalPinHash),
+      })),
+    };
   }
 
   // POST /api/clinic/operators
@@ -184,7 +195,9 @@ export class ClinicProfileController {
       throw new ConflictException('E-mail já cadastrado. Tente novamente.');
 
     const password = Math.random().toString(36).slice(-10);
+    const operationalPin = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const passwordHash = await bcrypt.hash(password, 12);
+    const operationalPinHash = await bcrypt.hash(operationalPin, 10);
 
     const user = await this.prisma.userAccount.create({
       data: {
@@ -192,7 +205,7 @@ export class ClinicProfileController {
         passwordHash,
         role: 'OPERATOR',
         operatorProfile: {
-          create: { clinicId, name: operatorName },
+          create: { clinicId, name: operatorName, operationalPinHash },
         },
       },
       include: { operatorProfile: true },
@@ -205,6 +218,7 @@ export class ClinicProfileController {
         name: user.operatorProfile?.name,
         email: user.email,
         tempPassword: password,
+        operationalPin,
       },
     };
   }
@@ -215,7 +229,7 @@ export class ClinicProfileController {
   async updateOperator(
     @Request() req: any,
     @Param('id') operatorId: string,
-    @Body() body: { email?: string; password?: string },
+    @Body() body: { email?: string; password?: string; operationalPin?: string; resetOperationalPin?: boolean },
   ) {
     const clinicId = await this.getOwnClinicId(req.user.sub);
     if (!clinicId)
@@ -249,6 +263,103 @@ export class ClinicProfileController {
       });
     }
 
+    const nextOperationalPin = body.resetOperationalPin
+      ? randomInt(0, 1_000_000).toString().padStart(6, '0')
+      : body.operationalPin;
+    if (nextOperationalPin) {
+      if (!/^\d{6}$/.test(nextOperationalPin)) {
+        throw new BadRequestException('O PIN operacional deve conter 6 digitos');
+      }
+      await this.prisma.operator.update({
+        where: { id: operatorId },
+        data: { operationalPinHash: await bcrypt.hash(nextOperationalPin, 10) },
+      });
+    }
+
+    return { success: true, ...(body.resetOperationalPin ? { operationalPin: nextOperationalPin } : {}) };
+  }
+
+  @Get('doctors/available')
+  @Roles('CLINIC')
+  async availableDoctors(@Query('q') query = '') {
+    const q = query.trim();
+    return {
+      success: true,
+      data: await this.prisma.doctor.findMany({
+        where: {
+          verifiedAt: { not: null },
+          ...(q
+            ? { OR: [
+                { name: { contains: q, mode: 'insensitive' } },
+                { crmNumber: { contains: q, mode: 'insensitive' } },
+              ] }
+            : {}),
+        },
+        select: { id: true, name: true, crmNumber: true, crmState: true },
+        orderBy: { name: 'asc' },
+        take: 30,
+      }),
+    };
+  }
+
+  @Get('doctors')
+  @Roles('CLINIC')
+  async listDoctors(@Request() req: any) {
+    const clinicId = await this.getOwnClinicId(req.user.sub);
+    if (!clinicId) return { success: true, data: [] };
+    const memberships = await this.prisma.clinicDoctor.findMany({
+      where: { clinicId, active: true, endedAt: null },
+      include: { doctor: true },
+      orderBy: { doctor: { name: 'asc' } },
+    });
+    return {
+      success: true,
+      data: memberships.map(({ doctor, operationalPinHash, ...membership }) => ({
+        ...membership,
+        doctor: {
+          id: doctor.id,
+          name: doctor.name,
+          crmNumber: doctor.crmNumber,
+          crmState: doctor.crmState,
+          pinConfigured: Boolean(operationalPinHash),
+        },
+      })),
+    };
+  }
+
+  @Post('doctors')
+  @Roles('CLINIC')
+  async associateDoctor(
+    @Request() req: any,
+    @Body() body: { doctorId: string; operationalPin?: string },
+  ) {
+    const clinicId = await this.getOwnClinicId(req.user.sub);
+    if (!clinicId) throw new NotFoundException('Perfil de clinica nao encontrado');
+    const doctor = await this.prisma.doctor.findUnique({ where: { id: body.doctorId } });
+    if (!doctor?.verifiedAt) throw new NotFoundException('Medico verificado nao encontrado');
+    const operationalPin = body.operationalPin || randomInt(0, 1_000_000).toString().padStart(6, '0');
+    if (!/^\d{6}$/.test(operationalPin)) {
+      throw new BadRequestException('O PIN operacional deve conter 6 digitos');
+    }
+    const operationalPinHash = await bcrypt.hash(operationalPin, 10);
+    await this.prisma.clinicDoctor.upsert({
+        where: { clinicId_doctorId: { clinicId, doctorId: doctor.id } },
+        create: { clinicId, doctorId: doctor.id, operationalPinHash },
+        update: { active: true, endedAt: null, operationalPinHash },
+      });
+    return { success: true, data: { doctorId: doctor.id, operationalPin } };
+  }
+
+  @Delete('doctors/:doctorId')
+  @Roles('CLINIC')
+  async removeDoctor(@Request() req: any, @Param('doctorId') doctorId: string) {
+    const clinicId = await this.getOwnClinicId(req.user.sub);
+    if (!clinicId) throw new NotFoundException('Perfil de clinica nao encontrado');
+    const updated = await this.prisma.clinicDoctor.updateMany({
+      where: { clinicId, doctorId, active: true },
+      data: { active: false, endedAt: new Date() },
+    });
+    if (!updated.count) throw new NotFoundException('Vinculo medico nao encontrado');
     return { success: true };
   }
 

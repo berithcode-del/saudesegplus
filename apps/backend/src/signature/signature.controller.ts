@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Delete,
+  Get,
   Headers,
   Param,
   Post,
@@ -41,6 +43,38 @@ export class SignatureController {
     @Body() body: { pin: string },
   ) {
     return this.signatureService.signDocument(id, req.user.sub, body.pin);
+  }
+
+  @Post('certificate/register')
+  async registerCertificate(
+    @Request() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      providerName?: string;
+      certificateThumbprint: string;
+      certificateSubjectDN: string;
+      issuerDN: string;
+      validFrom: string;
+      validUntil: string;
+    },
+  ) {
+    return this.signatureService.registerCertificate(req.user.sub, body);
+  }
+
+  @Get('certificate')
+  async listCertificates(@Request() req: AuthenticatedRequest) {
+    return this.signatureService.listCertificates(req.user.sub);
+  }
+
+  @Delete('certificate/:id')
+  async revokeCertificate(@Request() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.signatureService.revokeCertificate(req.user.sub, id);
+  }
+
+  @Get('verify/:id')
+  @Public()
+  async verify(@Param('id') id: string) {
+    return this.signatureService.verifyAsoDocument(id);
   }
 
   @Post('webhook')

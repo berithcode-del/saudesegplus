@@ -53,6 +53,9 @@ model Clinic {
     parentClinic          Clinic?                @relation("ClinicHierarchy", fields: [parentClinicId], references: [id])
     childClinics          Clinic[]               @relation("ClinicHierarchy")
     processosAso          ProcessoASO[]
+    doctorMemberships     ClinicDoctor[]
+    actorSessions         ClinicActorSession[]
+    auditEvents           ClinicAuditEvent[]
 
     @@index([isMatriz])
     @@index([parentClinicId])
@@ -63,6 +66,8 @@ model Operator {
   userId      String       @unique
   clinicId    String
   name        String
+  operationalPinHash String?
+  isActive    Boolean      @default(true)
   examResults ExamResult[]
   clinic      Clinic       @relation(fields: [clinicId], references: [id])
   user        UserAccount  @relation(fields: [userId], references: [id])
@@ -78,6 +83,7 @@ model Doctor {
   phone                 String?
   contactEmail          String?
   signaturePin          String?
+  signatureProvider     String?                @default("MOCK")
   city                  String?
   state                 String?
   rqeNumber             String?
@@ -91,6 +97,61 @@ model Doctor {
   financialTransactions FinancialTransaction[]
   teleconsultations     Teleconsultation[]
   processoAsos          ProcessoASO[]
+  clinicMemberships     ClinicDoctor[]
+  certificates          DoctorCertificate[]
+  signatureAudits       SignatureAudit[]
+}
+
+model ClinicDoctor {
+  id        String   @id @default(uuid())
+  clinicId  String
+  doctorId  String
+  active    Boolean  @default(true)
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  operationalPinHash String?
+  clinic    Clinic   @relation(fields: [clinicId], references: [id])
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+
+  @@unique([clinicId, doctorId])
+  @@index([clinicId, active])
+  @@index([doctorId, active])
+}
+
+model ClinicActorSession {
+  id           String          @id @default(uuid())
+  clinicId     String
+  actorType    ClinicActorType
+  actorId      String
+  actorName    String
+  startedAt    DateTime        @default(now())
+  lastSeenAt   DateTime        @default(now())
+  expiresAt    DateTime
+  endedAt      DateTime?
+  clinic       Clinic          @relation(fields: [clinicId], references: [id])
+  auditEvents  ClinicAuditEvent[]
+
+  @@index([clinicId, endedAt])
+  @@index([actorType, actorId])
+}
+
+model ClinicAuditEvent {
+  id             String              @id @default(uuid())
+  clinicId       String
+  actorSessionId String?
+  actorType      ClinicActorType
+  actorId        String
+  actorName      String
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       Json?
+  createdAt      DateTime            @default(now())
+  clinic         Clinic              @relation(fields: [clinicId], references: [id])
+  actorSession   ClinicActorSession? @relation(fields: [actorSessionId], references: [id])
+
+  @@index([clinicId, createdAt])
+  @@index([resourceType, resourceId])
 }
 
 /// Empresa contratante — cliente comercial da plataforma
@@ -204,6 +265,8 @@ model Patient {
   user            UserAccount              @relation(fields: [userId], references: [id])
   documents       PatientDocument[]
   processoAsos    ProcessoASO[]
+
+  @@index([name])
 }
 
 /// Vínculo entre Empresa e Paciente/Colaborador (suporta múltiplos vínculos)
@@ -272,10 +335,14 @@ model ExamResult {
   typeId        String
   valueJson     String
   attachmentUrl String?
-  collectedById String
+  collectedById   String?
+  performedByType ClinicActorType @default(OPERATOR)
+  performedById   String
+  performedByName String
+  actorSessionId  String?
   collectedAt   DateTime    @default(now())
   source        String      @default("manual")
-  collectedBy   Operator    @relation(fields: [collectedById], references: [id])
+  collectedBy   Operator?   @relation(fields: [collectedById], references: [id])
   request       ExamRequest @relation(fields: [requestId], references: [id])
   type          ExamType    @relation(fields: [typeId], references: [id])
 
@@ -354,10 +421,44 @@ model AsoDocument {
   restrictionNotes    String?
   pdfUrl              String?
   signatureProviderId String?
+  signatureProvider   String?
+  certificateThumbprint String?
+  signaturePolicy     String?
+  signatureTimestamp  DateTime?
   signedAt            DateTime?
   validUntil          DateTime?
   doctor              Doctor      @relation(fields: [doctorId], references: [id])
   request             ExamRequest @relation(fields: [requestId], references: [id])
+}
+
+model DoctorCertificate {
+  id                    String   @id @default(uuid())
+  doctorId              String
+  providerName          String
+  certificateThumbprint String   @unique
+  certificateSubjectDN  String
+  issuerDN              String
+  validFrom             DateTime
+  validUntil            DateTime
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+  doctor                Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, status])
+}
+
+model SignatureAudit {
+  id           String   @id @default(uuid())
+  doctorId     String
+  providerName String
+  action       String
+  documentId   String?
+  metadata     Json?
+  ipAddress    String?
+  occurredAt   DateTime @default(now())
+  doctor       Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, occurredAt])
 }
 
 model CalendarEvent {
@@ -509,6 +610,58 @@ model SupportMessage {
   @@index([ticketId])
   }
 
+model OperatorConversation {
+  id           String                            @id @default(uuid())
+  title        String?
+  isGroup      Boolean                           @default(false)
+  createdAt    DateTime                          @default(now())
+  updatedAt    DateTime                          @updatedAt
+  participants OperatorConversationParticipant[]
+  messages     OperatorMessage[]
+
+  @@index([updatedAt])
+}
+
+model OperatorConversationParticipant {
+  id             String               @id @default(uuid())
+  conversationId String
+  userId         String
+  role           Role
+  displayName    String?
+  lastReadAt     DateTime?
+  joinedAt       DateTime             @default(now())
+  conversation   OperatorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model OperatorMessage {
+  id             String               @id @default(uuid())
+  conversationId String
+  authorId       String
+  authorName     String?
+  content        String               @db.Text
+  attachments    String[]
+  sentAt         DateTime             @default(now())
+  conversation   OperatorConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String
+  targetId  String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
   /// Protocolo único que acompanha todo o processo de ASO — da abertura à emissão
     model ProcessoASO {
       id              String       @id @default(uuid())
@@ -575,6 +728,12 @@ enum CompanyStatus {
   DOCUMENTACAO_VENCIDA
 }
 
+enum ClinicActorType {
+  OPERATOR
+  DOCTOR
+  CLINIC_ADMIN
+}
+
 enum InviteStatus {
   ENVIADO
   ABERTO
@@ -594,6 +753,7 @@ enum TimelineEventType {
   DOCUMENTOS_ENVIADOS
   QUESTIONARIO_RESPONDIDO
   TELECONSULTA_INICIADA
+  TELECONSULTA_BLOQUEADA
 }
 
 enum FinancialType {

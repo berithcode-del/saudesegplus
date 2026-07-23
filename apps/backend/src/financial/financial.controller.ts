@@ -106,7 +106,7 @@ export class FinancialController {
   }
 
   @Post('quotes')
-  @Roles('ADMIN', 'COMPANY_ADMIN', 'CLINIC', 'OPERATOR')
+  @Roles('ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'DOCTOR')
   async quote(
     @Body()
     body: {
@@ -134,7 +134,7 @@ export class FinancialController {
       checkoutPayload?: Record<string, unknown>;
       externalId?: string;
     },
-    @Req() req: { user: { role: string; profileId?: string | null } },
+    @Req() req: { user: { role: string; profileId?: string | null; workspaceClinicId?: string | null } },
   ) {
     const input = { ...body };
     if (req.user.role === 'COMPANY_ADMIN') {
@@ -146,7 +146,7 @@ export class FinancialController {
       input.companyId = req.user.profileId ?? undefined;
       input.clinicId = undefined;
     }
-    if (req.user.role === 'CLINIC' || req.user.role === 'OPERATOR') {
+    if (['OPERATOR', 'DOCTOR'].includes(req.user.role)) {
       if (input.flow !== PaymentFlow.CLINIC_WALK_IN) {
         throw new ForbiddenException(
           'Clinica pode criar apenas pagamentos presenciais.',
@@ -156,6 +156,7 @@ export class FinancialController {
         (await this.financialService.resolveClinicId(
           req.user.role,
           req.user.profileId,
+          req.user.workspaceClinicId,
         )) ?? undefined;
     }
     const data = await this.financialService.createPayment(input);
@@ -163,11 +164,11 @@ export class FinancialController {
   }
 
   @Patch('payments/:id/confirm')
-  @Roles('ADMIN', 'COMPANY_ADMIN', 'CLINIC', 'OPERATOR')
+  @Roles('ADMIN', 'COMPANY_ADMIN', 'OPERATOR', 'DOCTOR')
   async confirmPayment(
     @Param('id') id: string,
     @Body() body: { method?: string },
-    @Req() req: { user: { role: string; profileId?: string | null } },
+    @Req() req: { user: { role: string; profileId?: string | null; workspaceClinicId?: string | null } },
   ) {
     await this.financialService.assertPaymentAccess(id, req.user);
     const data = await this.financialService.confirmPayment(id, body.method);

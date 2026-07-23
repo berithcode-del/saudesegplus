@@ -28,7 +28,7 @@ export class ExamsController {
   }
 
   @Post()
-  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
+  @Roles('OPERATOR', 'DOCTOR')
   async create(
     @Body()
     body: {
@@ -36,7 +36,6 @@ export class ExamsController {
       examType?: string;
       valueJson?: Record<string, any>;
       attachmentUrl?: string;
-      operatorId?: string;
       results?: Array<{
         examType: string;
         valueJson: Record<string, any>;
@@ -59,8 +58,7 @@ export class ExamsController {
           item.examType,
           item.valueJson,
           item.attachmentUrl,
-          req.user,
-          body.operatorId,
+          req.user as any,
         ),
       ),
     );
@@ -68,14 +66,14 @@ export class ExamsController {
   }
 
   @Post(':id/send-to-queue')
-  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
-  async sendToQueue(@Param('id') examRequestId: string) {
-    await this.examsService.sendToMedicalQueue(examRequestId);
+  @Roles('OPERATOR', 'DOCTOR')
+  async sendToQueue(@Param('id') examRequestId: string, @Request() req: any) {
+    await this.examsService.sendToMedicalQueue(examRequestId, req.user);
     return { success: true };
   }
 
   @Post('create-patient')
-  @Roles('ADMIN', 'CLINIC', 'OPERATOR')
+  @Roles('OPERATOR', 'DOCTOR')
   async createPatient(
     @Body()
     body: {
@@ -88,8 +86,9 @@ export class ExamsController {
       inviteId?: string;
       paymentId: string;
     },
+    @Request() req: any,
   ) {
-    const result = await this.examsService.createPatient(body);
+    const result = await this.examsService.createPatient(body, req.user);
     return { success: true, data: result };
   }
 }

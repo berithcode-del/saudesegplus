@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma.service';
 import { QueueGateway } from '../queue/queue.gateway';
@@ -31,6 +31,30 @@ export class TeleconsultationController {
       include: { invite: true },
     });
     if (!examRequest) throw new BadRequestException('Solicitacao de exame nao encontrada.');
+
+    if (!['AGUARDANDO_COLETA', 'EM_ATENDIMENTO_MEDICO'].includes(examRequest.status)) {
+      await this.prisma.examTimelineEvent.create({
+        data: {
+          inviteId: examRequest.inviteId ?? null,
+          examRequestId: body.examRequestId,
+          eventType: 'TELECONSULTA_BLOQUEADA',
+          metadata: JSON.stringify({
+            reason: examRequest.status === 'CONCLUIDO' ? 'EXAM_CONCLUIDO' : 'EXAM_INDISPONIVEL',
+            status: examRequest.status,
+            doctorId,
+          }),
+        },
+      });
+      throw new ConflictException({
+        error: 'TELECONSULTATION_BLOCKED',
+        code: examRequest.status === 'CONCLUIDO' ? 'EXAM_CONCLUIDO' : 'EXAM_INDISPONIVEL',
+        message:
+          examRequest.status === 'CONCLUIDO'
+            ? 'Não é possível iniciar teleconsulta: atendimento já concluído.'
+            : 'Não é possível iniciar teleconsulta para este status de atendimento.',
+        examRequestId: body.examRequestId,
+      });
+    }
 
     const existingRoom = await this.prisma.teleconsultation.findFirst({
       where: { requestId: body.examRequestId },

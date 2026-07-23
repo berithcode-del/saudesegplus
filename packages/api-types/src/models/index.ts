@@ -73,7 +73,11 @@ export interface ExamResult {
   typeId: string;
   valueJson: string;
   attachmentUrl?: string;
-  collectedById: string;
+  collectedById?: string;
+  performedByType: 'OPERATOR' | 'DOCTOR' | 'CLINIC_ADMIN';
+  performedById: string;
+  performedByName: string;
+  actorSessionId?: string;
   collectedAt: string;
   source: ExamResultSource;
 }

@@ -244,8 +244,20 @@ export default function ConsultaPage() {
   }
 
   const anamnese = solicitacao?.patient?.anamneses?.[0];
+  const videoBlocked =
+    !!solicitacao &&
+    !["AGUARDANDO_COLETA", "EM_ATENDIMENTO_MEDICO"].includes(solicitacao.status);
+
+  useEffect(() => {
+    if (videoBlocked && workspaceMode === "video") setWorkspaceMode("aso");
+  }, [videoBlocked, workspaceMode]);
 
   const handleCreateRoom = async () => {
+    if (videoBlocked) {
+      setRoomError("Atendimento já concluído ou indisponível; não é possível iniciar teleconsulta.");
+      setWorkspaceMode("aso");
+      return;
+    }
     if (!doctorId) {
       setRoomError(
         "Nao foi possivel identificar o medico autenticado. Faca login novamente.",
@@ -484,9 +496,9 @@ export default function ConsultaPage() {
                 </div>
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setWorkspaceMode("video")}
+                  onClick={() => setWorkspaceMode(videoBlocked ? "aso" : "video")}
                 >
-                  Voltar para vídeo
+                  {videoBlocked ? "Voltar para ASO" : "Voltar para vídeo"}
                 </button>
               </div>
               <div
@@ -707,9 +719,9 @@ export default function ConsultaPage() {
                 </div>
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setWorkspaceMode("video")}
+                  onClick={() => setWorkspaceMode(videoBlocked ? "aso" : "video")}
                 >
-                  Voltar para vídeo
+                  {videoBlocked ? "Voltar para ASO" : "Voltar para vídeo"}
                 </button>
               </div>
               <div
@@ -750,6 +762,28 @@ export default function ConsultaPage() {
                   </div>
                 )}
               </div>
+            </div>
+          ) : videoBlocked ? (
+            <div style={{ textAlign: "center", padding: "24px", maxWidth: 440 }}>
+              <CheckCircleIcon
+                className="icon"
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  marginBottom: "16px",
+                  color: "#16a34a",
+                }}
+              />
+              <h2 style={{ fontSize: "20px", fontWeight: 800, marginBottom: "8px" }}>
+                Atendimento concluído
+              </h2>
+              <p style={{ color: "var(--text-secondary)", marginBottom: "20px", fontSize: "14px", lineHeight: 1.6 }}>
+                A área de vídeo fica desativada para atendimentos concluídos ou cancelados.
+              </p>
+              <button type="button" className="btn btn-primary" onClick={() => setWorkspaceMode("aso")}>
+                <DocumentTextIcon className="icon icon-sm" />
+                Ver ASO emitido
+              </button>
             </div>
           ) : !videoRoomUrl ? (
             <div style={{ textAlign: "center" }}>
@@ -959,10 +993,11 @@ export default function ConsultaPage() {
                 workspaceMode === "video" ? "btn btn-primary" : "btn btn-ghost"
               }
               style={{ width: "100%", justifyContent: "center" }}
-              onClick={() => setWorkspaceMode("video")}
+              onClick={() => setWorkspaceMode(videoBlocked ? "aso" : "video")}
+              disabled={videoBlocked}
             >
               <VideoCameraIcon className="icon icon-sm" />
-              Área de vídeo
+              {videoBlocked ? "Vídeo desativado" : "Área de vídeo"}
             </button>
             {(displayedAsoDocument || displayedAsoPdfUrl) && (
               <button

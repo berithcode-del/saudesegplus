@@ -8,11 +8,11 @@ import {
   ChartBarSquareIcon,
   ClockIcon,
   Cog6ToothIcon,
-  MagnifyingGlassIcon,
-  BellIcon,
   Cog8ToothIcon,
 } from '@heroicons/react/24/outline';
 import ChatWidget from '../../components/ChatWidget';
+import MedicalCommandPalette from '../../components/MedicalCommandPalette';
+import OperatorInboxButton from '../../components/OperatorInboxButton';
 import { apiGetMedicoProfile, getProfileIdFromToken } from '../../lib/api';
 
 interface DoctorProfileSummary {
@@ -35,7 +35,6 @@ export default function MedicoLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [search, setSearch] = useState('');
   const [doctorName, setDoctorName] = useState('Médico(a)');
   const [doctorSpecialty, setDoctorSpecialty] = useState('Clínico Geral');
   const [doctorGender, setDoctorGender] = useState<string | null>(null);
@@ -102,68 +101,10 @@ export default function MedicoLayout({
             marginBottom: '28px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              background: '#f4f5fb',
-              border: '1.5px solid #e5e7eb',
-              borderRadius: '999px',
-              padding: '10px 18px',
-              width: '280px',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <MagnifyingGlassIcon
-              style={{ width: 18, height: 18, color: '#9ca3af', flexShrink: 0 }}
-            />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                border: 'none',
-                outline: 'none',
-                background: 'transparent',
-                fontSize: '14px',
-                color: '#1e1b4b',
-                width: '100%',
-                fontFamily: 'inherit',
-              }}
-            />
-          </div>
+          <MedicalCommandPalette />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: '50%',
-                border: '1.5px solid #e5e7eb',
-                background: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                position: 'relative',
-              }}
-            >
-              <BellIcon style={{ width: 18, height: 18, color: '#6b7280' }} />
-              <span
-                style={{
-                  position: 'absolute',
-                  top: 6,
-                  right: 6,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#ef4444',
-                  border: '2px solid #fff',
-                }}
-              />
-            </button>
+            <OperatorInboxButton />
 
             <button
               style={{

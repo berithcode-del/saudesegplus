@@ -238,7 +238,7 @@ export class FinancialService {
 
   async assertPaymentAccess(
     paymentId: string,
-    user: { role: string; profileId?: string | null },
+    user: { role: string; profileId?: string | null; workspaceClinicId?: string | null },
   ) {
     if (user.role === 'ADMIN') return;
     const payment = await this.prisma.payment.findUnique({
@@ -249,7 +249,7 @@ export class FinancialService {
     if (user.role === 'COMPANY_ADMIN' && payment.companyId === user.profileId)
       return;
 
-    const clinicId = await this.resolveClinicId(user.role, user.profileId);
+    const clinicId = await this.resolveClinicId(user.role, user.profileId, user.workspaceClinicId);
     if (clinicId && payment.clinicId === clinicId) return;
     throw new ForbiddenException('Acesso restrito a este pagamento.');
   }
@@ -386,7 +386,8 @@ export class FinancialService {
     });
   }
 
-  async resolveClinicId(role: string, profileId?: string | null) {
+  async resolveClinicId(role: string, profileId?: string | null, workspaceClinicId?: string | null) {
+    if (role === 'DOCTOR') return workspaceClinicId ?? null;
     if (!profileId) return null;
     if (role === 'CLINIC') return profileId;
     if (role !== 'OPERATOR') return null;

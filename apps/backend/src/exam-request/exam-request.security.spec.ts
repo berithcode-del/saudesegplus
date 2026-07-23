@@ -22,6 +22,7 @@ describe('ExamRequestService access control', () => {
         {} as never,
         {} as never,
         {} as never,
+        {} as never,
       );
     }
 
